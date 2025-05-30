@@ -1,25 +1,44 @@
 PYTHON ?= python
+VENV ?= .venv
+VENV_BIN := $(VENV)/bin
+VENV_PYTHON := $(VENV_BIN)/python
+PIP := $(VENV_PYTHON) -m pip
+DEPS_STAMP := $(VENV)/.deps-installed
 
-.PHONY: bootstrap install test type lint format check
+.PHONY: first bootstrap install test type lint format check run-runner clean-venv
 
-bootstrap:
-	$(PYTHON) -m venv .venv
-	. .venv/bin/activate && python -m pip install -U pip setuptools wheel
-	. .venv/bin/activate && python -m pip install -U -e ".[dev]"
+$(VENV_PYTHON):
+	$(PYTHON) -m venv $(VENV)
 
-install:
-	$(PYTHON) -m pip install -U -e ".[dev]"
+$(DEPS_STAMP): pyproject.toml Makefile | $(VENV_PYTHON)
+	$(PIP) install -U pip setuptools wheel
+	$(PIP) install -U -e ".[dev]"
+	touch $(DEPS_STAMP)
 
-test:
-	pytest -q
+first: $(DEPS_STAMP)
+	@echo "Environment ready at $(VENV)."
+	@echo "Activate with: source $(VENV_BIN)/activate"
 
-type:
-	mypy src/
+bootstrap: first
 
-lint:
-	ruff check .
+install: $(DEPS_STAMP)
 
-format:
-	ruff format .
+test: $(DEPS_STAMP)
+	$(VENV_BIN)/pytest -q
+
+type: $(DEPS_STAMP)
+	$(VENV_BIN)/mypy src/
+
+lint: $(DEPS_STAMP)
+	$(VENV_BIN)/ruff check .
+
+format: $(DEPS_STAMP)
+	$(VENV_BIN)/ruff format .
 
 check: lint type test
+
+run-runner: | $(VENV_PYTHON)
+	$(VENV_PYTHON) runner.py
+
+clean-venv:
+	rm -rf $(VENV)
