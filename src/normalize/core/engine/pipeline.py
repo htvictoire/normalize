@@ -1,0 +1,357 @@
+"""Pipeline execution for engine PROFILE/APPLY modes."""
+
+from __future__ import annotations
+
+import json
+from concurrent.futures import Future, ThreadPoolExecutor
+from pathlib import Path
+from time import perf_counter
+from typing import Any
+
+from normalize.core.duckdb_manager import DuckDBManager, resolve_db_path
+from normalize.core.engine.background import run_profiling_background, write_parquets_background
+from normalize.core.engine.config import EngineConfig
+from normalize.core.engine.issues import build_issues, issue_to_dict
+from normalize.core.fingerprint import compute_fingerprint
+from normalize.core.quality import compute_quality_score
+from normalize.core.sql_helpers import read_columns
+from normalize.core.token_policy import TokenPolicy
+from normalize.core.transform import execute_combined_transform
+from normalize.stages.artifact_materialization import ArtifactMaterializationStage
+from normalize.stages.artifact_materialization.constants import AUDIT_OUTPUT_COLUMNS
+from normalize.stages.artifact_materialization.export import build_export_columns
+from normalize.stages.artifact_materialization.manifest import (
+    build_issue_summary,
+    build_manifest_payload,
+    write_manifest,
+)
+from normalize.stages.cell_normalization import CellNormalizationStage
+from normalize.stages.decision_evaluation import DecisionEvaluationStage, DecisionPolicy
+from normalize.stages.header_canonicalization import HeaderCanonicalizationStage
+from normalize.stages.ingestion import IngestionStage
+from normalize.stages.quality_metrics import QualityMetricsStage
+from normalize.stages.row_normalization import RowNormalizationStage
+from normalize.stages.shared_profiling import store_column_profiles
+from normalize.stages.type_inference import TypeInferenceStage
+from normalize.utils.checksums import sha256_file
+
+
+def run_pipeline(
+    *,
+    source_csv: Path,
+    output_root: Path,
+    effective: EngineConfig,
+    run_mode: str,
+    duckdb_memory_limit: str,
+) -> dict[str, Any]:
+    """Execute stage sequence and return engine result payload.
+
+    Stage order (compose+execute flow):
+    1. Ingestion — CSV → DuckDB table  (parallel with background profiling)
+    2. Header canonicalization — clean column names (metadata-only)
+    3. Type inference — profile columns, infer types (reads raw data)
+    4. Combined transform — row filter + cell normalization + indices in ONE pass
+    5. Quality metrics — aggregate quality from precomputed profile
+    6. Decision — READY / READY_WITH_WARNINGS / BLOCKED
+    7. Artifact materialization — Parquet + manifest + trace (APPLY only)
+    """
+    stage_seconds: dict[str, float] = {}
+    stage_metrics: dict[str, dict[str, Any]] = {}
+    artifacts: dict[str, str] | None = None
+
+    token_kwargs = {
+        "null_tokens": list(effective.null_tokens),
+        "boolean_true_tokens": list(effective.boolean_true_tokens),
+        "boolean_false_tokens": list(effective.boolean_false_tokens),
+    }
+
+    token_policy = TokenPolicy.from_user_inputs(
+        null_tokens=token_kwargs["null_tokens"],
+        boolean_true_tokens=token_kwargs["boolean_true_tokens"],
+        boolean_false_tokens=token_kwargs["boolean_false_tokens"],
+    )
+
+    db_path = resolve_db_path(effective.duckdb_path)
+
+    with DuckDBManager(
+        memory_limit=duckdb_memory_limit,
+        threads=effective.threads,
+        database=db_path,
+    ) as conn:
+        # ------------------------------------------------------------------
+        # Run profiling on a separate in-memory DuckDB
+        # connection in parallel with ingestion + header canonicalization.
+        # ------------------------------------------------------------------
+        with ThreadPoolExecutor(max_workers=1) as profile_pool:
+            profile_future = profile_pool.submit(
+                run_profiling_background,
+                source_csv,
+                effective.header_mode,
+                effective.header_row_index,
+                effective.encoding,
+                effective.delimiter,
+                token_policy,
+            )
+
+            # 1. Ingestion (runs while profiling happens in background)
+            ingestion = IngestionStage()
+            ingestion_result = ingestion.execute(
+                conn,
+                source_csv,
+                header_mode=effective.header_mode,
+                header_row_index=effective.header_row_index,
+                encoding=effective.encoding,
+                delimiter=effective.delimiter,
+            )
+            stage_seconds["ingestion"] = float(ingestion.metrics.get("duration_seconds", 0.0))
+            stage_metrics["ingestion"] = dict(ingestion.metrics)
+
+            # 2. Header canonicalization (metadata-only, no data copy)
+            header = HeaderCanonicalizationStage()
+            header.execute(conn)
+            stage_seconds["header_canonicalization"] = float(
+                header.metrics.get("duration_seconds", 0.0)
+            )
+            stage_metrics["header_canonicalization"] = dict(header.metrics)
+
+            # Wait for background profiling to complete
+            bg_profiles = profile_future.result()
+
+        # Store background profiles on main connection so type inference
+        # finds the cached table and skips recomputation.
+        store_column_profiles(conn, bg_profiles)
+
+        # 3. Type inference (finds cached profiles → instant)
+        type_inference = TypeInferenceStage(
+            numeric_threshold=effective.type_inference_numeric_threshold,
+            boolean_threshold=effective.type_inference_boolean_threshold,
+        )
+        inferred_types = type_inference.execute(conn, **token_kwargs)
+        stage_seconds["type_inference"] = float(
+            type_inference.metrics.get("duration_seconds", 0.0)
+        )
+        stage_metrics["type_inference"] = dict(type_inference.metrics)
+
+        # 4. Combined transform: plan row + cell, compose SQL, execute once
+        row_norm = RowNormalizationStage(
+            assign_indices=effective.assign_indices,
+            drop_empty_rows=effective.drop_empty_rows,
+        )
+        row_plan = row_norm.plan(conn)
+
+        cell_norm = CellNormalizationStage()
+        cell_plan = cell_norm.plan(
+            conn,
+            inferred_types,
+            full_raw_row=effective.full_raw_row,
+            emit_raw_row=effective.emit_raw_row,
+            emit_parse_issues=effective.emit_parse_issues,
+            **token_kwargs,
+        )
+
+        transform_result = execute_combined_transform(conn, row_plan, cell_plan)
+        stage_seconds["combined_transform"] = float(transform_result["duration_seconds"])
+        stage_metrics["combined_transform"] = {str(k): v for k, v in transform_result.items()}
+
+        # Compute fingerprint early — needed before artifact writes start
+        duckdb_version = str(conn.execute("SELECT version()").fetchone()[0])
+        replay_config = _build_replay_config(effective)
+        config_json = json.dumps(replay_config, sort_keys=True, separators=(",", ":"))
+        fingerprint = compute_fingerprint(
+            ingestion_result.file_checksum,
+            config_json,
+            effective.rules_version,
+            duckdb_version,
+        )
+
+        # ------------------------------------------------------------------
+        # For APPLY + file-backed DB, start parquet writes
+        # on a read-only connection while quality metrics + decision run on
+        # the main connection.
+        # ------------------------------------------------------------------
+        use_overlapped_artifacts = run_mode == "APPLY" and db_path != ":memory:"
+        write_future: Future[dict[str, float]] | None = None
+        _artifact_pool: ThreadPoolExecutor | None = None
+
+        if use_overlapped_artifacts:
+            table_columns = read_columns(conn, "raw_input")
+            export_columns = build_export_columns(table_columns)
+            data_columns = [c for c in export_columns if c not in AUDIT_OUTPUT_COLUMNS]
+            output_root.mkdir(parents=True, exist_ok=True)
+
+            _artifact_pool = ThreadPoolExecutor(max_workers=1)
+            write_future = _artifact_pool.submit(
+                write_parquets_background,
+                db_path,
+                output_root,
+                fingerprint,
+                effective.trace_mode,
+                "raw_input",
+                export_columns,
+                data_columns,
+                table_columns,
+            )
+
+        try:
+            # 5. Quality metrics
+            quality = QualityMetricsStage()
+            quality_result = quality.execute(
+                conn,
+                include_unique_ratio=effective.include_unique_ratio,
+                include_per_column_parse_error_counts=effective.include_per_column_parse_error_counts,
+                approximate_unique=effective.approximate_unique,
+                **token_kwargs,
+            )
+            stage_seconds["quality_metrics"] = float(
+                quality.metrics.get("duration_seconds", 0.0)
+            )
+            stage_metrics["quality_metrics"] = dict(quality.metrics)
+
+            # 6. Decision
+            quality_score = compute_quality_score(
+                float(quality_result["parse_success_ratio"]),
+                float(quality_result["completeness_ratio"]),
+            )
+            issues = build_issues(quality_result)
+            decision_policy = DecisionPolicy.from_inputs(
+                ready_threshold=effective.decision_ready_threshold,
+                warning_threshold=effective.decision_warning_threshold,
+            )
+            decision = DecisionEvaluationStage(policy=decision_policy)
+            status = decision.execute(quality_score, issues)
+            stage_seconds["decision_evaluation"] = float(
+                decision.metrics.get("duration_seconds", 0.0)
+            )
+            stage_metrics["decision_evaluation"] = dict(decision.metrics)
+
+            # 7. Artifact materialization (APPLY only)
+            if write_future is not None:
+                # Overlapped path: wait for background parquet writes, then
+                # compute checksums + build manifest sequentially.
+                artifact_start = perf_counter()
+                write_timing = write_future.result()
+
+                normalized_path = output_root / f"{fingerprint}.parquet"
+                trace_path = output_root / f"{fingerprint}.trace.parquet"
+                manifest_path = output_root / f"{fingerprint}.manifest.json"
+
+                section_start = perf_counter()
+                normalized_checksum = sha256_file(normalized_path)
+                trace_checksum = sha256_file(trace_path)
+                checksum_seconds = perf_counter() - section_start
+
+                issue_dicts = [issue_to_dict(issue) for issue in issues]
+                issue_summary = build_issue_summary(issue_dicts)
+                quality_summary = {
+                    "quality_score": float(quality_score),
+                    "parse_success_ratio": quality_result["parse_success_ratio"],
+                    "completeness_ratio": quality_result["completeness_ratio"],
+                    "row_count": quality_result["row_count"],
+                    "total_parse_error_cells": quality_result["total_parse_error_cells"],
+                    "total_nullish_cells": quality_result["total_nullish_cells"],
+                }
+                normalized_rows = int(quality_result["row_count"])
+
+                section_start = perf_counter()
+                manifest = build_manifest_payload(
+                    fingerprint=fingerprint,
+                    source_checksums={"source_file": ingestion_result.file_checksum},
+                    stage_metrics=stage_metrics,
+                    quality_summary=quality_summary,
+                    issue_summary=issue_summary,
+                    normalized_checksum=normalized_checksum,
+                    trace_checksum=trace_checksum,
+                    effective_config=replay_config,
+                    rules_version=effective.rules_version,
+                    duckdb_version=duckdb_version,
+                    normalized_path=normalized_path,
+                    trace_path=trace_path,
+                    manifest_path=manifest_path,
+                )
+                write_manifest(manifest_path, manifest)
+                manifest_seconds = perf_counter() - section_start
+
+                artifact_duration = perf_counter() - artifact_start
+                stage_seconds["artifact_materialization"] = artifact_duration
+                stage_metrics["artifact_materialization"] = {
+                    "duration_seconds": artifact_duration,
+                    "normalized_rows": normalized_rows,
+                    "trace_rows": normalized_rows * len(data_columns),
+                    "trace_mode": effective.trace_mode,
+                    "normalized_path": str(normalized_path),
+                    "trace_path": str(trace_path),
+                    "manifest_path": str(manifest_path),
+                    "checksum_seconds": checksum_seconds,
+                    "manifest_write_seconds": manifest_seconds,
+                    **write_timing,
+                }
+
+                artifacts = {
+                    "normalized_parquet": str(normalized_path),
+                    "manifest_json": str(manifest_path),
+                    "trace_parquet": str(trace_path),
+                }
+
+            elif run_mode == "APPLY":
+                # Sequential fallback for :memory: databases
+                artifact_stage = ArtifactMaterializationStage()
+                artifacts = artifact_stage.execute(
+                    conn,
+                    output_dir=output_root,
+                    fingerprint=fingerprint,
+                    trace_mode=effective.trace_mode,
+                    source_checksums={"source_file": ingestion_result.file_checksum},
+                    stage_metrics=stage_metrics,
+                    quality_summary={
+                        "quality_score": float(quality_score),
+                        "parse_success_ratio": quality_result["parse_success_ratio"],
+                        "completeness_ratio": quality_result["completeness_ratio"],
+                        "row_count": quality_result["row_count"],
+                        "total_parse_error_cells": quality_result["total_parse_error_cells"],
+                        "total_nullish_cells": quality_result["total_nullish_cells"],
+                    },
+                    issues=[issue_to_dict(issue) for issue in issues],
+                    effective_config=replay_config,
+                    rules_version=effective.rules_version,
+                )
+                stage_seconds["artifact_materialization"] = float(
+                    artifact_stage.metrics.get("duration_seconds", 0.0)
+                )
+                stage_metrics["artifact_materialization"] = dict(artifact_stage.metrics)
+        finally:
+            if _artifact_pool is not None:
+                _artifact_pool.shutdown(wait=True)
+
+    return {
+        "status": status.value,
+        "quality_score": float(quality_score),
+        "issues": [issue_to_dict(issue) for issue in issues],
+        "fingerprint": fingerprint,
+        "artifacts": artifacts if run_mode == "APPLY" else None,
+        "stage_seconds": stage_seconds,
+    }
+
+
+def _build_replay_config(effective: EngineConfig) -> dict[str, Any]:
+    return {
+        "header_mode": effective.header_mode.value,
+        "header_row_index": effective.header_row_index,
+        "encoding": effective.encoding,
+        "delimiter": effective.delimiter,
+        "null_tokens": list(effective.null_tokens),
+        "boolean_true_tokens": list(effective.boolean_true_tokens),
+        "boolean_false_tokens": list(effective.boolean_false_tokens),
+        "type_inference_numeric_threshold": effective.type_inference_numeric_threshold,
+        "type_inference_boolean_threshold": effective.type_inference_boolean_threshold,
+        "assign_indices": effective.assign_indices,
+        "drop_empty_rows": effective.drop_empty_rows,
+        "full_raw_row": effective.full_raw_row,
+        "emit_raw_row": effective.emit_raw_row,
+        "emit_parse_issues": effective.emit_parse_issues,
+        "include_unique_ratio": effective.include_unique_ratio,
+        "include_per_column_parse_error_counts": effective.include_per_column_parse_error_counts,
+        "approximate_unique": effective.approximate_unique,
+        "decision_ready_threshold": effective.decision_ready_threshold,
+        "decision_warning_threshold": effective.decision_warning_threshold,
+        "trace_mode": effective.trace_mode,
+    }
