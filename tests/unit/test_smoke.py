@@ -1,4 +1,4 @@
-from normalization_engine import __version__
+from normalize import __version__
 
 
 def test_package_imports() -> None:
