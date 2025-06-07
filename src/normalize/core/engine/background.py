@@ -13,7 +13,7 @@ from normalize.stages.artifact_materialization.export import (
     write_normalized_parquet,
 )
 from normalize.stages.artifact_materialization.trace import write_trace_parquet
-from normalize.stages.header_canonicalization import canonicalize_headers
+from normalize.stages.header_canonicalization import canonicalize_header_sequence
 from normalize.stages.ingestion.contracts import HeaderMode
 from normalize.stages.ingestion.csv.options import (
     resolve_delimiter_option,
@@ -33,6 +33,9 @@ def run_profiling_background(
     encoding: str,
     delimiter: str,
     token_policy: TokenPolicy,
+    decimal_separator: str,
+    thousand_separator: str,
+    allow_leading_decimal_point: bool,
 ) -> dict[str, ColumnProfile]:
     """Run column profiling on a separate in-memory DuckDB connection.
 
@@ -53,8 +56,12 @@ def run_profiling_background(
         )
 
         columns = read_columns(conn, "_prof")
-        mapping = canonicalize_headers(columns)
-        rename_pairs = [(raw, canon) for raw, canon in mapping.items() if raw != canon]
+        canonical_columns = canonicalize_header_sequence(columns)
+        rename_pairs = [
+            (raw, canon)
+            for raw, canon in zip(columns, canonical_columns, strict=False)
+            if raw != canon
+        ]
         if rename_pairs:
             conn.execute("BEGIN TRANSACTION")
             try:
@@ -69,7 +76,12 @@ def run_profiling_background(
                 raise
 
         return compute_and_store_column_profiles(
-            conn, table_name="_prof", token_policy=token_policy
+            conn,
+            table_name="_prof",
+            token_policy=token_policy,
+            decimal_separator=decimal_separator,
+            thousand_separator=thousand_separator,
+            allow_leading_decimal_point=allow_leading_decimal_point,
         )
     finally:
         conn.close()

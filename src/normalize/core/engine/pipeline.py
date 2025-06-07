@@ -91,6 +91,9 @@ def run_pipeline(
                 effective.encoding,
                 effective.delimiter,
                 token_policy,
+                effective.decimal_separator,
+                effective.thousand_separator,
+                effective.allow_leading_decimal_point,
             )
 
             # 1. Ingestion (runs while profiling happens in background)
@@ -109,6 +112,9 @@ def run_pipeline(
             # 2. Header canonicalization (metadata-only, no data copy)
             header = HeaderCanonicalizationStage()
             header.execute(conn)
+            position_to_canonical = dict(
+                getattr(header, "position_to_canonical", {})
+            )
             stage_seconds["header_canonicalization"] = float(
                 header.metrics.get("duration_seconds", 0.0)
             )
@@ -126,7 +132,16 @@ def run_pipeline(
             numeric_threshold=effective.type_inference_numeric_threshold,
             boolean_threshold=effective.type_inference_boolean_threshold,
         )
-        inferred_types = type_inference.execute(conn, **token_kwargs)
+        inferred_types = type_inference.execute(
+            conn,
+            decimal_separator=effective.decimal_separator,
+            thousand_separator=effective.thousand_separator,
+            allow_leading_decimal_point=effective.allow_leading_decimal_point,
+            date_formats=effective.date_formats,
+            position_to_canonical=position_to_canonical,
+            **token_kwargs,
+        )
+        type_inference_issues = list(getattr(type_inference, "detected_issues", []))
         stage_seconds["type_inference"] = float(
             type_inference.metrics.get("duration_seconds", 0.0)
         )
@@ -143,6 +158,11 @@ def run_pipeline(
         cell_plan = cell_norm.plan(
             conn,
             inferred_types,
+            decimal_separator=effective.decimal_separator,
+            thousand_separator=effective.thousand_separator,
+            allow_leading_decimal_point=effective.allow_leading_decimal_point,
+            date_formats=effective.date_formats,
+            position_to_canonical=position_to_canonical,
             full_raw_row=effective.full_raw_row,
             emit_raw_row=effective.emit_raw_row,
             emit_parse_issues=effective.emit_parse_issues,
@@ -200,6 +220,9 @@ def run_pipeline(
                 include_unique_ratio=effective.include_unique_ratio,
                 include_per_column_parse_error_counts=effective.include_per_column_parse_error_counts,
                 approximate_unique=effective.approximate_unique,
+                decimal_separator=effective.decimal_separator,
+                thousand_separator=effective.thousand_separator,
+                allow_leading_decimal_point=effective.allow_leading_decimal_point,
                 **token_kwargs,
             )
             stage_seconds["quality_metrics"] = float(
@@ -212,7 +235,7 @@ def run_pipeline(
                 float(quality_result["parse_success_ratio"]),
                 float(quality_result["completeness_ratio"]),
             )
-            issues = build_issues(quality_result)
+            issues = [*type_inference_issues, *build_issues(quality_result)]
             decision_policy = DecisionPolicy.from_inputs(
                 ready_threshold=effective.decision_ready_threshold,
                 warning_threshold=effective.decision_warning_threshold,
@@ -338,6 +361,10 @@ def _build_replay_config(effective: EngineConfig) -> dict[str, Any]:
         "header_row_index": effective.header_row_index,
         "encoding": effective.encoding,
         "delimiter": effective.delimiter,
+        "decimal_separator": effective.decimal_separator,
+        "thousand_separator": effective.thousand_separator,
+        "allow_leading_decimal_point": effective.allow_leading_decimal_point,
+        "date_formats": dict(effective.date_formats),
         "null_tokens": list(effective.null_tokens),
         "boolean_true_tokens": list(effective.boolean_true_tokens),
         "boolean_false_tokens": list(effective.boolean_false_tokens),
