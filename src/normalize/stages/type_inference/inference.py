@@ -18,7 +18,7 @@ def infer_column_type(
     - empty -> string
     - boolean if boolean ratio >= boolean_threshold
     - integer if integer ratio >= numeric_threshold
-    - float if float ratio >= numeric_threshold
+    - decimal if decimal ratio >= numeric_threshold
     - otherwise string
     """
     if profile.non_empty_count <= 0:
@@ -27,6 +27,6 @@ def infer_column_type(
         return "boolean"
     if profile.int_ratio >= numeric_threshold:
         return "integer"
-    if profile.float_ratio >= numeric_threshold:
-        return "float"
+    if profile.decimal_ratio >= numeric_threshold:
+        return "decimal"
     return "string"

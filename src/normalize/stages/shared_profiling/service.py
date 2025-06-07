@@ -23,6 +23,9 @@ def ensure_column_profiles(
     table_name: str = "raw_input",
     profile_table_name: str = DEFAULT_PROFILE_TABLE_NAME,
     token_policy: TokenPolicy,
+    decimal_separator: str,
+    thousand_separator: str,
+    allow_leading_decimal_point: bool,
 ) -> dict[str, ColumnProfile]:
     """
     Load cached column profiles when present; otherwise compute and store.
@@ -37,6 +40,9 @@ def ensure_column_profiles(
         table_name=table_name,
         profile_table_name=profile_table_name,
         token_policy=token_policy,
+        decimal_separator=decimal_separator,
+        thousand_separator=thousand_separator,
+        allow_leading_decimal_point=allow_leading_decimal_point,
     )
 
 
@@ -57,6 +63,7 @@ def store_column_profiles(
             bool_match_count BIGINT,
             int_match_count BIGINT,
             float_match_count BIGINT,
+            swapped_float_match_count BIGINT,
             nullish_count BIGINT
         )
         """
@@ -70,6 +77,7 @@ def store_column_profiles(
                 p.bool_match_count,
                 p.int_match_count,
                 p.float_match_count,
+                p.swapped_float_match_count,
                 p.nullish_count,
             )
             for p in profiles.values()
@@ -78,8 +86,8 @@ def store_column_profiles(
             f"""
             INSERT INTO {profile_table_name}
                 (column_name, row_count, non_empty_count, bool_match_count, int_match_count,
-                 float_match_count, nullish_count)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+                 float_match_count, swapped_float_match_count, nullish_count)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """,
             rows,
         )
@@ -91,6 +99,9 @@ def compute_and_store_column_profiles(
     table_name: str = "raw_input",
     profile_table_name: str = DEFAULT_PROFILE_TABLE_NAME,
     token_policy: TokenPolicy,
+    decimal_separator: str,
+    thousand_separator: str,
+    allow_leading_decimal_point: bool,
 ) -> dict[str, ColumnProfile]:
     """
     Compute per-column counters in one aggregate scan and persist profile table.
@@ -109,13 +120,21 @@ def compute_and_store_column_profiles(
                 bool_match_count BIGINT,
                 int_match_count BIGINT,
                 float_match_count BIGINT,
+                swapped_float_match_count BIGINT,
                 nullish_count BIGINT
             )
             """
         )
         return {}
 
-    query = build_profile_query(columns, table_name=table_name, token_policy=token_policy)
+    query = build_profile_query(
+        columns,
+        table_name=table_name,
+        token_policy=token_policy,
+        decimal_separator=decimal_separator,
+        thousand_separator=thousand_separator,
+        allow_leading_decimal_point=allow_leading_decimal_point,
+    )
     row = conn.execute(query).fetchone()
     if row is None:
         raise RuntimeError("profile query returned no rows")
@@ -129,8 +148,9 @@ def compute_and_store_column_profiles(
         bool_match_count = int(row[offset + 1])
         int_match_count = int(row[offset + 2])
         float_match_count = int(row[offset + 3])
-        nullish_count = int(row[offset + 4])
-        offset += 5
+        swapped_float_match_count = int(row[offset + 4])
+        nullish_count = int(row[offset + 5])
+        offset += 6
 
         profiles[column_name] = ColumnProfile(
             column_name=column_name,
@@ -139,6 +159,7 @@ def compute_and_store_column_profiles(
             bool_match_count=bool_match_count,
             int_match_count=int_match_count,
             float_match_count=float_match_count,
+            swapped_float_match_count=swapped_float_match_count,
             nullish_count=nullish_count,
         )
 
@@ -162,6 +183,7 @@ def read_column_profiles(
             bool_match_count,
             int_match_count,
             float_match_count,
+            swapped_float_match_count,
             nullish_count
         FROM {profile_table_name}
         ORDER BY column_name
@@ -177,7 +199,8 @@ def read_column_profiles(
             bool_match_count=int(row[3]),
             int_match_count=int(row[4]),
             float_match_count=int(row[5]),
-            nullish_count=int(row[6]),
+            swapped_float_match_count=int(row[6]),
+            nullish_count=int(row[7]),
         )
         profiles[profile.column_name] = profile
     return profiles

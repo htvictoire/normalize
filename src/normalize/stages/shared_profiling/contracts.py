@@ -24,6 +24,7 @@ class ColumnProfile:
     bool_match_count: int
     int_match_count: int
     float_match_count: int
+    swapped_float_match_count: int
     nullish_count: int
 
     @property
@@ -37,6 +38,18 @@ class ColumnProfile:
     @property
     def float_ratio(self) -> float:
         return _safe_ratio(self.float_match_count, self.non_empty_count)
+
+    @property
+    def decimal_ratio(self) -> float:
+        return self.float_ratio
+
+    @property
+    def swapped_float_ratio(self) -> float:
+        return _safe_ratio(self.swapped_float_match_count, self.non_empty_count)
+
+    @property
+    def swapped_decimal_ratio(self) -> float:
+        return self.swapped_float_ratio
 
     @property
     def null_ratio(self) -> float:
