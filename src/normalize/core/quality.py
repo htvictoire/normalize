@@ -19,11 +19,11 @@ def compute_quality_score(
     Compute weighted quality score using deterministic Decimal arithmetic.
 
     Score formula:
-    - 0.25 parse_success
-    - 0.25 pattern_consistency
-    - 0.20 anomaly_ratio
-    - 0.15 schema_stability
-    - 0.15 completeness
+    - 0.50 parse_success
+    - 0.50 completeness
+    - 0.00 pattern_consistency (stubbed)
+    - 0.00 anomaly_ratio (stubbed)
+    - 0.00 schema_stability (stubbed)
     """
     parse_success = _ratio_decimal(parse_success_ratio)
     completeness = _ratio_decimal(completeness_ratio)
@@ -32,11 +32,11 @@ def compute_quality_score(
     schema_stability = _ratio_decimal(schema_stability_ratio)
 
     score = (
-        Decimal("0.25") * parse_success
-        + Decimal("0.25") * pattern_consistency
-        + Decimal("0.20") * anomaly
-        + Decimal("0.15") * schema_stability
-        + Decimal("0.15") * completeness
+        Decimal("0.50") * parse_success
+        + Decimal("0.50") * completeness
+        + Decimal("0.00") * pattern_consistency
+        + Decimal("0.00") * anomaly
+        + Decimal("0.00") * schema_stability
     ) * HUNDRED
     return score
 

@@ -12,12 +12,12 @@ def test_quality_score_ready_boundary() -> None:
 
 def test_quality_score_ready_with_warnings_range() -> None:
     score = compute_quality_score(0.9, 0.9)
-    assert score == Decimal("96.000")
+    assert score == Decimal("90.000")
 
 
 def test_quality_score_blocked_range() -> None:
     score = compute_quality_score(0.5, 0.5)
-    assert score == Decimal("80.000")
+    assert score == Decimal("50.000")
 
 
 def test_quality_score_rejects_invalid_ratio() -> None:
