@@ -69,7 +69,10 @@ def build_column_exprs(
     if inferred_type == "date":
         if date_format is None:
             raise ValueError(f"MISSING_DATE_FORMAT:{column_name}")
-        parsed_date = f"TRY_CAST(TRY_STRPTIME({raw_value}, {quote_string(date_format)}) AS DATE)"
+        if date_format == "EXCEL_SERIAL":
+            parsed_date = f"(DATE '1899-12-30' + TRY_CAST({raw_value} AS INTEGER))"
+        else:
+            parsed_date = f"TRY_CAST(TRY_STRPTIME({raw_value}, {quote_string(date_format)}) AS DATE)"
         normalized = f"CASE WHEN {nullish_predicate} THEN NULL ELSE {parsed_date} END"
         issue = (
             f"CASE WHEN {nullish_predicate} THEN NULL "

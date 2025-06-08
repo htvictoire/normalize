@@ -76,6 +76,8 @@ def _validate_date_formats_with_duckdb(date_formats: Mapping[str, str]) -> None:
     conn = duckdb.connect(":memory:")
     try:
         for position_key, format_string in date_formats.items():
+            if format_string == "EXCEL_SERIAL":
+                continue
             if _DATE_DIRECTIVE_PATTERN.search(format_string) is None:
                 raise ValueError(
                     f"date_formats[{position_key!r}] must contain at least one strptime directive"
