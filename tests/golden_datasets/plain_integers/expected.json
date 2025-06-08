@@ -1,0 +1,17 @@
+{
+  "name": "plain_integers",
+  "config": {
+    "decimal_separator": ";",
+    "thousand_separator": ":",
+    "date_formats": {},
+    "allow_leading_decimal_point": true
+  },
+  "expected": {
+    "inferred_types": {
+      "quantity": "integer",
+      "note": "string"
+    },
+    "issue_codes": [],
+    "status": "READY"
+  }
+}

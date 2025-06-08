@@ -1,0 +1,20 @@
+{
+  "name": "explicit_dates",
+  "config": {
+    "decimal_separator": ".",
+    "thousand_separator": ",",
+    "date_formats": {
+      "A": "%d/%m/%Y"
+    },
+    "allow_leading_decimal_point": true
+  },
+  "expected": {
+    "inferred_types": {
+      "date": "date",
+      "date_1": "string",
+      "amount": "integer"
+    },
+    "issue_codes": [],
+    "status": "READY"
+  }
+}

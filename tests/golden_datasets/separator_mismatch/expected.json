@@ -1,0 +1,23 @@
+{
+  "name": "separator_mismatch",
+  "config": {
+    "decimal_separator": ".",
+    "thousand_separator": ",",
+    "date_formats": {
+      "B": "%d/%m/%Y"
+    },
+    "allow_leading_decimal_point": true
+  },
+  "expected": {
+    "inferred_types": {
+      "amount": "string",
+      "declared_date": "date"
+    },
+    "issue_codes": [
+      "SEPARATOR_MISMATCH",
+      "PARSE_ERRORS_PRESENT"
+    ],
+    "status": "READY_WITH_WARNINGS",
+    "quality_score_assertion": "< 95"
+  }
+}
