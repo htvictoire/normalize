@@ -181,3 +181,227 @@ def test_cell_normalization_can_disable_audit_json_payloads() -> None:
             """
         ).fetchall()
         assert rows == [(None, 1, None, None), (2, 0, None, None)]
+
+
+def test_cell_normalization_normalizes_decimal_with_declared_separators() -> None:
+    stage = CellNormalizationStage()
+    with DuckDBManager() as conn:
+        conn.execute(
+            """
+            CREATE TABLE raw_input (
+                amount VARCHAR,
+                _row_index BIGINT,
+                _global_row_index BIGINT
+            )
+            """
+        )
+        conn.execute(
+            """
+            INSERT INTO raw_input VALUES
+                ('1.234,56', 1, 1),
+                ('2.000,10', 2, 2)
+            """
+        )
+        stage.execute(
+            conn,
+            {"amount": "decimal"},
+            decimal_separator=",",
+            thousand_separator=".",
+            **TOKEN_ARGS,
+        )
+        rows = conn.execute("SELECT amount FROM raw_input ORDER BY _row_index").fetchall()
+        assert rows == [(1234.56,), (2000.1,)]
+
+
+def test_cell_normalization_parses_declared_dates_and_flags_invalid_date() -> None:
+    stage = CellNormalizationStage()
+    with DuckDBManager() as conn:
+        conn.execute(
+            """
+            CREATE TABLE raw_input (
+                tx_date VARCHAR,
+                _row_index BIGINT,
+                _global_row_index BIGINT
+            )
+            """
+        )
+        conn.execute(
+            """
+            INSERT INTO raw_input VALUES
+                ('31/12/2025', 1, 1),
+                ('invalid', 2, 2)
+            """
+        )
+        stage.execute(
+            conn,
+            {"tx_date": "date"},
+            date_formats={"A": "%d/%m/%Y"},
+            position_to_canonical={"A": "tx_date"},
+            **TOKEN_ARGS,
+        )
+        rows = conn.execute(
+            """
+            SELECT tx_date, _parse_error_count, _parse_issues
+            FROM raw_input
+            ORDER BY _row_index
+            """
+        ).fetchall()
+        assert str(rows[0][0]) == "2025-12-31"
+        assert rows[0][1] == 0
+        assert rows[1][0] is None
+        assert rows[1][1] == 1
+        issue_payload = json.loads(rows[1][2])
+        assert issue_payload["tx_date"] == "INVALID_DATE"
+
+
+def test_cell_normalization_leading_decimal_point_toggle() -> None:
+    stage = CellNormalizationStage()
+    with DuckDBManager() as conn:
+        conn.execute(
+            """
+            CREATE TABLE raw_input (
+                amount VARCHAR,
+                _row_index BIGINT,
+                _global_row_index BIGINT
+            )
+            """
+        )
+        conn.execute("INSERT INTO raw_input VALUES ('.5', 1, 1)")
+
+        stage.execute(
+            conn,
+            {"amount": "decimal"},
+            decimal_separator=".",
+            thousand_separator=",",
+            allow_leading_decimal_point=False,
+            **TOKEN_ARGS,
+        )
+        strict_row = conn.execute(
+            "SELECT amount, _parse_error_count, _parse_issues FROM raw_input"
+        ).fetchone()
+        assert strict_row is not None
+        assert strict_row[0] is None
+        assert strict_row[1] == 1
+        strict_issues = json.loads(strict_row[2])
+        assert strict_issues["amount"] == "INVALID_DECIMAL"
+
+    with DuckDBManager() as conn:
+        conn.execute(
+            """
+            CREATE TABLE raw_input (
+                amount VARCHAR,
+                _row_index BIGINT,
+                _global_row_index BIGINT
+            )
+            """
+        )
+        conn.execute("INSERT INTO raw_input VALUES ('.5', 1, 1)")
+        stage.execute(
+            conn,
+            {"amount": "decimal"},
+            decimal_separator=".",
+            thousand_separator=",",
+            allow_leading_decimal_point=True,
+            **TOKEN_ARGS,
+        )
+        relaxed_row = conn.execute(
+            "SELECT amount, _parse_error_count FROM raw_input"
+        ).fetchone()
+        assert relaxed_row == (0.5, 0)
+
+
+def test_cell_normalization_resolves_date_formats_by_table_order() -> None:
+    stage = CellNormalizationStage()
+    with DuckDBManager() as conn:
+        conn.execute(
+            """
+            CREATE TABLE raw_input (
+                tx_date VARCHAR,
+                value VARCHAR,
+                _row_index BIGINT,
+                _global_row_index BIGINT
+            )
+            """
+        )
+        conn.execute(
+            """
+            INSERT INTO raw_input VALUES
+                ('31/12/2025', 'ok', 1, 1)
+            """
+        )
+        stage.execute(
+            conn,
+            {"tx_date": "date", "value": "string"},
+            date_formats={"A": "%d/%m/%Y"},
+            **TOKEN_ARGS,
+        )
+        row = conn.execute("SELECT tx_date, _parse_error_count FROM raw_input").fetchone()
+        assert row is not None
+        assert str(row[0]) == "2025-12-31"
+        assert row[1] == 0
+
+
+def test_cell_normalization_supports_trailing_decimal_and_plus_sign() -> None:
+    stage = CellNormalizationStage()
+    with DuckDBManager() as conn:
+        conn.execute(
+            """
+            CREATE TABLE raw_input (
+                amount VARCHAR,
+                _row_index BIGINT,
+                _global_row_index BIGINT
+            )
+            """
+        )
+        conn.execute(
+            """
+            INSERT INTO raw_input VALUES
+                ('5.', 1, 1),
+                ('+1.5', 2, 2)
+            """
+        )
+        stage.execute(
+            conn,
+            {"amount": "decimal"},
+            decimal_separator=".",
+            thousand_separator=",",
+            allow_leading_decimal_point=True,
+            **TOKEN_ARGS,
+        )
+        rows = conn.execute(
+            "SELECT amount, _parse_error_count FROM raw_input ORDER BY _row_index"
+        ).fetchall()
+        assert rows == [(5.0, 0), (1.5, 0)]
+
+
+def test_cell_normalization_with_empty_thousand_separator() -> None:
+    stage = CellNormalizationStage()
+    with DuckDBManager() as conn:
+        conn.execute(
+            """
+            CREATE TABLE raw_input (
+                amount VARCHAR,
+                _row_index BIGINT,
+                _global_row_index BIGINT
+            )
+            """
+        )
+        conn.execute(
+            """
+            INSERT INTO raw_input VALUES
+                ('5.5', 1, 1),
+                ('1000', 2, 2)
+            """
+        )
+        stage.execute(
+            conn,
+            {"amount": "decimal"},
+            decimal_separator=".",
+            thousand_separator="",
+            allow_leading_decimal_point=True,
+            **TOKEN_ARGS,
+        )
+        rows = conn.execute(
+            "SELECT amount, _parse_error_count FROM raw_input ORDER BY _row_index"
+        ).fetchall()
+        assert rows == [(5.5, 0), (1000.0, 0)]

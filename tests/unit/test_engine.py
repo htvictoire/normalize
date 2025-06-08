@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 import pytest
@@ -15,6 +16,10 @@ def _engine_config(duckdb_path: str) -> EngineConfig:
         header_row_index=1,
         encoding="utf-8",
         delimiter=",",
+        decimal_separator=".",
+        thousand_separator=",",
+        allow_leading_decimal_point=True,
+        date_formats={},
         null_tokens=("", "null", "none", "n/a", "-"),
         boolean_true_tokens=("true", "yes", "1"),
         boolean_false_tokens=("false", "no", "0"),
@@ -170,3 +175,144 @@ def test_engine_fingerprint_changes_when_trace_mode_changes(tmp_path: Path) -> N
     )
 
     assert run_full["fingerprint"] != run_sparse["fingerprint"]
+
+
+def test_engine_fingerprint_changes_when_decimal_separator_changes(tmp_path: Path) -> None:
+    csv_path = tmp_path / "input.csv"
+    _write_sample_csv(csv_path)
+    base_config = _engine_config("placeholder.duckdb")
+
+    run_dot = NormalizationEngine().run(
+        csv_path=csv_path,
+        output_dir=tmp_path / "out_dot",
+        config=EngineConfig(
+            **{
+                **base_config.__dict__,
+                "duckdb_path": str(tmp_path / "dot.duckdb"),
+                "decimal_separator": ".",
+                "thousand_separator": ",",
+            }
+        ),
+        mode="PROFILE",
+    )
+    run_comma = NormalizationEngine().run(
+        csv_path=csv_path,
+        output_dir=tmp_path / "out_comma",
+        config=EngineConfig(
+            **{
+                **base_config.__dict__,
+                "duckdb_path": str(tmp_path / "comma.duckdb"),
+                "decimal_separator": ",",
+                "thousand_separator": ".",
+            }
+        ),
+        mode="PROFILE",
+    )
+
+    assert run_dot["fingerprint"] != run_comma["fingerprint"]
+
+
+def test_engine_fingerprint_changes_when_date_formats_change(tmp_path: Path) -> None:
+    csv_path = tmp_path / "input.csv"
+    _write_sample_csv(csv_path)
+    base_config = _engine_config("placeholder.duckdb")
+
+    run_a = NormalizationEngine().run(
+        csv_path=csv_path,
+        output_dir=tmp_path / "out_a",
+        config=EngineConfig(
+            **{
+                **base_config.__dict__,
+                "duckdb_path": str(tmp_path / "a.duckdb"),
+                "date_formats": {},
+            }
+        ),
+        mode="PROFILE",
+    )
+    run_b = NormalizationEngine().run(
+        csv_path=csv_path,
+        output_dir=tmp_path / "out_b",
+        config=EngineConfig(
+            **{
+                **base_config.__dict__,
+                "duckdb_path": str(tmp_path / "b.duckdb"),
+                "date_formats": {"A": "%d/%m/%Y"},
+            }
+        ),
+        mode="PROFILE",
+    )
+
+    assert run_a["fingerprint"] != run_b["fingerprint"]
+
+
+def test_engine_manifest_replay_config_includes_phase15_fields(tmp_path: Path) -> None:
+    csv_path = tmp_path / "input.csv"
+    _write_sample_csv(csv_path)
+    config = EngineConfig(
+        **{
+            **_engine_config(str(tmp_path / "manifest.duckdb")).__dict__,
+            "decimal_separator": ",",
+            "thousand_separator": ".",
+            "date_formats": {"A": "%d/%m/%Y"},
+        }
+    )
+    result = NormalizationEngine().run(
+        csv_path=csv_path,
+        output_dir=tmp_path / "out_manifest",
+        config=config,
+        mode="APPLY",
+    )
+    manifest_path = Path(result["artifacts"]["manifest_json"])
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    effective_config = manifest["replay_instructions"]["effective_config"]
+    assert effective_config["decimal_separator"] == ","
+    assert effective_config["thousand_separator"] == "."
+    assert effective_config["allow_leading_decimal_point"] is True
+    assert effective_config["date_formats"] == {"A": "%d/%m/%Y"}
+
+
+def test_engine_config_rejects_equal_decimal_and_thousand_separators() -> None:
+    with pytest.raises(
+        ValueError, match="decimal_separator and thousand_separator must differ"
+    ):
+        EngineConfig(
+            **{
+                **_engine_config("unused.duckdb").__dict__,
+                "decimal_separator": ".",
+                "thousand_separator": ".",
+            }
+        )
+
+
+def test_engine_config_normalizes_date_format_position_keys() -> None:
+    config = EngineConfig(
+        **{
+            **_engine_config("unused.duckdb").__dict__,
+            "date_formats": {"a": "%d/%m/%Y"},
+        }
+    )
+    assert config.date_formats == {"A": "%d/%m/%Y"}
+
+
+def test_engine_config_rejects_date_format_without_directives() -> None:
+    with pytest.raises(
+        ValueError, match="date_formats\\['A'\\] must contain at least one strptime directive"
+    ):
+        EngineConfig(
+            **{
+                **_engine_config("unused.duckdb").__dict__,
+                "date_formats": {"A": "INVALID_FORMAT"},
+            }
+        )
+
+
+def test_engine_config_rejects_invalid_duckdb_date_directive() -> None:
+    with pytest.raises(
+        ValueError, match="date_formats\\['A'\\] contains invalid DuckDB strptime directives"
+    ):
+        EngineConfig(
+            **{
+                **_engine_config("unused.duckdb").__dict__,
+                "date_formats": {"A": "%Q"},
+            }
+        )

@@ -6,6 +6,14 @@ TOKEN_ARGS = {
     "boolean_true_tokens": ["true", "yes", "1"],
     "boolean_false_tokens": ["false", "no", "0"],
 }
+INFERENCE_ARGS = {
+    **TOKEN_ARGS,
+    "decimal_separator": ".",
+    "thousand_separator": ",",
+    "allow_leading_decimal_point": True,
+    "date_formats": {},
+    "position_to_canonical": {},
+}
 
 
 def test_type_inference_basic_types() -> None:
@@ -30,10 +38,10 @@ def test_type_inference_basic_types() -> None:
             """
         )
 
-        inferred = stage.execute(conn, **TOKEN_ARGS)
+        inferred = stage.execute(conn, **INFERENCE_ARGS)
         assert inferred == {
             "int_col": "integer",
-            "float_col": "float",
+            "float_col": "decimal",
             "bool_col": "boolean",
             "text_col": "string",
         }
@@ -51,7 +59,7 @@ def test_type_inference_below_threshold_falls_back_to_string() -> None:
                 ('hello')
             """
         )
-        inferred = stage.execute(conn, **TOKEN_ARGS)
+        inferred = stage.execute(conn, **INFERENCE_ARGS)
         assert inferred == {"mixed_col": "string"}
 
 
@@ -68,8 +76,8 @@ def test_type_inference_mixed_integers_and_floats_prefers_float() -> None:
                 ('4.1')
             """
         )
-        inferred = stage.execute(conn, **TOKEN_ARGS)
-        assert inferred == {"num_col": "float"}
+        inferred = stage.execute(conn, **INFERENCE_ARGS)
+        assert inferred == {"num_col": "decimal"}
 
 
 def test_type_inference_boolean_requires_full_token_match() -> None:
@@ -84,5 +92,199 @@ def test_type_inference_boolean_requires_full_token_match() -> None:
                 ('maybe')
             """
         )
-        inferred = stage.execute(conn, **TOKEN_ARGS)
+        inferred = stage.execute(conn, **INFERENCE_ARGS)
         assert inferred == {"boolish": "string"}
+
+
+def test_type_inference_supports_eu_separators() -> None:
+    stage = TypeInferenceStage(numeric_threshold=0.95, boolean_threshold=0.95)
+    with DuckDBManager() as conn:
+        conn.execute("CREATE TABLE raw_input (amount VARCHAR)")
+        conn.execute(
+            """
+            INSERT INTO raw_input VALUES
+                ('1.234,56'),
+                ('2.000,10'),
+                ('3.999,00')
+            """
+        )
+        inferred = stage.execute(
+            conn,
+            **TOKEN_ARGS,
+            decimal_separator=",",
+            thousand_separator=".",
+            allow_leading_decimal_point=True,
+            date_formats={},
+            position_to_canonical={"A": "amount"},
+        )
+        assert inferred == {"amount": "decimal"}
+
+
+def test_type_inference_emits_separator_mismatch_issue() -> None:
+    stage = TypeInferenceStage(numeric_threshold=0.95, boolean_threshold=0.95)
+    with DuckDBManager() as conn:
+        conn.execute("CREATE TABLE raw_input (amount VARCHAR)")
+        conn.execute(
+            """
+            INSERT INTO raw_input VALUES
+                ('1.234,56'),
+                ('2.000,10'),
+                ('3.999,00')
+            """
+        )
+        inferred = stage.execute(
+            conn,
+            **TOKEN_ARGS,
+            decimal_separator=".",
+            thousand_separator=",",
+            allow_leading_decimal_point=True,
+            date_formats={},
+            position_to_canonical={"A": "amount"},
+        )
+        assert inferred == {"amount": "string"}
+        issues = stage.detected_issues
+        assert len(issues) == 1
+        assert issues[0].code == "SEPARATOR_MISMATCH"
+        assert issues[0].severity.value == "WARNING"
+
+
+def test_type_inference_declares_date_by_position_and_warns_unknown_position() -> None:
+    stage = TypeInferenceStage(numeric_threshold=0.95, boolean_threshold=0.95)
+    with DuckDBManager() as conn:
+        conn.execute("CREATE TABLE raw_input (tx_date VARCHAR, value VARCHAR)")
+        conn.execute(
+            """
+            INSERT INTO raw_input VALUES
+                ('31/12/2025', '100'),
+                ('01/01/2026', '101')
+            """
+        )
+        inferred = stage.execute(
+            conn,
+            **TOKEN_ARGS,
+            decimal_separator=".",
+            thousand_separator=",",
+            allow_leading_decimal_point=True,
+            date_formats={"A": "%d/%m/%Y", "Z": "%Y-%m-%d"},
+            position_to_canonical={"A": "tx_date", "B": "value"},
+        )
+        assert inferred == {"tx_date": "date", "value": "integer"}
+        assert [issue.code for issue in stage.detected_issues] == [
+            "UNKNOWN_COLUMN_REFERENCE"
+        ]
+
+
+def test_type_inference_resolves_date_columns_by_table_order() -> None:
+    stage = TypeInferenceStage(numeric_threshold=0.95, boolean_threshold=0.95)
+    with DuckDBManager() as conn:
+        conn.execute("CREATE TABLE raw_input (tx_date VARCHAR, value VARCHAR)")
+        conn.execute(
+            """
+            INSERT INTO raw_input VALUES
+                ('31/12/2025', '100'),
+                ('01/01/2026', '101')
+            """
+        )
+        inferred = stage.execute(
+            conn,
+            **TOKEN_ARGS,
+            decimal_separator=".",
+            thousand_separator=",",
+            allow_leading_decimal_point=True,
+            date_formats={"A": "%d/%m/%Y"},
+        )
+        assert inferred == {"tx_date": "date", "value": "integer"}
+
+
+def test_type_inference_leading_decimal_point_toggle() -> None:
+    stage = TypeInferenceStage(numeric_threshold=0.95, boolean_threshold=0.95)
+    with DuckDBManager() as conn:
+        conn.execute("CREATE TABLE raw_input (amount VARCHAR)")
+        conn.execute(
+            """
+            INSERT INTO raw_input VALUES
+                ('.5'),
+                ('-.9'),
+                ('.25')
+            """
+        )
+        inferred_allow = stage.execute(
+            conn,
+            **TOKEN_ARGS,
+            decimal_separator=".",
+            thousand_separator=",",
+            allow_leading_decimal_point=True,
+            date_formats={},
+            position_to_canonical={"A": "amount"},
+        )
+        assert inferred_allow == {"amount": "decimal"}
+
+    with DuckDBManager() as conn:
+        conn.execute("CREATE TABLE raw_input (amount VARCHAR)")
+        conn.execute(
+            """
+            INSERT INTO raw_input VALUES
+                ('.5'),
+                ('-.9'),
+                ('.25')
+            """
+        )
+        inferred_disallow = stage.execute(
+            conn,
+            **TOKEN_ARGS,
+            decimal_separator=".",
+            thousand_separator=",",
+            allow_leading_decimal_point=False,
+            date_formats={},
+            position_to_canonical={"A": "amount"},
+        )
+
+    assert inferred_disallow == {"amount": "string"}
+
+
+def test_type_inference_supports_trailing_decimal_and_plus_sign() -> None:
+    stage = TypeInferenceStage(numeric_threshold=0.95, boolean_threshold=0.95)
+    with DuckDBManager() as conn:
+        conn.execute("CREATE TABLE raw_input (amount VARCHAR)")
+        conn.execute(
+            """
+            INSERT INTO raw_input VALUES
+                ('5.'),
+                ('+1.5'),
+                ('2.0')
+            """
+        )
+        inferred = stage.execute(
+            conn,
+            **TOKEN_ARGS,
+            decimal_separator=".",
+            thousand_separator=",",
+            allow_leading_decimal_point=True,
+            date_formats={},
+            position_to_canonical={"A": "amount"},
+        )
+        assert inferred == {"amount": "decimal"}
+
+
+def test_type_inference_with_empty_thousand_separator() -> None:
+    stage = TypeInferenceStage(numeric_threshold=0.95, boolean_threshold=0.95)
+    with DuckDBManager() as conn:
+        conn.execute("CREATE TABLE raw_input (amount VARCHAR)")
+        conn.execute(
+            """
+            INSERT INTO raw_input VALUES
+                ('1000'),
+                ('5.5'),
+                ('3')
+            """
+        )
+        inferred = stage.execute(
+            conn,
+            **TOKEN_ARGS,
+            decimal_separator=".",
+            thousand_separator="",
+            allow_leading_decimal_point=True,
+            date_formats={},
+            position_to_canonical={"A": "amount"},
+        )
+        assert inferred == {"amount": "decimal"}
