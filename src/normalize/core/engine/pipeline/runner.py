@@ -12,6 +12,8 @@ from normalize.core.duckdb_manager import DuckDBManager, resolve_db_path
 from normalize.core.engine.background import run_profiling_background, write_parquets_background
 from normalize.core.engine.config import EngineConfig
 from normalize.core.engine.issues import build_issues, issue_to_dict
+from normalize.core.engine.pipeline.currency import collect_currency_analysis
+from normalize.core.engine.pipeline.replay import build_replay_config
 from normalize.core.fingerprint import compute_fingerprint
 from normalize.core.quality import compute_quality_score
 from normalize.core.sql_helpers import read_columns
@@ -44,17 +46,7 @@ def run_pipeline(
     run_mode: str,
     duckdb_memory_limit: str,
 ) -> dict[str, Any]:
-    """Execute stage sequence and return engine result payload.
-
-    Stage order (compose+execute flow):
-    1. Ingestion — CSV → DuckDB table  (parallel with background profiling)
-    2. Header canonicalization — clean column names (metadata-only)
-    3. Type inference — profile columns, infer types (reads raw data)
-    4. Combined transform — row filter + cell normalization + indices in ONE pass
-    5. Quality metrics — aggregate quality from precomputed profile
-    6. Decision — READY / READY_WITH_WARNINGS / BLOCKED
-    7. Artifact materialization — Parquet + manifest + trace (APPLY only)
-    """
+    """Execute stage sequence and return engine result payload."""
     stage_seconds: dict[str, float] = {}
     stage_metrics: dict[str, dict[str, Any]] = {}
     artifacts: dict[str, str] | None = None
@@ -78,10 +70,6 @@ def run_pipeline(
         threads=effective.threads,
         database=db_path,
     ) as conn:
-        # ------------------------------------------------------------------
-        # Run profiling on a separate in-memory DuckDB
-        # connection in parallel with ingestion + header canonicalization.
-        # ------------------------------------------------------------------
         with ThreadPoolExecutor(max_workers=1) as profile_pool:
             profile_future = profile_pool.submit(
                 run_profiling_background,
@@ -96,7 +84,6 @@ def run_pipeline(
                 effective.allow_leading_decimal_point,
             )
 
-            # 1. Ingestion (runs while profiling happens in background)
             ingestion = IngestionStage()
             ingestion_result = ingestion.execute(
                 conn,
@@ -109,25 +96,18 @@ def run_pipeline(
             stage_seconds["ingestion"] = float(ingestion.metrics.get("duration_seconds", 0.0))
             stage_metrics["ingestion"] = dict(ingestion.metrics)
 
-            # 2. Header canonicalization (metadata-only, no data copy)
             header = HeaderCanonicalizationStage()
             header.execute(conn)
-            position_to_canonical = dict(
-                getattr(header, "position_to_canonical", {})
-            )
+            position_to_canonical = dict(getattr(header, "position_to_canonical", {}))
             stage_seconds["header_canonicalization"] = float(
                 header.metrics.get("duration_seconds", 0.0)
             )
             stage_metrics["header_canonicalization"] = dict(header.metrics)
 
-            # Wait for background profiling to complete
             bg_profiles = profile_future.result()
 
-        # Store background profiles on main connection so type inference
-        # finds the cached table and skips recomputation.
         store_column_profiles(conn, bg_profiles)
 
-        # 3. Type inference (finds cached profiles → instant)
         type_inference = TypeInferenceStage(
             numeric_threshold=effective.type_inference_numeric_threshold,
             boolean_threshold=effective.type_inference_boolean_threshold,
@@ -142,12 +122,18 @@ def run_pipeline(
             **token_kwargs,
         )
         type_inference_issues = list(getattr(type_inference, "detected_issues", []))
-        stage_seconds["type_inference"] = float(
-            type_inference.metrics.get("duration_seconds", 0.0)
-        )
+        stage_seconds["type_inference"] = float(type_inference.metrics.get("duration_seconds", 0.0))
         stage_metrics["type_inference"] = dict(type_inference.metrics)
 
-        # 4. Combined transform: plan row + cell, compose SQL, execute once
+        currency_analysis = collect_currency_analysis(
+            conn,
+            inferred_types=inferred_types,
+            profiles=bg_profiles,
+            null_tokens=token_policy.null_tokens,
+        )
+        pattern_consistency_ratio = currency_analysis["pattern_consistency_ratio"]
+        currency_issues = currency_analysis["issues"]
+
         row_norm = RowNormalizationStage(
             assign_indices=effective.assign_indices,
             drop_empty_rows=effective.drop_empty_rows,
@@ -173,9 +159,8 @@ def run_pipeline(
         stage_seconds["combined_transform"] = float(transform_result["duration_seconds"])
         stage_metrics["combined_transform"] = {str(k): v for k, v in transform_result.items()}
 
-        # Compute fingerprint early — needed before artifact writes start
         duckdb_version = str(conn.execute("SELECT version()").fetchone()[0])
-        replay_config = _build_replay_config(effective)
+        replay_config = build_replay_config(effective)
         config_json = json.dumps(replay_config, sort_keys=True, separators=(",", ":"))
         fingerprint = compute_fingerprint(
             ingestion_result.file_checksum,
@@ -184,14 +169,9 @@ def run_pipeline(
             duckdb_version,
         )
 
-        # ------------------------------------------------------------------
-        # For APPLY + file-backed DB, start parquet writes
-        # on a read-only connection while quality metrics + decision run on
-        # the main connection.
-        # ------------------------------------------------------------------
         use_overlapped_artifacts = run_mode == "APPLY" and db_path != ":memory:"
         write_future: Future[dict[str, float]] | None = None
-        _artifact_pool: ThreadPoolExecutor | None = None
+        artifact_pool: ThreadPoolExecutor | None = None
 
         if use_overlapped_artifacts:
             table_columns = read_columns(conn, "raw_input")
@@ -199,8 +179,8 @@ def run_pipeline(
             data_columns = [c for c in export_columns if c not in AUDIT_OUTPUT_COLUMNS]
             output_root.mkdir(parents=True, exist_ok=True)
 
-            _artifact_pool = ThreadPoolExecutor(max_workers=1)
-            write_future = _artifact_pool.submit(
+            artifact_pool = ThreadPoolExecutor(max_workers=1)
+            write_future = artifact_pool.submit(
                 write_parquets_background,
                 db_path,
                 output_root,
@@ -213,7 +193,6 @@ def run_pipeline(
             )
 
         try:
-            # 5. Quality metrics
             quality = QualityMetricsStage()
             quality_result = quality.execute(
                 conn,
@@ -225,17 +204,15 @@ def run_pipeline(
                 allow_leading_decimal_point=effective.allow_leading_decimal_point,
                 **token_kwargs,
             )
-            stage_seconds["quality_metrics"] = float(
-                quality.metrics.get("duration_seconds", 0.0)
-            )
+            stage_seconds["quality_metrics"] = float(quality.metrics.get("duration_seconds", 0.0))
             stage_metrics["quality_metrics"] = dict(quality.metrics)
 
-            # 6. Decision
             quality_score = compute_quality_score(
                 float(quality_result["parse_success_ratio"]),
                 float(quality_result["completeness_ratio"]),
+                pattern_consistency_ratio=pattern_consistency_ratio,
             )
-            issues = [*type_inference_issues, *build_issues(quality_result)]
+            issues = [*type_inference_issues, *currency_issues, *build_issues(quality_result)]
             decision_policy = DecisionPolicy.from_inputs(
                 ready_threshold=effective.decision_ready_threshold,
                 warning_threshold=effective.decision_warning_threshold,
@@ -247,10 +224,7 @@ def run_pipeline(
             )
             stage_metrics["decision_evaluation"] = dict(decision.metrics)
 
-            # 7. Artifact materialization (APPLY only)
             if write_future is not None:
-                # Overlapped path: wait for background parquet writes, then
-                # compute checksums + build manifest sequentially.
                 artifact_start = perf_counter()
                 write_timing = write_future.result()
 
@@ -269,6 +243,7 @@ def run_pipeline(
                     "quality_score": float(quality_score),
                     "parse_success_ratio": quality_result["parse_success_ratio"],
                     "completeness_ratio": quality_result["completeness_ratio"],
+                    "pattern_consistency_ratio": pattern_consistency_ratio,
                     "row_count": quality_result["row_count"],
                     "total_parse_error_cells": quality_result["total_parse_error_cells"],
                     "total_nullish_cells": quality_result["total_nullish_cells"],
@@ -316,7 +291,6 @@ def run_pipeline(
                 }
 
             elif run_mode == "APPLY":
-                # Sequential fallback for :memory: databases
                 artifact_stage = ArtifactMaterializationStage()
                 artifacts = artifact_stage.execute(
                     conn,
@@ -329,6 +303,7 @@ def run_pipeline(
                         "quality_score": float(quality_score),
                         "parse_success_ratio": quality_result["parse_success_ratio"],
                         "completeness_ratio": quality_result["completeness_ratio"],
+                        "pattern_consistency_ratio": pattern_consistency_ratio,
                         "row_count": quality_result["row_count"],
                         "total_parse_error_cells": quality_result["total_parse_error_cells"],
                         "total_nullish_cells": quality_result["total_nullish_cells"],
@@ -342,8 +317,8 @@ def run_pipeline(
                 )
                 stage_metrics["artifact_materialization"] = dict(artifact_stage.metrics)
         finally:
-            if _artifact_pool is not None:
-                _artifact_pool.shutdown(wait=True)
+            if artifact_pool is not None:
+                artifact_pool.shutdown(wait=True)
 
     return {
         "status": status.value,
@@ -352,33 +327,4 @@ def run_pipeline(
         "fingerprint": fingerprint,
         "artifacts": artifacts if run_mode == "APPLY" else None,
         "stage_seconds": stage_seconds,
-    }
-
-
-def _build_replay_config(effective: EngineConfig) -> dict[str, Any]:
-    return {
-        "header_mode": effective.header_mode.value,
-        "header_row_index": effective.header_row_index,
-        "encoding": effective.encoding,
-        "delimiter": effective.delimiter,
-        "decimal_separator": effective.decimal_separator,
-        "thousand_separator": effective.thousand_separator,
-        "allow_leading_decimal_point": effective.allow_leading_decimal_point,
-        "date_formats": dict(effective.date_formats),
-        "null_tokens": list(effective.null_tokens),
-        "boolean_true_tokens": list(effective.boolean_true_tokens),
-        "boolean_false_tokens": list(effective.boolean_false_tokens),
-        "type_inference_numeric_threshold": effective.type_inference_numeric_threshold,
-        "type_inference_boolean_threshold": effective.type_inference_boolean_threshold,
-        "assign_indices": effective.assign_indices,
-        "drop_empty_rows": effective.drop_empty_rows,
-        "full_raw_row": effective.full_raw_row,
-        "emit_raw_row": effective.emit_raw_row,
-        "emit_parse_issues": effective.emit_parse_issues,
-        "include_unique_ratio": effective.include_unique_ratio,
-        "include_per_column_parse_error_counts": effective.include_per_column_parse_error_counts,
-        "approximate_unique": effective.approximate_unique,
-        "decision_ready_threshold": effective.decision_ready_threshold,
-        "decision_warning_threshold": effective.decision_warning_threshold,
-        "trace_mode": effective.trace_mode,
     }

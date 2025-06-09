@@ -9,6 +9,8 @@ from normalize.core.domain import IssueSeverity, NormalizationIssue
 ISSUE_CODE_PARSE_ERRORS_PRESENT = "PARSE_ERRORS_PRESENT"
 ISSUE_CODE_SEPARATOR_MISMATCH = "SEPARATOR_MISMATCH"
 ISSUE_CODE_UNKNOWN_COLUMN_REFERENCE = "UNKNOWN_COLUMN_REFERENCE"
+ISSUE_CODE_MIXED_CURRENCY = "MIXED_CURRENCY"
+ISSUE_CODE_INVALID_CURRENCY = "INVALID_CURRENCY"
 
 
 def build_issues(quality_result: dict[str, Any]) -> list[NormalizationIssue]:
@@ -74,6 +76,42 @@ def build_unknown_column_reference_issue(
         message=message,
         location=position_key,
         evidence={"position_key": position_key, "column_count": column_count},
+    )
+
+
+def build_mixed_currency_issue(
+    *,
+    column_name: str,
+    symbols: list[str],
+    dominant_symbol: str | None,
+    dominant_symbol_ratio: float,
+) -> NormalizationIssue:
+    """Build warning for currency columns with more than one symbol."""
+    return NormalizationIssue(
+        code=ISSUE_CODE_MIXED_CURRENCY,
+        severity=IssueSeverity.WARNING,
+        message=f"Column {column_name!r} contains mixed currency symbols",
+        location=column_name,
+        evidence={
+            "symbols": symbols,
+            "dominant_symbol": dominant_symbol,
+            "dominant_symbol_ratio": dominant_symbol_ratio,
+        },
+    )
+
+
+def build_invalid_currency_issue(
+    *,
+    column_name: str,
+    invalid_count: int,
+) -> NormalizationIssue:
+    """Build warning for currency values that failed parsing."""
+    return NormalizationIssue(
+        code=ISSUE_CODE_INVALID_CURRENCY,
+        severity=IssueSeverity.WARNING,
+        message=f"Column {column_name!r} has {invalid_count} invalid currency cells",
+        location=column_name,
+        evidence={"invalid_count": invalid_count},
     )
 
 
