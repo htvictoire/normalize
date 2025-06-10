@@ -9,7 +9,7 @@ from normalize.stages.shared_profiling.contracts import (
     DEFAULT_PROFILE_TABLE_NAME,
     ColumnProfile,
 )
-from normalize.stages.shared_profiling.query_builder import build_profile_query
+from normalize.stages.shared_profiling.query_builders import build_profile_query
 from normalize.stages.shared_profiling.sql_helpers import (
     read_data_columns,
     table_exists,
@@ -64,6 +64,8 @@ def store_column_profiles(
             int_match_count BIGINT,
             float_match_count BIGINT,
             swapped_float_match_count BIGINT,
+            currency_match_count BIGINT,
+            accounting_negative_match_count BIGINT,
             nullish_count BIGINT
         )
         """
@@ -78,6 +80,8 @@ def store_column_profiles(
                 p.int_match_count,
                 p.float_match_count,
                 p.swapped_float_match_count,
+                p.currency_match_count,
+                p.accounting_negative_match_count,
                 p.nullish_count,
             )
             for p in profiles.values()
@@ -86,8 +90,9 @@ def store_column_profiles(
             f"""
             INSERT INTO {profile_table_name}
                 (column_name, row_count, non_empty_count, bool_match_count, int_match_count,
-                 float_match_count, swapped_float_match_count, nullish_count)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                 float_match_count, swapped_float_match_count, currency_match_count,
+                 accounting_negative_match_count, nullish_count)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             rows,
         )
@@ -121,6 +126,8 @@ def compute_and_store_column_profiles(
                 int_match_count BIGINT,
                 float_match_count BIGINT,
                 swapped_float_match_count BIGINT,
+                currency_match_count BIGINT,
+                accounting_negative_match_count BIGINT,
                 nullish_count BIGINT
             )
             """
@@ -149,8 +156,10 @@ def compute_and_store_column_profiles(
         int_match_count = int(row[offset + 2])
         float_match_count = int(row[offset + 3])
         swapped_float_match_count = int(row[offset + 4])
-        nullish_count = int(row[offset + 5])
-        offset += 6
+        currency_match_count = int(row[offset + 5])
+        accounting_negative_match_count = int(row[offset + 6])
+        nullish_count = int(row[offset + 7])
+        offset += 8
 
         profiles[column_name] = ColumnProfile(
             column_name=column_name,
@@ -160,6 +169,8 @@ def compute_and_store_column_profiles(
             int_match_count=int_match_count,
             float_match_count=float_match_count,
             swapped_float_match_count=swapped_float_match_count,
+            currency_match_count=currency_match_count,
+            accounting_negative_match_count=accounting_negative_match_count,
             nullish_count=nullish_count,
         )
 
@@ -184,6 +195,8 @@ def read_column_profiles(
             int_match_count,
             float_match_count,
             swapped_float_match_count,
+            currency_match_count,
+            accounting_negative_match_count,
             nullish_count
         FROM {profile_table_name}
         ORDER BY column_name
@@ -200,7 +213,9 @@ def read_column_profiles(
             int_match_count=int(row[4]),
             float_match_count=int(row[5]),
             swapped_float_match_count=int(row[6]),
-            nullish_count=int(row[7]),
+            currency_match_count=int(row[7]),
+            accounting_negative_match_count=int(row[8]),
+            nullish_count=int(row[9]),
         )
         profiles[profile.column_name] = profile
     return profiles

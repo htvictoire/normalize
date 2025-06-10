@@ -30,7 +30,7 @@ class TypeInferenceStage(Stage):
     Rules:
     - Boolean threshold is configurable and required per run.
     - Integer/float threshold is configurable and required per run.
-    - Priority: boolean -> integer -> float -> string.
+    - Priority: boolean -> integer -> float -> currency -> string.
     - Empty columns infer to string.
 
     Token policy inputs are mandatory and validated on every call:
@@ -136,6 +136,7 @@ class TypeInferenceStage(Stage):
             "boolean_columns": sum(1 for value in inferred.values() if value == "boolean"),
             "integer_columns": sum(1 for value in inferred.values() if value == "integer"),
             "decimal_columns": sum(1 for value in inferred.values() if value == "decimal"),
+            "currency_columns": sum(1 for value in inferred.values() if value == "currency"),
             "date_columns": sum(1 for value in inferred.values() if value == "date"),
             "string_columns": sum(1 for value in inferred.values() if value == "string"),
         }

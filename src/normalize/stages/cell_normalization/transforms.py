@@ -5,6 +5,9 @@ from __future__ import annotations
 import re
 from collections.abc import Sequence
 
+from normalize.stages.cell_normalization.currency_helpers import (
+    build_currency_numeric_candidate_expr,
+)
 from normalize.stages.cell_normalization.sql_helpers import (
     quote_identifier,
     quote_string,
@@ -66,13 +69,41 @@ def build_column_exprs(
             "ELSE 'INVALID_DECIMAL' END"
         )
         return (normalized, issue)
+    if inferred_type == "currency":
+        trimmed_raw_value = f"TRIM({raw_value})"
+        currency_candidate = build_currency_numeric_candidate_expr(trimmed_raw_value)
+        numeric_value = _normalize_numeric_value(
+            currency_candidate,
+            decimal_separator=decimal_separator,
+            thousand_separator=thousand_separator,
+        )
+        decimal_pattern = _decimal_pattern_regex(
+            decimal_separator=decimal_separator,
+            thousand_separator=thousand_separator,
+            allow_leading_decimal_point=allow_leading_decimal_point,
+        )
+        decimal_match = f"REGEXP_FULL_MATCH({currency_candidate}, {quote_string(decimal_pattern)})"
+        cast_double = f"TRY_CAST({numeric_value} AS DOUBLE)"
+        normalized = (
+            f"CASE WHEN {nullish_predicate} THEN NULL "
+            f"WHEN {decimal_match} THEN {cast_double} "
+            "ELSE NULL END"
+        )
+        issue = (
+            f"CASE WHEN {nullish_predicate} THEN NULL "
+            f"WHEN {decimal_match} AND {cast_double} IS NOT NULL THEN NULL "
+            "ELSE 'INVALID_CURRENCY' END"
+        )
+        return (normalized, issue)
     if inferred_type == "date":
         if date_format is None:
             raise ValueError(f"MISSING_DATE_FORMAT:{column_name}")
         if date_format == "EXCEL_SERIAL":
             parsed_date = f"(DATE '1899-12-30' + TRY_CAST({raw_value} AS INTEGER))"
         else:
-            parsed_date = f"TRY_CAST(TRY_STRPTIME({raw_value}, {quote_string(date_format)}) AS DATE)"
+            parsed_date = (
+                f"TRY_CAST(TRY_STRPTIME({raw_value}, {quote_string(date_format)}) AS DATE)"
+            )
         normalized = f"CASE WHEN {nullish_predicate} THEN NULL ELSE {parsed_date} END"
         issue = (
             f"CASE WHEN {nullish_predicate} THEN NULL "
