@@ -288,3 +288,43 @@ def test_type_inference_with_empty_thousand_separator() -> None:
             position_to_canonical={"A": "amount"},
         )
         assert inferred == {"amount": "decimal"}
+
+
+def test_type_inference_detects_currency_with_symbol_and_bare_values() -> None:
+    stage = TypeInferenceStage(numeric_threshold=0.95, boolean_threshold=0.95)
+    with DuckDBManager() as conn:
+        conn.execute("CREATE TABLE raw_input (amount VARCHAR)")
+        conn.execute(
+            """
+            INSERT INTO raw_input VALUES
+                ('$1,200.50'),
+                ('EUR 99.90'),
+                ('100.00')
+            """
+        )
+        inferred = stage.execute(
+            conn,
+            **TOKEN_ARGS,
+            decimal_separator=".",
+            thousand_separator=",",
+            allow_leading_decimal_point=True,
+            date_formats={},
+            position_to_canonical={"A": "amount"},
+        )
+        assert inferred == {"amount": "currency"}
+
+
+def test_type_inference_keeps_integer_priority_over_currency() -> None:
+    stage = TypeInferenceStage(numeric_threshold=0.95, boolean_threshold=0.95)
+    with DuckDBManager() as conn:
+        conn.execute("CREATE TABLE raw_input (amount VARCHAR)")
+        conn.execute(
+            """
+            INSERT INTO raw_input VALUES
+                ('100'),
+                ('200'),
+                ('300')
+            """
+        )
+        inferred = stage.execute(conn, **INFERENCE_ARGS)
+        assert inferred == {"amount": "integer"}

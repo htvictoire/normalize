@@ -316,3 +316,34 @@ def test_engine_config_rejects_invalid_duckdb_date_directive() -> None:
                 "date_formats": {"A": "%Q"},
             }
         )
+
+
+def test_engine_emits_mixed_currency_warning_without_blocking_ready_status(
+    tmp_path: Path,
+) -> None:
+    csv_path = tmp_path / "mixed_currency.csv"
+    csv_path.write_text(
+        "\n".join(
+            [
+                "amount",
+                "$100.00",
+                "$110.00",
+                "€120.00",
+                "$130.00",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    config = _engine_config(str(tmp_path / "mixed.duckdb"))
+    result = NormalizationEngine().run(
+        csv_path=csv_path,
+        output_dir=tmp_path / "out_mixed",
+        config=config,
+        mode="PROFILE",
+    )
+
+    issue_codes = sorted(issue["code"] for issue in result["issues"])
+    assert "MIXED_CURRENCY" in issue_codes
+    assert result["status"] == "READY"

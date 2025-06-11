@@ -405,3 +405,84 @@ def test_cell_normalization_with_empty_thousand_separator() -> None:
             "SELECT amount, _parse_error_count FROM raw_input ORDER BY _row_index"
         ).fetchall()
         assert rows == [(5.5, 0), (1000.0, 0)]
+
+
+def test_cell_normalization_normalizes_currency_and_accounting_notation() -> None:
+    stage = CellNormalizationStage()
+    with DuckDBManager() as conn:
+        conn.execute(
+            """
+            CREATE TABLE raw_input (
+                amount VARCHAR,
+                _row_index BIGINT,
+                _global_row_index BIGINT
+            )
+            """
+        )
+        conn.execute(
+            """
+            INSERT INTO raw_input VALUES
+                ('$1,234.56', 1, 1),
+                ('(100.00)', 2, 2),
+                ('100.00-', 3, 3),
+                ('100.00 CR', 4, 4),
+                ('100.00 DR', 5, 5),
+                ('EUR 50.00', 6, 6)
+            """
+        )
+        stage.execute(
+            conn,
+            {"amount": "currency"},
+            decimal_separator=".",
+            thousand_separator=",",
+            allow_leading_decimal_point=True,
+            **TOKEN_ARGS,
+        )
+        rows = conn.execute(
+            "SELECT amount, _parse_error_count FROM raw_input ORDER BY _row_index"
+        ).fetchall()
+        assert rows == [
+            (1234.56, 0),
+            (-100.0, 0),
+            (-100.0, 0),
+            (-100.0, 0),
+            (100.0, 0),
+            (50.0, 0),
+        ]
+
+
+def test_cell_normalization_emits_invalid_currency_issue() -> None:
+    stage = CellNormalizationStage()
+    with DuckDBManager() as conn:
+        conn.execute(
+            """
+            CREATE TABLE raw_input (
+                amount VARCHAR,
+                _row_index BIGINT,
+                _global_row_index BIGINT
+            )
+            """
+        )
+        conn.execute(
+            """
+            INSERT INTO raw_input VALUES
+                ('$10.00', 1, 1),
+                ('INVALID', 2, 2)
+            """
+        )
+        stage.execute(
+            conn,
+            {"amount": "currency"},
+            decimal_separator=".",
+            thousand_separator=",",
+            allow_leading_decimal_point=True,
+            **TOKEN_ARGS,
+        )
+        rows = conn.execute(
+            "SELECT amount, _parse_error_count, _parse_issues FROM raw_input ORDER BY _row_index"
+        ).fetchall()
+        assert rows[0][0:2] == (10.0, 0)
+        assert rows[1][0] is None
+        assert rows[1][1] == 1
+        issues = json.loads(rows[1][2])
+        assert issues["amount"] == "INVALID_CURRENCY"
