@@ -66,7 +66,6 @@ class TypeInferenceStage(Stage):
         thousand_separator: str,
         allow_leading_decimal_point: bool,
         date_formats: Mapping[str, str] | None = None,
-        position_to_canonical: Mapping[str, str] | None = None,
     ) -> dict[str, str]:
         start_time = perf_counter()
         token_policy = TokenPolicy.from_user_inputs(
@@ -146,12 +145,10 @@ class TypeInferenceStage(Stage):
 def _resolve_unknown_position_keys(
     *,
     declared_date_formats: Mapping[str, str],
-    position_to_canonical: Mapping[str, str] | None,
+    position_to_canonical: Mapping[str, str],
 ) -> list[NormalizationIssue]:
     if not declared_date_formats:
         return []
-    if position_to_canonical is None:
-        raise ValueError("position_to_canonical is required when date_formats is configured")
     issues: list[NormalizationIssue] = []
     for position_key in sorted(declared_date_formats):
         if position_key not in position_to_canonical:

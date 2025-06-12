@@ -98,7 +98,6 @@ def run_pipeline(
 
             header = HeaderCanonicalizationStage()
             header.execute(conn)
-            position_to_canonical = dict(getattr(header, "position_to_canonical", {}))
             stage_seconds["header_canonicalization"] = float(
                 header.metrics.get("duration_seconds", 0.0)
             )
@@ -118,7 +117,6 @@ def run_pipeline(
             thousand_separator=effective.thousand_separator,
             allow_leading_decimal_point=effective.allow_leading_decimal_point,
             date_formats=effective.date_formats,
-            position_to_canonical=position_to_canonical,
             **token_kwargs,
         )
         type_inference_issues = list(getattr(type_inference, "detected_issues", []))
@@ -148,7 +146,6 @@ def run_pipeline(
             thousand_separator=effective.thousand_separator,
             allow_leading_decimal_point=effective.allow_leading_decimal_point,
             date_formats=effective.date_formats,
-            position_to_canonical=position_to_canonical,
             full_raw_row=effective.full_raw_row,
             emit_raw_row=effective.emit_raw_row,
             emit_parse_issues=effective.emit_parse_issues,

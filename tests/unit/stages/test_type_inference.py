@@ -12,7 +12,6 @@ INFERENCE_ARGS = {
     "thousand_separator": ",",
     "allow_leading_decimal_point": True,
     "date_formats": {},
-    "position_to_canonical": {},
 }
 
 
@@ -115,7 +114,6 @@ def test_type_inference_supports_eu_separators() -> None:
             thousand_separator=".",
             allow_leading_decimal_point=True,
             date_formats={},
-            position_to_canonical={"A": "amount"},
         )
         assert inferred == {"amount": "decimal"}
 
@@ -139,7 +137,6 @@ def test_type_inference_emits_separator_mismatch_issue() -> None:
             thousand_separator=",",
             allow_leading_decimal_point=True,
             date_formats={},
-            position_to_canonical={"A": "amount"},
         )
         assert inferred == {"amount": "string"}
         issues = stage.detected_issues
@@ -166,7 +163,6 @@ def test_type_inference_declares_date_by_position_and_warns_unknown_position() -
             thousand_separator=",",
             allow_leading_decimal_point=True,
             date_formats={"A": "%d/%m/%Y", "Z": "%Y-%m-%d"},
-            position_to_canonical={"A": "tx_date", "B": "value"},
         )
         assert inferred == {"tx_date": "date", "value": "integer"}
         assert [issue.code for issue in stage.detected_issues] == [
@@ -215,7 +211,6 @@ def test_type_inference_leading_decimal_point_toggle() -> None:
             thousand_separator=",",
             allow_leading_decimal_point=True,
             date_formats={},
-            position_to_canonical={"A": "amount"},
         )
         assert inferred_allow == {"amount": "decimal"}
 
@@ -236,7 +231,6 @@ def test_type_inference_leading_decimal_point_toggle() -> None:
             thousand_separator=",",
             allow_leading_decimal_point=False,
             date_formats={},
-            position_to_canonical={"A": "amount"},
         )
 
     assert inferred_disallow == {"amount": "string"}
@@ -261,7 +255,6 @@ def test_type_inference_supports_trailing_decimal_and_plus_sign() -> None:
             thousand_separator=",",
             allow_leading_decimal_point=True,
             date_formats={},
-            position_to_canonical={"A": "amount"},
         )
         assert inferred == {"amount": "decimal"}
 
@@ -285,7 +278,6 @@ def test_type_inference_with_empty_thousand_separator() -> None:
             thousand_separator="",
             allow_leading_decimal_point=True,
             date_formats={},
-            position_to_canonical={"A": "amount"},
         )
         assert inferred == {"amount": "decimal"}
 
@@ -309,7 +301,6 @@ def test_type_inference_detects_currency_with_symbol_and_bare_values() -> None:
             thousand_separator=",",
             allow_leading_decimal_point=True,
             date_formats={},
-            position_to_canonical={"A": "amount"},
         )
         assert inferred == {"amount": "currency"}
 

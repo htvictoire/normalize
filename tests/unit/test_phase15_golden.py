@@ -65,8 +65,7 @@ def _infer_types_for_case(
             encoding="utf-8",
             delimiter=",",
         )
-        header = HeaderCanonicalizationStage()
-        header.execute(conn)
+        HeaderCanonicalizationStage().execute(conn)
         inference = TypeInferenceStage(numeric_threshold=0.95, boolean_threshold=0.95)
         inferred_types = inference.execute(
             conn,
@@ -75,7 +74,6 @@ def _infer_types_for_case(
             thousand_separator=config_overrides["thousand_separator"],
             allow_leading_decimal_point=config_overrides["allow_leading_decimal_point"],
             date_formats=config_overrides["date_formats"],
-            position_to_canonical=header.position_to_canonical,
         )
     return inferred_types
 

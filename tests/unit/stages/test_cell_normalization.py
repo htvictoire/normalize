@@ -236,7 +236,6 @@ def test_cell_normalization_parses_declared_dates_and_flags_invalid_date() -> No
             conn,
             {"tx_date": "date"},
             date_formats={"A": "%d/%m/%Y"},
-            position_to_canonical={"A": "tx_date"},
             **TOKEN_ARGS,
         )
         rows = conn.execute(

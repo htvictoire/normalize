@@ -43,6 +43,32 @@ warn_unused_configs = true
 [tool.ruff]
 line-length = 100
 target-version = "py314"
+preview = true
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "B", "UP"]
+select = [
+    "E",
+    "F",
+    "I",
+    "B",
+    "UP",
+    "ARG",
+    "SIM",
+    "RET",
+    "RUF",
+    "C4",
+    "PIE",
+    "PT",
+    "N",
+    "A",
+    "ICN",
+    "Q",
+    "TID",
+    "S",
+    "TRY",
+    "PLC",
+    "PLE",
+    "PLR",
+    "PLW",
+]
+ignore = []
