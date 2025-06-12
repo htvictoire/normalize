@@ -22,5 +22,5 @@ def test_override_layers_allow_operational_fields() -> None:
     )
     assert merged["threads"] == 8
     assert merged["trace_mode"] == "sparse"
-    assert merged["decision_ready_threshold"] == 95.0
+    assert merged["decision_ready_threshold"] == pytest.approx(95.0)
     assert merged["drop_empty_rows"] is True

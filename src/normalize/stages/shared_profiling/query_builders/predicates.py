@@ -9,7 +9,7 @@ from normalize.stages.shared_profiling.sql_helpers import quote_string
 
 def has_any_separator_predicate(base_value: str, separators: Sequence[str]) -> str:
     """Return predicate checking whether value contains any configured separators."""
-    unique_separators = sorted({separator for separator in separators if separator != ""})
+    unique_separators = sorted({separator for separator in separators if separator})
     if not unique_separators:
         return "FALSE"
     return " OR ".join(

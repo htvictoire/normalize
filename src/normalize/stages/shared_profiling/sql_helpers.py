@@ -32,9 +32,9 @@ def table_exists(conn: DuckDBPyConnection, table_name: str) -> bool:
 
 
 __all__ = [
-    "validate_identifier",
     "quote_identifier",
     "quote_string",
     "read_data_columns",
     "table_exists",
+    "validate_identifier",
 ]

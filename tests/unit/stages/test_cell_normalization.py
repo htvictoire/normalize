@@ -1,5 +1,7 @@
 import json
 
+import pytest
+
 from normalize.core.duckdb_manager import DuckDBManager
 from normalize.stages.cell_normalization import CellNormalizationStage
 
@@ -75,11 +77,8 @@ def test_cell_normalization_rejects_missing_inferred_column() -> None:
     with DuckDBManager() as conn:
         conn.execute("CREATE TABLE raw_input (a VARCHAR, b VARCHAR)")
         conn.execute("INSERT INTO raw_input VALUES ('1', '2')")
-        try:
+        with pytest.raises(ValueError, match="MISSING_INFERRED_TYPES"):
             stage.execute(conn, {"a": "integer"}, **TOKEN_ARGS)
-            raise AssertionError("Expected missing inferred type error")
-        except ValueError as error:
-            assert "MISSING_INFERRED_TYPES" in str(error)
 
 
 def test_cell_normalization_applies_user_defined_boolean_tokens() -> None:

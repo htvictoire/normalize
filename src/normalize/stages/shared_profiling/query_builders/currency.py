@@ -41,7 +41,7 @@ def apply_accounting_sign_expr(value_expr: str) -> str:
     trailing_minus_inner = f"TRIM(SUBSTRING({trimmed}, 1, LENGTH({trimmed}) - 1))"
     trailing_cr_inner = f"TRIM(REGEXP_REPLACE({trimmed}, {quote_string(r'\s+cr$')}, ''))"
     trailing_dr_inner = f"TRIM(REGEXP_REPLACE({trimmed}, {quote_string(r'\s+dr$')}, ''))"
-    accounting_expr = (
+    return (
         "CASE "
         f"WHEN REGEXP_FULL_MATCH({trimmed}, {quote_string(r'^\(.+\)$')}) "
         f"THEN '-' || {parenthesized_inner_stripped} "
@@ -53,7 +53,6 @@ def apply_accounting_sign_expr(value_expr: str) -> str:
         f"THEN {trailing_dr_inner} "
         f"ELSE {trimmed} END"
     )
-    return accounting_expr
 
 
 def accounting_negative_predicate(value_expr: str) -> str:

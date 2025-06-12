@@ -6,6 +6,8 @@ import re
 from collections.abc import Mapping
 from dataclasses import dataclass
 
+import duckdb
+
 from normalize.core.column_positions import normalize_position_key
 from normalize.stages.ingestion.contracts import HeaderMode
 
@@ -49,19 +51,19 @@ class EngineConfig:
         thousand_separator = self.thousand_separator
         if len(decimal_separator) != 1:
             raise ValueError("decimal_separator must be exactly one character")
-        if thousand_separator != "" and len(thousand_separator) != 1:
+        if thousand_separator and len(thousand_separator) != 1:
             raise ValueError("thousand_separator must be empty or exactly one character")
-        if thousand_separator != "" and decimal_separator == thousand_separator:
+        if thousand_separator and decimal_separator == thousand_separator:
             raise ValueError("decimal_separator and thousand_separator must differ")
         if not isinstance(self.allow_leading_decimal_point, bool):
-            raise ValueError("allow_leading_decimal_point must be a boolean")
+            raise TypeError("allow_leading_decimal_point must be a boolean")
 
         normalized_date_formats: dict[str, str] = {}
         for raw_key, format_string in self.date_formats.items():
             if not isinstance(raw_key, str):
-                raise ValueError(f"date_formats key must be a string, got {type(raw_key).__name__}")
+                raise TypeError(f"date_formats key must be a string, got {type(raw_key).__name__}")
             key = normalize_position_key(raw_key)
-            if not isinstance(format_string, str) or format_string.strip() == "":
+            if not isinstance(format_string, str) or not format_string.strip():
                 raise ValueError(f"date_formats[{raw_key!r}] must be a non-empty format string")
             normalized_date_formats[key] = format_string
         _validate_date_formats_with_duckdb(normalized_date_formats)
@@ -71,7 +73,6 @@ class EngineConfig:
 def _validate_date_formats_with_duckdb(date_formats: Mapping[str, str]) -> None:
     if not date_formats:
         return
-    import duckdb
 
     conn = duckdb.connect(":memory:")
     try:

@@ -137,7 +137,7 @@ def build_nullish_predicate(column_name: str, null_tokens: Sequence[str]) -> str
     quoted_column = quote_identifier(column_name)
     base_value = f"NULLIF(TRIM(CAST({quoted_column} AS VARCHAR)), '')"
     normalized_tokens = sorted(
-        {token.strip().lower() for token in null_tokens if token.strip() != ""}
+        {token.strip().lower() for token in null_tokens if token.strip()}
     )
     if not normalized_tokens:
         return f"{base_value} IS NULL"
@@ -158,7 +158,7 @@ def _normalize_numeric_value(
     thousand_separator: str,
 ) -> str:
     normalized = value_expr
-    if thousand_separator != "":
+    if thousand_separator:
         normalized = f"REPLACE({normalized}, {quote_string(thousand_separator)}, '')"
     if decimal_separator != ".":
         normalized = f"REPLACE({normalized}, {quote_string(decimal_separator)}, '.')"
@@ -173,7 +173,7 @@ def _decimal_pattern_regex(
 ) -> str:
     decimal = re.escape(decimal_separator)
     leading_decimal = rf"{decimal}[0-9]+"
-    if thousand_separator == "":
+    if not thousand_separator:
         base = rf"[0-9]+(?:{decimal}[0-9]*)?"
         if allow_leading_decimal_point:
             return rf"^[+-]?(?:{base}|{leading_decimal})$"

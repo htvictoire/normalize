@@ -156,9 +156,8 @@ class ArtifactMaterializationStage(Stage):
             "manifest_path": str(manifest_path),
             **timing,
         }
-        result = {
+        return {
             "normalized_parquet": str(normalized_path),
             "manifest_json": str(manifest_path),
             "trace_parquet": str(trace_path),
         }
-        return result

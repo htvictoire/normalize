@@ -16,9 +16,9 @@ from normalize.stages.ingestion.service import run_ingestion
 from normalize.stages.ingestion.stage import IngestionStage
 
 __all__ = [
-    "IngestionStage",
+    "HeaderMode",
     "IngestionRequest",
     "IngestionResult",
-    "HeaderMode",
+    "IngestionStage",
     "run_ingestion",
 ]

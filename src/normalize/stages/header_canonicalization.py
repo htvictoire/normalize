@@ -74,7 +74,7 @@ def _canonical_base(header: str) -> str:
     value = header.strip().lower()
     value = re.sub(r"[^a-z0-9]+", "_", value)
     value = value.strip("_")
-    if value == "":
+    if not value:
         return "column"
     return value
 
@@ -123,9 +123,6 @@ def _build_raw_to_canonical_mapping(
     for raw, canonical in zip(raw_columns, canonical_columns, strict=False):
         duplicate_counts[raw] = duplicate_counts.get(raw, 0) + 1
         ordinal = duplicate_counts[raw]
-        if duplicate_total[raw] <= 1:
-            key = raw
-        else:
-            key = f"{raw}#{ordinal}"
+        key = raw if duplicate_total[raw] <= 1 else f"{raw}#{ordinal}"
         mapping[key] = canonical
     return mapping

@@ -94,7 +94,7 @@ def _normalize_tokens(
     normalized: set[str] = set()
     for raw in values:
         value = raw.strip().lower()
-        if value == "":
+        if not value:
             if allow_empty:
                 continue
             raise ValueError(empty_error_code or "EMPTY_TOKEN")

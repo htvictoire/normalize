@@ -9,7 +9,7 @@ from normalize.stages.ingestion.csv.options import (
 
 __all__ = [
     "DirectCsvIngestor",
-    "resolve_header_options",
-    "resolve_encoding_option",
     "resolve_delimiter_option",
+    "resolve_encoding_option",
+    "resolve_header_options",
 ]

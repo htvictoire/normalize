@@ -105,87 +105,82 @@ def test_service_rejects_missing_header_row_for_present_mode(tmp_path) -> None:
     csv_path = tmp_path / "bad.csv"
     csv_path.write_text("name\nalice\n", encoding="utf-8")
 
-    with DuckDBManager() as conn:
-        with pytest.raises(ValueError, match="MISSING_HEADER_ROW_INDEX"):
-            run_ingestion(
-                IngestionRequest(
-                    conn=conn,
-                    csv_path=csv_path,
-                    header_mode=HeaderMode.PRESENT,
-                    header_row_index=None,
-                    encoding="utf-8",
-                    delimiter=",",
-                )
+    with DuckDBManager() as conn, pytest.raises(ValueError, match="MISSING_HEADER_ROW_INDEX"):
+        run_ingestion(
+            IngestionRequest(
+                conn=conn,
+                csv_path=csv_path,
+                header_mode=HeaderMode.PRESENT,
+                header_row_index=None,
+                encoding="utf-8",
+                delimiter=",",
             )
+        )
 
 
 def test_service_rejects_header_row_in_absent_mode(tmp_path) -> None:
     csv_path = tmp_path / "bad.csv"
     csv_path.write_text("name\nalice\n", encoding="utf-8")
 
-    with DuckDBManager() as conn:
-        with pytest.raises(ValueError, match="HEADER_ROW_INDEX_NOT_ALLOWED"):
-            run_ingestion(
-                IngestionRequest(
-                    conn=conn,
-                    csv_path=csv_path,
-                    header_mode=HeaderMode.ABSENT,
-                    header_row_index=1,
-                    encoding="utf-8",
-                    delimiter=",",
-                )
+    with DuckDBManager() as conn, pytest.raises(ValueError, match="HEADER_ROW_INDEX_NOT_ALLOWED"):
+        run_ingestion(
+            IngestionRequest(
+                conn=conn,
+                csv_path=csv_path,
+                header_mode=HeaderMode.ABSENT,
+                header_row_index=1,
+                encoding="utf-8",
+                delimiter=",",
             )
+        )
 
 
 def test_service_rejects_missing_encoding(tmp_path) -> None:
     csv_path = tmp_path / "bad.csv"
     csv_path.write_text("name\nalice\n", encoding="utf-8")
 
-    with DuckDBManager() as conn:
-        with pytest.raises(ValueError, match="MISSING_ENCODING"):
-            run_ingestion(
-                IngestionRequest(
-                    conn=conn,
-                    csv_path=csv_path,
-                    header_mode=HeaderMode.PRESENT,
-                    header_row_index=1,
-                    encoding="",
-                    delimiter=",",
-                )
+    with DuckDBManager() as conn, pytest.raises(ValueError, match="MISSING_ENCODING"):
+        run_ingestion(
+            IngestionRequest(
+                conn=conn,
+                csv_path=csv_path,
+                header_mode=HeaderMode.PRESENT,
+                header_row_index=1,
+                encoding="",
+                delimiter=",",
             )
+        )
 
 
 def test_service_rejects_unsupported_encoding(tmp_path) -> None:
     csv_path = tmp_path / "bad.csv"
     csv_path.write_text("name\nalice\n", encoding="utf-8")
 
-    with DuckDBManager() as conn:
-        with pytest.raises(ValueError, match="UNSUPPORTED_ENCODING"):
-            run_ingestion(
-                IngestionRequest(
-                    conn=conn,
-                    csv_path=csv_path,
-                    header_mode=HeaderMode.PRESENT,
-                    header_row_index=1,
-                    encoding="cp1252",
-                    delimiter=",",
-                )
+    with DuckDBManager() as conn, pytest.raises(ValueError, match="UNSUPPORTED_ENCODING"):
+        run_ingestion(
+            IngestionRequest(
+                conn=conn,
+                csv_path=csv_path,
+                header_mode=HeaderMode.PRESENT,
+                header_row_index=1,
+                encoding="cp1252",
+                delimiter=",",
             )
+        )
 
 
 def test_service_rejects_invalid_delimiter(tmp_path) -> None:
     csv_path = tmp_path / "bad.csv"
     csv_path.write_text("name\nalice\n", encoding="utf-8")
 
-    with DuckDBManager() as conn:
-        with pytest.raises(ValueError, match="INVALID_DELIMITER"):
-            run_ingestion(
-                IngestionRequest(
-                    conn=conn,
-                    csv_path=csv_path,
-                    header_mode=HeaderMode.PRESENT,
-                    header_row_index=1,
-                    encoding="utf-8",
-                    delimiter=",,",
-                )
+    with DuckDBManager() as conn, pytest.raises(ValueError, match="INVALID_DELIMITER"):
+        run_ingestion(
+            IngestionRequest(
+                conn=conn,
+                csv_path=csv_path,
+                header_mode=HeaderMode.PRESENT,
+                header_row_index=1,
+                encoding="utf-8",
+                delimiter=",,",
             )
+        )

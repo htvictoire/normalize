@@ -22,9 +22,8 @@ from normalize.stages.ingestion.contracts import HeaderMode
 
 def main() -> None:
     """Run the configured pipeline and print structured JSON result."""
-    csv_path = sys.argv[1] if len(sys.argv) > 1 else "data/prod_like_10m.csv"
-    mode = sys.argv[2] if len(sys.argv) > 2 else "APPLY"
-    trace_mode = sys.argv[3] if len(sys.argv) > 3 else "sparse"
+    defaults = ["data/prod_like_10m.csv", "APPLY", "sparse"]
+    csv_path, mode, trace_mode = (sys.argv[1:] + defaults)[: len(defaults)]
 
     now_prefix = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
     config = EngineConfig(

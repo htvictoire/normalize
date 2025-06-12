@@ -48,7 +48,7 @@ def resolve_encoding_option(encoding: str) -> tuple[str, str]:
     - `UNSUPPORTED_ENCODING`
     """
     normalized = encoding.strip().lower()
-    if normalized == "":
+    if not normalized:
         raise ValueError("MISSING_ENCODING")
     if normalized not in SUPPORTED_ENCODINGS:
         raise ValueError("UNSUPPORTED_ENCODING")
@@ -69,7 +69,7 @@ def resolve_delimiter_option(delimiter: str) -> str:
     - `MISSING_DELIMITER`
     - `INVALID_DELIMITER`
     """
-    if delimiter == "":
+    if not delimiter:
         raise ValueError("MISSING_DELIMITER")
     if len(delimiter) != 1:
         raise ValueError("INVALID_DELIMITER")

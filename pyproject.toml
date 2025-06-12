@@ -72,3 +72,22 @@ select = [
     "PLW",
 ]
 ignore = []
+extend-ignore = [
+    # SQL is assembled from validated identifiers and quoted literals in this project.
+    "S608",
+    # Keep exception messaging straightforward without forcing custom exception classes.
+    "TRY003",
+    # Pipeline/stage APIs are intentionally explicit and exceed generic complexity caps.
+    "PLR0912",
+    "PLR0913",
+    "PLR0914",
+    "PLR0915",
+    "PLR0917",
+    "PLR6301",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = [
+    "S101",
+    "PLR2004",
+]

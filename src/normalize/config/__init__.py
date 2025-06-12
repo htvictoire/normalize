@@ -8,9 +8,9 @@ from normalize.config.override import (
 from normalize.config.settings import Settings, get_settings
 
 __all__ = [
-    "Settings",
-    "get_settings",
     "SOURCE_FORMAT_FIELDS",
+    "Settings",
     "apply_override_layers",
+    "get_settings",
     "reject_override_exempt_fields",
 ]

@@ -179,7 +179,7 @@ def _should_emit_separator_mismatch(
     numeric_threshold: float,
     thousand_separator: str,
 ) -> bool:
-    if thousand_separator == "":
+    if not thousand_separator:
         return False
     if inferred_type != "string":
         return False

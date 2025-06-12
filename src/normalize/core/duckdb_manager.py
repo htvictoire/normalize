@@ -7,6 +7,7 @@ import tempfile
 from pathlib import Path
 from types import TracebackType
 
+import duckdb
 from duckdb import DuckDBPyConnection
 
 
@@ -33,8 +34,6 @@ class DuckDBManager:
         self._temp_dir: tempfile.TemporaryDirectory[str] | None = None
 
     def __enter__(self) -> DuckDBPyConnection:
-        import duckdb
-
         self._temp_dir = tempfile.TemporaryDirectory(prefix="normalize-duckdb-")
         self._conn = duckdb.connect(database=self.database)
         self._conn.execute(f"SET memory_limit='{self.memory_limit}'")

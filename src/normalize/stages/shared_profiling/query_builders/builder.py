@@ -49,7 +49,7 @@ def build_profile_query(
     )
     has_separator_template = normalized_separator_predicate
     swapped_float_template = "FALSE"
-    if thousand_separator != "":
+    if thousand_separator:
         swapped_pattern = decimal_pattern(
             thousand_separator,
             decimal_separator,
@@ -81,7 +81,7 @@ def build_profile_query(
         source_exprs.append(
             f"{normalize_integer_expr(base_alias, thousand_separator)} AS {normalized_int_alias}"
         )
-        if thousand_separator != "":
+        if thousand_separator:
             source_exprs.append(
                 f"{normalize_numeric_expr(base_alias, thousand_separator, decimal_separator)} "
                 f"AS {normalized_swapped_alias}"

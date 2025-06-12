@@ -31,14 +31,13 @@ def compute_quality_score(
     anomaly = _ratio_decimal(anomaly_ratio)
     schema_stability = _ratio_decimal(schema_stability_ratio)
 
-    score = (
+    return (
         Decimal("0.45") * parse_success
         + Decimal("0.45") * completeness
         + Decimal("0.10") * pattern_consistency
         + Decimal("0.00") * anomaly
         + Decimal("0.00") * schema_stability
     ) * HUNDRED
-    return score
 
 
 def _ratio_decimal(value: float) -> Decimal:

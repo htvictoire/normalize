@@ -138,11 +138,8 @@ class QualityMetricsStage(Stage):
                     conn, table_name=table_name, columns=columns, approximate=approximate_unique
                 )
         parse_error_stats: dict[str, int] | None = None
-        if include_per_column_parse_error_counts:
-            if detailed_stats is None:
-                parse_error_stats = read_parse_error_stats(
-                    conn, table_name=table_name, columns=columns
-                )
+        if include_per_column_parse_error_counts and detailed_stats is None:
+            parse_error_stats = read_parse_error_stats(conn, table_name=table_name, columns=columns)
         non_null_cells = max(total_cells - total_nullish_cells, 0)
         parse_success_ratio = 1.0
         if non_null_cells > 0:

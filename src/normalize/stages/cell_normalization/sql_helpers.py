@@ -10,8 +10,8 @@ from normalize.core.sql_helpers import (
 )
 
 __all__ = [
-    "validate_identifier",
     "quote_identifier",
     "quote_string",
     "read_columns",
+    "validate_identifier",
 ]
