@@ -6,6 +6,11 @@ TOKEN_ARGS = {
     "boolean_true_tokens": ["true", "yes", "1"],
     "boolean_false_tokens": ["false", "no", "0"],
 }
+STAGE_ARGS = {
+    "numeric_threshold": 0.95,
+    "boolean_threshold": 0.95,
+    "currency_threshold": 0.50,
+}
 INFERENCE_ARGS = {
     **TOKEN_ARGS,
     "decimal_separator": ".",
@@ -16,7 +21,7 @@ INFERENCE_ARGS = {
 
 
 def test_type_inference_basic_types() -> None:
-    stage = TypeInferenceStage(numeric_threshold=0.95, boolean_threshold=0.95)
+    stage = TypeInferenceStage(**STAGE_ARGS)
     with DuckDBManager() as conn:
         conn.execute(
             """
@@ -47,14 +52,14 @@ def test_type_inference_basic_types() -> None:
 
 
 def test_type_inference_below_threshold_falls_back_to_string() -> None:
-    stage = TypeInferenceStage(numeric_threshold=0.95, boolean_threshold=0.95)
+    stage = TypeInferenceStage(**STAGE_ARGS)
     with DuckDBManager() as conn:
         conn.execute("CREATE TABLE raw_input (mixed_col VARCHAR)")
         conn.execute(
             """
             INSERT INTO raw_input VALUES
                 ('1'),
-                ('2'),
+                ('hello'),
                 ('hello')
             """
         )
@@ -63,7 +68,7 @@ def test_type_inference_below_threshold_falls_back_to_string() -> None:
 
 
 def test_type_inference_mixed_integers_and_floats_prefers_float() -> None:
-    stage = TypeInferenceStage(numeric_threshold=0.95, boolean_threshold=0.95)
+    stage = TypeInferenceStage(**STAGE_ARGS)
     with DuckDBManager() as conn:
         conn.execute("CREATE TABLE raw_input (num_col VARCHAR)")
         conn.execute(
@@ -80,7 +85,7 @@ def test_type_inference_mixed_integers_and_floats_prefers_float() -> None:
 
 
 def test_type_inference_boolean_requires_full_token_match() -> None:
-    stage = TypeInferenceStage(numeric_threshold=0.95, boolean_threshold=0.95)
+    stage = TypeInferenceStage(**STAGE_ARGS)
     with DuckDBManager() as conn:
         conn.execute("CREATE TABLE raw_input (boolish VARCHAR)")
         conn.execute(
@@ -96,7 +101,7 @@ def test_type_inference_boolean_requires_full_token_match() -> None:
 
 
 def test_type_inference_supports_eu_separators() -> None:
-    stage = TypeInferenceStage(numeric_threshold=0.95, boolean_threshold=0.95)
+    stage = TypeInferenceStage(**STAGE_ARGS)
     with DuckDBManager() as conn:
         conn.execute("CREATE TABLE raw_input (amount VARCHAR)")
         conn.execute(
@@ -119,7 +124,7 @@ def test_type_inference_supports_eu_separators() -> None:
 
 
 def test_type_inference_emits_separator_mismatch_issue() -> None:
-    stage = TypeInferenceStage(numeric_threshold=0.95, boolean_threshold=0.95)
+    stage = TypeInferenceStage(**STAGE_ARGS)
     with DuckDBManager() as conn:
         conn.execute("CREATE TABLE raw_input (amount VARCHAR)")
         conn.execute(
@@ -146,7 +151,7 @@ def test_type_inference_emits_separator_mismatch_issue() -> None:
 
 
 def test_type_inference_declares_date_by_position_and_warns_unknown_position() -> None:
-    stage = TypeInferenceStage(numeric_threshold=0.95, boolean_threshold=0.95)
+    stage = TypeInferenceStage(**STAGE_ARGS)
     with DuckDBManager() as conn:
         conn.execute("CREATE TABLE raw_input (tx_date VARCHAR, value VARCHAR)")
         conn.execute(
@@ -171,7 +176,7 @@ def test_type_inference_declares_date_by_position_and_warns_unknown_position() -
 
 
 def test_type_inference_resolves_date_columns_by_table_order() -> None:
-    stage = TypeInferenceStage(numeric_threshold=0.95, boolean_threshold=0.95)
+    stage = TypeInferenceStage(**STAGE_ARGS)
     with DuckDBManager() as conn:
         conn.execute("CREATE TABLE raw_input (tx_date VARCHAR, value VARCHAR)")
         conn.execute(
@@ -193,7 +198,7 @@ def test_type_inference_resolves_date_columns_by_table_order() -> None:
 
 
 def test_type_inference_leading_decimal_point_toggle() -> None:
-    stage = TypeInferenceStage(numeric_threshold=0.95, boolean_threshold=0.95)
+    stage = TypeInferenceStage(**STAGE_ARGS)
     with DuckDBManager() as conn:
         conn.execute("CREATE TABLE raw_input (amount VARCHAR)")
         conn.execute(
@@ -237,7 +242,7 @@ def test_type_inference_leading_decimal_point_toggle() -> None:
 
 
 def test_type_inference_supports_trailing_decimal_and_plus_sign() -> None:
-    stage = TypeInferenceStage(numeric_threshold=0.95, boolean_threshold=0.95)
+    stage = TypeInferenceStage(**STAGE_ARGS)
     with DuckDBManager() as conn:
         conn.execute("CREATE TABLE raw_input (amount VARCHAR)")
         conn.execute(
@@ -260,7 +265,7 @@ def test_type_inference_supports_trailing_decimal_and_plus_sign() -> None:
 
 
 def test_type_inference_with_empty_thousand_separator() -> None:
-    stage = TypeInferenceStage(numeric_threshold=0.95, boolean_threshold=0.95)
+    stage = TypeInferenceStage(**STAGE_ARGS)
     with DuckDBManager() as conn:
         conn.execute("CREATE TABLE raw_input (amount VARCHAR)")
         conn.execute(
@@ -283,7 +288,7 @@ def test_type_inference_with_empty_thousand_separator() -> None:
 
 
 def test_type_inference_detects_currency_with_symbol_and_bare_values() -> None:
-    stage = TypeInferenceStage(numeric_threshold=0.95, boolean_threshold=0.95)
+    stage = TypeInferenceStage(**STAGE_ARGS)
     with DuckDBManager() as conn:
         conn.execute("CREATE TABLE raw_input (amount VARCHAR)")
         conn.execute(
@@ -291,6 +296,8 @@ def test_type_inference_detects_currency_with_symbol_and_bare_values() -> None:
             INSERT INTO raw_input VALUES
                 ('$1,200.50'),
                 ('EUR 99.90'),
+                ('CNY 88.20'),
+                ('A$ 77.10'),
                 ('100.00')
             """
         )
@@ -306,7 +313,7 @@ def test_type_inference_detects_currency_with_symbol_and_bare_values() -> None:
 
 
 def test_type_inference_keeps_integer_priority_over_currency() -> None:
-    stage = TypeInferenceStage(numeric_threshold=0.95, boolean_threshold=0.95)
+    stage = TypeInferenceStage(**STAGE_ARGS)
     with DuckDBManager() as conn:
         conn.execute("CREATE TABLE raw_input (amount VARCHAR)")
         conn.execute(

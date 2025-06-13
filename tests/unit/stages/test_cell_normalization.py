@@ -425,7 +425,9 @@ def test_cell_normalization_normalizes_currency_and_accounting_notation() -> Non
                 ('100.00-', 3, 3),
                 ('100.00 CR', 4, 4),
                 ('100.00 DR', 5, 5),
-                ('EUR 50.00', 6, 6)
+                ('EUR 50.00', 6, 6),
+                ('CNY 75.25', 7, 7),
+                ('A$ 90.10', 8, 8)
             """
         )
         stage.execute(
@@ -446,6 +448,8 @@ def test_cell_normalization_normalizes_currency_and_accounting_notation() -> Non
             (-100.0, 0),
             (100.0, 0),
             (50.0, 0),
+            (75.25, 0),
+            (90.1, 0),
         ]
 
 

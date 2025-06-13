@@ -43,6 +43,7 @@ def main() -> None:
         boolean_false_tokens=("false", "no", "0"),
         type_inference_numeric_threshold=0.95,
         type_inference_boolean_threshold=0.95,
+        type_inference_currency_threshold=0.50,
         assign_indices=True,
         drop_empty_rows=True,
         emit_raw_row=True,

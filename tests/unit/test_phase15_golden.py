@@ -66,7 +66,11 @@ def _infer_types_for_case(
             delimiter=",",
         )
         HeaderCanonicalizationStage().execute(conn)
-        inference = TypeInferenceStage(numeric_threshold=0.95, boolean_threshold=0.95)
+        inference = TypeInferenceStage(
+            numeric_threshold=0.95,
+            boolean_threshold=0.95,
+            currency_threshold=0.50,
+        )
         return inference.execute(
             conn,
             **_TOKEN_ARGS,
@@ -99,6 +103,7 @@ def _build_engine_config(
         boolean_false_tokens=("false", "no", "0"),
         type_inference_numeric_threshold=0.95,
         type_inference_boolean_threshold=0.95,
+        type_inference_currency_threshold=0.50,
         assign_indices=True,
         drop_empty_rows=True,
         emit_raw_row=False,
