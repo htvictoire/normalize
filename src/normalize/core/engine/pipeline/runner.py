@@ -110,6 +110,7 @@ def run_pipeline(
         type_inference = TypeInferenceStage(
             numeric_threshold=effective.type_inference_numeric_threshold,
             boolean_threshold=effective.type_inference_boolean_threshold,
+            currency_threshold=effective.type_inference_currency_threshold,
         )
         inferred_types = type_inference.execute(
             conn,

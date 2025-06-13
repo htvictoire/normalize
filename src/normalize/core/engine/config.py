@@ -33,6 +33,7 @@ class EngineConfig:
     boolean_false_tokens: tuple[str, ...]
     type_inference_numeric_threshold: float
     type_inference_boolean_threshold: float
+    type_inference_currency_threshold: float
     assign_indices: bool
     drop_empty_rows: bool
     full_raw_row: bool
@@ -57,6 +58,15 @@ class EngineConfig:
             raise ValueError("decimal_separator and thousand_separator must differ")
         if not isinstance(self.allow_leading_decimal_point, bool):
             raise TypeError("allow_leading_decimal_point must be a boolean")
+        _validate_ratio_threshold(
+            "type_inference_numeric_threshold", self.type_inference_numeric_threshold
+        )
+        _validate_ratio_threshold(
+            "type_inference_boolean_threshold", self.type_inference_boolean_threshold
+        )
+        _validate_ratio_threshold(
+            "type_inference_currency_threshold", self.type_inference_currency_threshold
+        )
 
         normalized_date_formats: dict[str, str] = {}
         for raw_key, format_string in self.date_formats.items():
@@ -91,3 +101,8 @@ def _validate_date_formats_with_duckdb(date_formats: Mapping[str, str]) -> None:
                 ) from exc
     finally:
         conn.close()
+
+
+def _validate_ratio_threshold(field_name: str, value: float) -> None:
+    if value <= 0.0 or value > 1.0:
+        raise ValueError(f"{field_name} must be in (0, 1]")

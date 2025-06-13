@@ -10,6 +10,7 @@ def infer_column_type(
     *,
     numeric_threshold: float,
     boolean_threshold: float,
+    currency_threshold: float,
 ) -> str:
     """
     Infer one column type using profile ratios and strict boolean policy.
@@ -19,7 +20,7 @@ def infer_column_type(
     - boolean if boolean ratio >= boolean_threshold
     - integer if integer ratio >= numeric_threshold
     - decimal if decimal ratio >= numeric_threshold
-    - currency if currency ratio >= numeric_threshold
+    - currency if currency ratio >= currency_threshold
     - otherwise string
     """
     if profile.non_empty_count <= 0:
@@ -30,6 +31,6 @@ def infer_column_type(
         return "integer"
     if profile.decimal_ratio >= numeric_threshold:
         return "decimal"
-    if profile.currency_ratio >= numeric_threshold:
+    if profile.currency_ratio >= currency_threshold:
         return "currency"
     return "string"

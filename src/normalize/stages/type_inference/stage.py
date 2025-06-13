@@ -30,6 +30,7 @@ class TypeInferenceStage(Stage):
     Rules:
     - Boolean threshold is configurable and required per run.
     - Integer/float threshold is configurable and required per run.
+    - Currency threshold is configurable and required per run.
     - Priority: boolean -> integer -> float -> currency -> string.
     - Empty columns infer to string.
 
@@ -44,14 +45,18 @@ class TypeInferenceStage(Stage):
         *,
         numeric_threshold: float,
         boolean_threshold: float,
+        currency_threshold: float,
     ) -> None:
         super().__init__()
         if numeric_threshold <= 0.0 or numeric_threshold > 1.0:
             raise ValueError("numeric_threshold must be in (0, 1]")
         if boolean_threshold <= 0.0 or boolean_threshold > 1.0:
             raise ValueError("boolean_threshold must be in (0, 1]")
+        if currency_threshold <= 0.0 or currency_threshold > 1.0:
+            raise ValueError("currency_threshold must be in (0, 1]")
         self._numeric_threshold = numeric_threshold
         self._boolean_threshold = boolean_threshold
+        self._currency_threshold = currency_threshold
 
     def execute(
         self,
@@ -105,6 +110,7 @@ class TypeInferenceStage(Stage):
                 profile,
                 numeric_threshold=self._numeric_threshold,
                 boolean_threshold=self._boolean_threshold,
+                currency_threshold=self._currency_threshold,
             )
             if _should_emit_separator_mismatch(
                 profile=profile,
@@ -131,6 +137,7 @@ class TypeInferenceStage(Stage):
             "column_count": len(inferred),
             "numeric_threshold": self._numeric_threshold,
             "boolean_threshold": self._boolean_threshold,
+            "currency_threshold": self._currency_threshold,
             "issue_count": len(detected_issues),
             "boolean_columns": sum(1 for value in inferred.values() if value == "boolean"),
             "integer_columns": sum(1 for value in inferred.values() if value == "integer"),

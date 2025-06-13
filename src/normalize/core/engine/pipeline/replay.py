@@ -23,6 +23,7 @@ def build_replay_config(effective: EngineConfig) -> dict[str, Any]:
         "boolean_false_tokens": list(effective.boolean_false_tokens),
         "type_inference_numeric_threshold": effective.type_inference_numeric_threshold,
         "type_inference_boolean_threshold": effective.type_inference_boolean_threshold,
+        "type_inference_currency_threshold": effective.type_inference_currency_threshold,
         "assign_indices": effective.assign_indices,
         "drop_empty_rows": effective.drop_empty_rows,
         "full_raw_row": effective.full_raw_row,

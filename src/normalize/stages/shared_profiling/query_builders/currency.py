@@ -6,8 +6,55 @@ import re
 
 from normalize.stages.shared_profiling.sql_helpers import quote_string
 
-CURRENCY_SYMBOLS = ("$", "€", "£", "¥", "₹", "₩", "₪", "₿")
-CURRENCY_CODES = ("USD", "EUR", "GBP", "CHF", "CAD", "AUD", "JPY")
+CURRENCY_SYMBOLS = (
+    "$",
+    "€",
+    "£",
+    "¥",
+    "₹",
+    "₩",
+    "₪",
+    "₿",
+    "₺",
+    "₽",
+    "₴",
+    "₫",
+    "₦",
+    "₱",
+    "₭",
+    "₲",
+    "₡",
+    "R$",
+    "C$",
+    "A$",
+    "NZ$",
+    "S$",
+    "HK$",
+    "MX$",
+    "CN¥",
+)
+CURRENCY_CODES = (
+    "USD",
+    "EUR",
+    "JPY",
+    "GBP",
+    "CNY",
+    "CHF",
+    "CAD",
+    "AUD",
+    "HKD",
+    "SGD",
+    "SEK",
+    "NOK",
+    "NZD",
+    "MXN",
+    "INR",
+    "KRW",
+    "BRL",
+    "ZAR",
+    "TRY",
+    "AED",
+)
 
 
 def _currency_token_pattern() -> str:
