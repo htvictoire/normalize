@@ -8,10 +8,23 @@ from collections.abc import Sequence
 from normalize.stages.cell_normalization.currency_helpers import (
     build_currency_numeric_candidate_expr,
 )
+from normalize.stages.cell_normalization.naming import (
+    parse_cast_alias,
+    parse_date_alias,
+    parse_match_alias,
+)
 from normalize.stages.cell_normalization.sql_helpers import (
     quote_identifier,
     quote_string,
 )
+
+# Each call returns (parse_cte_entries, normalized_expr, issue_expr).
+# parse_cte_entries is a list of (alias, expr) pairs to be materialised in a
+# parse CTE that precedes the base CTE.  The normalized and issue expressions
+# then reference those aliases instead of re-evaluating the expensive
+# sub-expressions (REGEXP_FULL_MATCH, TRY_CAST, TRY_STRPTIME).
+_ParseCteEntries = list[tuple[str, str]]
+_ColumnExprs = tuple[_ParseCteEntries, str, str]
 
 
 def build_column_exprs(
@@ -19,31 +32,37 @@ def build_column_exprs(
     inferred_type: str,
     nullish_predicate: str,
     *,
+    raw_value: str,
+    normalized_raw_value: str,
     true_tokens: Sequence[str],
     false_tokens: Sequence[str],
     decimal_separator: str,
     thousand_separator: str,
     allow_leading_decimal_point: bool,
     date_format: str | None = None,
-) -> tuple[str, str]:
-    """Build normalized-value and issue-code SQL expressions for one column."""
-    quoted_column = quote_identifier(column_name)
-    raw_value = f"CAST({quoted_column} AS VARCHAR)"
-    normalized_raw_value = f"LOWER(TRIM({raw_value}))"
+) -> _ColumnExprs:
+    """Build (parse_cte_entries, normalized_expr, issue_expr) for one column.
 
+    Expensive sub-expressions (REGEXP_FULL_MATCH, TRY_CAST, TRY_STRPTIME) are
+    returned as parse_cte_entries so callers can materialise them once in a
+    preceding CTE.  The normalized and issue expressions reference the resulting
+    aliases and are therefore evaluated only once per row.
+    """
     if inferred_type == "string":
         normalized = f"CASE WHEN {nullish_predicate} THEN NULL ELSE {raw_value} END"
-        return (normalized, "NULL")
+        return ([], normalized, "NULL")
+
     if inferred_type == "integer":
-        normalized = (
-            f"CASE WHEN {nullish_predicate} THEN NULL ELSE TRY_CAST({raw_value} AS BIGINT) END"
-        )
+        cast_alias = quote_identifier(parse_cast_alias(column_name))
+        cast_expr = f"TRY_CAST({raw_value} AS BIGINT)"
+        normalized = f"CASE WHEN {nullish_predicate} THEN NULL ELSE {cast_alias} END"
         issue = (
             f"CASE WHEN {nullish_predicate} THEN NULL "
-            f"WHEN TRY_CAST({raw_value} AS BIGINT) IS NULL THEN 'INVALID_INTEGER' "
+            f"WHEN {cast_alias} IS NULL THEN 'INVALID_INTEGER' "
             "ELSE NULL END"
         )
-        return (normalized, issue)
+        return ([(cast_alias, cast_expr)], normalized, issue)
+
     if inferred_type in {"float", "decimal"}:
         trimmed_raw_value = f"TRIM({raw_value})"
         numeric_value = _normalize_numeric_value(
@@ -56,19 +75,22 @@ def build_column_exprs(
             thousand_separator=thousand_separator,
             allow_leading_decimal_point=allow_leading_decimal_point,
         )
-        decimal_match = f"REGEXP_FULL_MATCH({trimmed_raw_value}, {quote_string(decimal_pattern)})"
-        cast_double = f"TRY_CAST({numeric_value} AS DOUBLE)"
+        match_alias = quote_identifier(parse_match_alias(column_name))
+        cast_alias = quote_identifier(parse_cast_alias(column_name))
+        match_expr = f"REGEXP_FULL_MATCH({trimmed_raw_value}, {quote_string(decimal_pattern)})"
+        cast_expr = f"TRY_CAST({numeric_value} AS DOUBLE)"
         normalized = (
             f"CASE WHEN {nullish_predicate} THEN NULL "
-            f"WHEN {decimal_match} THEN {cast_double} "
+            f"WHEN {match_alias} THEN {cast_alias} "
             "ELSE NULL END"
         )
         issue = (
             f"CASE WHEN {nullish_predicate} THEN NULL "
-            f"WHEN {decimal_match} AND {cast_double} IS NOT NULL THEN NULL "
+            f"WHEN {match_alias} AND {cast_alias} IS NOT NULL THEN NULL "
             "ELSE 'INVALID_DECIMAL' END"
         )
-        return (normalized, issue)
+        return ([(match_alias, match_expr), (cast_alias, cast_expr)], normalized, issue)
+
     if inferred_type == "currency":
         trimmed_raw_value = f"TRIM({raw_value})"
         currency_candidate = build_currency_numeric_candidate_expr(trimmed_raw_value)
@@ -82,35 +104,40 @@ def build_column_exprs(
             thousand_separator=thousand_separator,
             allow_leading_decimal_point=allow_leading_decimal_point,
         )
-        decimal_match = f"REGEXP_FULL_MATCH({currency_candidate}, {quote_string(decimal_pattern)})"
-        cast_double = f"TRY_CAST({numeric_value} AS DOUBLE)"
+        match_alias = quote_identifier(parse_match_alias(column_name))
+        cast_alias = quote_identifier(parse_cast_alias(column_name))
+        match_expr = f"REGEXP_FULL_MATCH({currency_candidate}, {quote_string(decimal_pattern)})"
+        cast_expr = f"TRY_CAST({numeric_value} AS DOUBLE)"
         normalized = (
             f"CASE WHEN {nullish_predicate} THEN NULL "
-            f"WHEN {decimal_match} THEN {cast_double} "
+            f"WHEN {match_alias} THEN {cast_alias} "
             "ELSE NULL END"
         )
         issue = (
             f"CASE WHEN {nullish_predicate} THEN NULL "
-            f"WHEN {decimal_match} AND {cast_double} IS NOT NULL THEN NULL "
+            f"WHEN {match_alias} AND {cast_alias} IS NOT NULL THEN NULL "
             "ELSE 'INVALID_CURRENCY' END"
         )
-        return (normalized, issue)
+        return ([(match_alias, match_expr), (cast_alias, cast_expr)], normalized, issue)
+
     if inferred_type == "date":
         if date_format is None:
             raise ValueError(f"MISSING_DATE_FORMAT:{column_name}")
+        date_alias = quote_identifier(parse_date_alias(column_name))
         if date_format == "EXCEL_SERIAL":
-            parsed_date = f"(DATE '1899-12-30' + TRY_CAST({raw_value} AS INTEGER))"
+            date_expr = f"(DATE '1899-12-30' + TRY_CAST({raw_value} AS INTEGER))"
         else:
-            parsed_date = (
+            date_expr = (
                 f"TRY_CAST(TRY_STRPTIME({raw_value}, {quote_string(date_format)}) AS DATE)"
             )
-        normalized = f"CASE WHEN {nullish_predicate} THEN NULL ELSE {parsed_date} END"
+        normalized = f"CASE WHEN {nullish_predicate} THEN NULL ELSE {date_alias} END"
         issue = (
             f"CASE WHEN {nullish_predicate} THEN NULL "
-            f"WHEN {parsed_date} IS NULL THEN 'INVALID_DATE' "
+            f"WHEN {date_alias} IS NULL THEN 'INVALID_DATE' "
             "ELSE NULL END"
         )
-        return (normalized, issue)
+        return ([(date_alias, date_expr)], normalized, issue)
+
     if inferred_type == "boolean":
         true_in_clause = _token_in_clause(true_tokens)
         false_in_clause = _token_in_clause(false_tokens)
@@ -127,22 +154,25 @@ def build_column_exprs(
             f"WHEN {true_match} OR {false_match} THEN NULL "
             "ELSE 'INVALID_BOOLEAN' END"
         )
-        return (normalized, issue)
+        return ([], normalized, issue)
 
     raise ValueError(f"UNSUPPORTED_INFERRED_TYPE:{inferred_type}")
 
 
-def build_nullish_predicate(column_name: str, null_tokens: Sequence[str]) -> str:
+def build_nullish_predicate(
+    value_expr: str,
+    normalized_value_expr: str,
+    null_tokens: Sequence[str],
+) -> str:
     """Build SQL predicate that matches configured nullish values."""
-    quoted_column = quote_identifier(column_name)
-    base_value = f"NULLIF(TRIM(CAST({quoted_column} AS VARCHAR)), '')"
+    base_value = f"NULLIF(TRIM({value_expr}), '')"
     normalized_tokens = sorted(
         {token.strip().lower() for token in null_tokens if token.strip()}
     )
     if not normalized_tokens:
         return f"{base_value} IS NULL"
     in_clause = ", ".join(quote_string(token) for token in normalized_tokens)
-    return f"{base_value} IS NULL OR LOWER(TRIM(CAST({quoted_column} AS VARCHAR))) IN ({in_clause})"
+    return f"{base_value} IS NULL OR {normalized_value_expr} IN ({in_clause})"
 
 
 def _token_in_clause(tokens: Sequence[str]) -> str:

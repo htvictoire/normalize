@@ -16,6 +16,7 @@ def execute_cell_rewrite(
     *,
     table_name: str,
     data_columns: Sequence[str],
+    parse_cte_entries: Sequence[tuple[str, str]],
     base_exprs: Sequence[str],
     raw_source_pairs: Sequence[str],
     issue_pairs: Sequence[str],
@@ -30,6 +31,11 @@ def execute_cell_rewrite(
     has_row_indices = set(_INDEX_AUDIT_COLUMNS).issubset(set(available_columns))
     passthrough_audit = list(_INDEX_AUDIT_COLUMNS) if has_row_indices else []
 
+    use_parse_cte = bool(parse_cte_entries)
+    # When a parse CTE is used, rowid is only accessible on the base table.
+    # Pass it through as __rowid so stage_base can reference it for indices.
+    rowid_ref = "__rowid" if use_parse_cte else "rowid"
+
     if emit_raw_row:
         base_select_exprs.append(
             f"TO_JSON(STRUCT_PACK({', '.join(raw_source_pairs)})) AS __raw_row_json"
@@ -41,10 +47,12 @@ def execute_cell_rewrite(
             for column in passthrough_audit
         ]
     else:
-        # High-throughput path: when step 3 runs without index materialization,
-        # assign deterministic row indices here in the same rewrite pass.
-        base_select_exprs.append("ROW_NUMBER() OVER (ORDER BY rowid) AS _row_index")
-        base_select_exprs.append("ROW_NUMBER() OVER (ORDER BY rowid) AS _global_row_index")
+        base_select_exprs.append(
+            f"ROW_NUMBER() OVER (ORDER BY {rowid_ref}) AS _row_index"
+        )
+        base_select_exprs.append(
+            f"ROW_NUMBER() OVER (ORDER BY {rowid_ref}) AS _global_row_index"
+        )
         passthrough_exprs = []
         passthrough_audit = list(_INDEX_AUDIT_COLUMNS)
     base_select_exprs.extend(passthrough_exprs)
@@ -72,13 +80,38 @@ def execute_cell_rewrite(
     else:
         parse_issues_expr = "NULL::VARCHAR"
 
+    base_source = "stage_parsed" if use_parse_cte else table_name
+
+    if use_parse_cte:
+        rowid_passthrough = (
+            f"rowid AS {rowid_ref}" if not has_row_indices else ""
+        )
+        parse_intermediate_exprs = [
+            f"{expr} AS {alias}" for alias, expr in parse_cte_entries
+        ]
+        parsed_extras = (
+            [rowid_passthrough, *parse_intermediate_exprs]
+            if rowid_passthrough
+            else parse_intermediate_exprs
+        )
+        parse_cte_sql = (
+            f"stage_parsed AS (\n"
+            f"    SELECT\n"
+            f"        *,\n"
+            f"        {',\n        '.join(parsed_extras)}\n"
+            f"    FROM {table_name}\n"
+            f"),\n"
+        )
+    else:
+        parse_cte_sql = ""
+
     conn.execute(
         f"""
         CREATE OR REPLACE TABLE {table_name} AS
-        WITH stage_base AS (
+        WITH {parse_cte_sql}stage_base AS (
             SELECT
                 {", ".join(base_select_exprs)}
-            FROM {table_name}
+            FROM {base_source}
         ),
         stage_enriched AS (
             SELECT

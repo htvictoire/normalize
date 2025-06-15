@@ -159,6 +159,7 @@ class CellNormalizationStage(Stage):
             conn,
             table_name=table_name,
             data_columns=data_columns,
+            parse_cte_entries=fragments.parse_cte_entries,
             base_exprs=fragments.base_exprs,
             raw_source_pairs=fragments.raw_source_pairs,
             issue_pairs=fragments.issue_pairs,

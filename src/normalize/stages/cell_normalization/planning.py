@@ -38,6 +38,7 @@ def build_cell_plan(
 
     return CellPlan(
         data_columns=data_columns,
+        parse_cte_exprs=fragments.parse_cte_entries,
         column_select_exprs=fragments.base_exprs,
         raw_source_pairs=fragments.raw_source_pairs,
         issue_pairs=fragments.issue_pairs,
