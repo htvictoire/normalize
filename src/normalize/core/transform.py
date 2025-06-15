@@ -25,6 +25,10 @@ class CellPlan:
     """SQL fragments produced by cell normalization planning."""
 
     data_columns: tuple[str, ...]
+    # (alias, expr) pairs for the pre-parse CTE — materialised once per row
+    # so expensive sub-expressions (REGEXP_FULL_MATCH, TRY_CAST, TRY_STRPTIME)
+    # are not re-evaluated for both the normalized value and the issue code.
+    parse_cte_exprs: tuple[tuple[str, str], ...]
     # SELECT expressions for the base CTE:
     #   normalized column AS col, issue expr AS __issue__col
     column_select_exprs: tuple[str, ...]
@@ -60,20 +64,30 @@ def compose_transform_sql(
 
     needs_window = row_plan.assign_indices and row_plan.rows_dropped > 0
     needs_rowid_index = row_plan.assign_indices and row_plan.rows_dropped == 0
+    use_parse_cte = bool(cell_plan.parse_cte_exprs)
 
     # WHERE clause for empty row filtering
     filter_clause = ""
     if row_plan.filter_predicate and row_plan.rows_dropped > 0:
         filter_clause = f"WHERE {row_plan.filter_predicate}"
 
+    # When a parse CTE is injected, rowid is only accessible on the base table.
+    # Pass it through as __rowid so base can use it for index expressions.
+    rowid_alias = "__rowid"
+    rowid_ref = rowid_alias if use_parse_cte else "rowid"
+
     # Base CTE: filter + type cast + issue detection + indices + raw json
     base_parts: list[str] = list(cell_plan.column_select_exprs)
     if needs_window:
-        base_parts.append("(ROW_NUMBER() OVER (ORDER BY rowid))::BIGINT AS _row_index")
-        base_parts.append("(ROW_NUMBER() OVER (ORDER BY rowid))::BIGINT AS _global_row_index")
+        base_parts.append(
+            f"(ROW_NUMBER() OVER (ORDER BY {rowid_ref}))::BIGINT AS _row_index"
+        )
+        base_parts.append(
+            f"(ROW_NUMBER() OVER (ORDER BY {rowid_ref}))::BIGINT AS _global_row_index"
+        )
     elif needs_rowid_index:
-        base_parts.append("(rowid + 1)::BIGINT AS _row_index")
-        base_parts.append("(rowid + 1)::BIGINT AS _global_row_index")
+        base_parts.append(f"({rowid_ref} + 1)::BIGINT AS _row_index")
+        base_parts.append(f"({rowid_ref} + 1)::BIGINT AS _global_row_index")
 
     # Conditional JSON optimization: when full_raw_row=False, compute __error_cnt
     # first (via lateral column alias) and only serialize JSON for rows with errors.
@@ -124,7 +138,42 @@ def compose_transform_sql(
         parse_issues_sql = cell_plan.parse_issues_expr
 
     # Outer ORDER BY rowid helps DuckDB optimize the window function sort
-    outer_order = "\nORDER BY rowid" if needs_window else ""
+    outer_order = f"\nORDER BY {rowid_ref}" if needs_window else ""
+
+    if use_parse_cte:
+        # Parse CTE materialises expensive sub-expressions once; base reads from it.
+        # rowid is passed through explicitly so index expressions can reference it.
+        parse_intermediate_exprs = [
+            f"{expr} AS {alias}" for alias, expr in cell_plan.parse_cte_exprs
+        ]
+        rowid_passthrough = f"rowid AS {rowid_alias}" if row_plan.assign_indices else ""
+        parsed_select_extras = (
+            [rowid_passthrough, *parse_intermediate_exprs]
+            if rowid_passthrough
+            else parse_intermediate_exprs
+        )
+        return (
+            f"CREATE OR REPLACE TABLE {table_name} AS\n"
+            f"WITH parsed AS (\n"
+            f"    SELECT\n"
+            f"        *,\n"
+            f"        {',\n        '.join(parsed_select_extras)}\n"
+            f"    FROM {table_name}\n"
+            f"    {filter_clause}\n"
+            f"),\n"
+            f"base AS (\n"
+            f"    SELECT\n"
+            f"        {',\n        '.join(base_parts)}\n"
+            f"    FROM parsed\n"
+            f"    {outer_order}\n"
+            f")\n"
+            f"SELECT\n"
+            f"    {', '.join(projected)},\n"
+            f"    {error_count_sql} AS _parse_error_count,\n"
+            f"    {raw_row_sql} AS _raw_row,\n"
+            f"    {parse_issues_sql} AS _parse_issues\n"
+            f"FROM base"
+        )
 
     return (
         f"CREATE OR REPLACE TABLE {table_name} AS\n"

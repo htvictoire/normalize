@@ -63,7 +63,6 @@ class IngestionStage(Stage):
         )
         self.metrics = {
             "duration_seconds": result.duration_seconds,
-            "rows_in": result.row_count,
             "column_count": len(result.column_names),
             "file_size_bytes": result.file_size_bytes,
             "encoding": result.encoding,

@@ -64,13 +64,12 @@ class IngestionResult:
     """
     Output contract for ingestion execution.
 
-    Includes both data-shape metadata (`row_count`, `column_names`) and
-    operational metadata (`duration_seconds`) so the caller can persist
-    traceable run diagnostics.
+    Includes both data-shape metadata (`column_names`) and operational
+    metadata (`duration_seconds`) so the caller can persist traceable
+    run diagnostics.
     """
 
     file_checksum: str
-    row_count: int
     column_names: list[str]
     file_size_bytes: int
     encoding: str

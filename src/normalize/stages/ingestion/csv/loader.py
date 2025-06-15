@@ -37,12 +37,11 @@ class DirectCsvIngestor:
         delimiter: str,
         header_mode: HeaderMode,
         header_row_index: int | None,
-    ) -> tuple[int, list[str]]:
+    ) -> list[str]:
         """
         Execute direct CSV ingestion.
 
         Returns:
-        - row count loaded into destination table
         - ordered list of destination column names
         """
         validate_identifier(table_name)
@@ -54,6 +53,4 @@ class DirectCsvIngestor:
             ")",
             [str(csv_path), header, skip, delimiter, encoding],
         )
-        row_count = int(conn.execute(f"SELECT COUNT(*) FROM {table_name}").fetchone()[0])
-        column_names = read_columns(conn, table_name)
-        return (row_count, column_names)
+        return read_columns(conn, table_name)
