@@ -93,26 +93,35 @@ def read_currency_symbol_counts(
     if not currency_columns:
         return result
 
-    union_parts = []
-    for column_name in currency_columns:
-        quoted = quote_identifier(column_name)
-        raw_value = f"CAST({quoted} AS VARCHAR)"
-        nullish_predicate = build_nullish_predicate(column_name, null_tokens)
-        symbol_expr = build_currency_symbol_extract_expr(raw_value)
-        union_parts.append(
-            f"SELECT {quote_string(column_name)} AS col_name, "
-            f"{symbol_expr} AS symbol "
-            f"FROM raw_input WHERE NOT ({nullish_predicate})"
-        )
+    casted_columns = ", ".join(
+        f"CAST({quote_identifier(column_name)} AS VARCHAR) AS {quote_identifier(column_name)}"
+        for column_name in currency_columns
+    )
+    unpivot_columns = ", ".join(quote_identifier(column_name) for column_name in currency_columns)
+    nullish_predicate = build_nullish_predicate("raw_value", null_tokens)
+    symbol_expr = build_currency_symbol_extract_expr("raw_value")
 
-    union_sql = " UNION ALL ".join(union_parts)
     rows = conn.execute(
         f"""
-        SELECT col_name, symbol, COUNT(*) AS symbol_count
-        FROM ({union_sql}) s
+        WITH source AS (
+            SELECT {casted_columns}
+            FROM raw_input
+        ), long_values AS (
+            SELECT column_name, raw_value
+            FROM source
+            UNPIVOT INCLUDE NULLS (raw_value FOR column_name IN ({unpivot_columns}))
+        )
+        SELECT column_name AS col_name, symbol, COUNT(*) AS symbol_count
+        FROM (
+            SELECT
+                column_name,
+                {symbol_expr} AS symbol
+            FROM long_values
+            WHERE NOT ({nullish_predicate})
+        ) s
         WHERE symbol IS NOT NULL
-        GROUP BY col_name, symbol
-        ORDER BY col_name, symbol_count DESC, symbol ASC
+        GROUP BY column_name, symbol
+        ORDER BY column_name, symbol_count DESC, symbol ASC
         """
     ).fetchall()
 
@@ -121,12 +130,11 @@ def read_currency_symbol_counts(
     return result
 
 
-def build_nullish_predicate(column_name: str, null_tokens: tuple[str, ...]) -> str:
-    """Build SQL predicate matching nullish values for one input column."""
-    quoted = quote_identifier(column_name)
-    base_value = f"NULLIF(TRIM(CAST({quoted} AS VARCHAR)), '')"
+def build_nullish_predicate(value_expr: str, null_tokens: tuple[str, ...]) -> str:
+    """Build SQL predicate matching nullish values for one SQL value expression."""
+    base_value = f"NULLIF(TRIM(CAST({value_expr} AS VARCHAR)), '')"
     normalized_tokens = sorted({token.strip().lower() for token in null_tokens if token.strip()})
     if not normalized_tokens:
         return f"{base_value} IS NULL"
     in_clause = ", ".join(quote_string(token) for token in normalized_tokens)
-    return f"{base_value} IS NULL OR LOWER(TRIM(CAST({quoted} AS VARCHAR))) IN ({in_clause})"
+    return f"{base_value} IS NULL OR LOWER(TRIM(CAST({value_expr} AS VARCHAR))) IN ({in_clause})"

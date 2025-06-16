@@ -70,6 +70,7 @@ class TypeInferenceStage(Stage):
         decimal_separator: str,
         thousand_separator: str,
         allow_leading_decimal_point: bool,
+        currency_candidate_threshold: float,
         date_formats: Mapping[str, str] | None = None,
     ) -> dict[str, str]:
         start_time = perf_counter()
@@ -86,6 +87,7 @@ class TypeInferenceStage(Stage):
             decimal_separator=decimal_separator,
             thousand_separator=thousand_separator,
             allow_leading_decimal_point=allow_leading_decimal_point,
+            currency_candidate_threshold=currency_candidate_threshold,
         )
         columns_in_order = read_columns(conn, table_name)
         resolved_position_to_canonical = build_position_to_name(columns_in_order)

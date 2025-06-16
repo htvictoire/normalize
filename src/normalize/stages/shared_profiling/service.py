@@ -9,7 +9,10 @@ from normalize.stages.shared_profiling.contracts import (
     DEFAULT_PROFILE_TABLE_NAME,
     ColumnProfile,
 )
-from normalize.stages.shared_profiling.query_builders import build_profile_query
+from normalize.stages.shared_profiling.query_builders import (
+    build_pass1_profile_query,
+    build_pass2_currency_query,
+)
 from normalize.stages.shared_profiling.sql_helpers import (
     read_data_columns,
     table_exists,
@@ -26,6 +29,7 @@ def ensure_column_profiles(
     decimal_separator: str,
     thousand_separator: str,
     allow_leading_decimal_point: bool,
+    currency_candidate_threshold: float,
 ) -> dict[str, ColumnProfile]:
     """
     Load cached column profiles when present; otherwise compute and store.
@@ -43,6 +47,7 @@ def ensure_column_profiles(
         decimal_separator=decimal_separator,
         thousand_separator=thousand_separator,
         allow_leading_decimal_point=allow_leading_decimal_point,
+        currency_candidate_threshold=currency_candidate_threshold,
     )
 
 
@@ -107,9 +112,16 @@ def compute_and_store_column_profiles(
     decimal_separator: str,
     thousand_separator: str,
     allow_leading_decimal_point: bool,
+    currency_candidate_threshold: float,
 ) -> dict[str, ColumnProfile]:
     """
-    Compute per-column counters in one aggregate scan and persist profile table.
+    Compute per-column counters in two passes and persist profile table.
+
+    Pass 1 (all columns): null/bool/int/float counts — no currency expressions.
+    Pass 2 (candidate columns only): currency expressions for columns whose
+    float ratio from pass 1 is below `currency_candidate_threshold`. Columns
+    at or above the threshold will be classified as decimal/integer by type
+    inference regardless, so the currency scan would be wasted work.
     """
     validate_identifier(table_name)
     validate_identifier(profile_table_name)
@@ -134,7 +146,8 @@ def compute_and_store_column_profiles(
         )
         return {}
 
-    query = build_profile_query(
+    # --- Pass 1: cheap counts for all columns ---
+    pass1_query = build_pass1_profile_query(
         columns,
         table_name=table_name,
         token_policy=token_policy,
@@ -142,36 +155,77 @@ def compute_and_store_column_profiles(
         thousand_separator=thousand_separator,
         allow_leading_decimal_point=allow_leading_decimal_point,
     )
-    row = conn.execute(query).fetchone()
+    row = conn.execute(pass1_query).fetchone()
     if row is None:
-        raise RuntimeError("profile query returned no rows")
+        raise RuntimeError("pass1 profile query returned no rows")
 
     row_count = int(row[0])
     offset = 1
-    profiles: dict[str, ColumnProfile] = {}
-
+    # Columns per row in pass1: non_empty, bool, int, float, swapped, nullish = 6
+    pass1_cols = 6
+    pass1_data: dict[str, tuple[int, int, int, int, int, int]] = {}
     for column_name in columns:
-        non_empty_count = int(row[offset])
-        bool_match_count = int(row[offset + 1])
-        int_match_count = int(row[offset + 2])
-        float_match_count = int(row[offset + 3])
-        swapped_float_match_count = int(row[offset + 4])
-        currency_match_count = int(row[offset + 5])
-        accounting_negative_match_count = int(row[offset + 6])
-        nullish_count = int(row[offset + 7])
-        offset += 8
+        pass1_data[column_name] = (
+            int(row[offset]),      # non_empty_count
+            int(row[offset + 1]),  # bool_match_count
+            int(row[offset + 2]),  # int_match_count
+            int(row[offset + 3]),  # float_match_count
+            int(row[offset + 4]),  # swapped_float_match_count
+            int(row[offset + 5]),  # nullish_count
+        )
+        offset += pass1_cols
+
+    # --- Determine currency candidates ---
+    # Skip the currency pass for columns whose float ratio meets or exceeds the
+    # threshold — those columns will be classified as decimal/integer by type
+    # inference and need no currency analysis.
+    currency_candidates = [
+        col
+        for col in columns
+        if pass1_data[col][3] < pass1_data[col][0] * currency_candidate_threshold
+    ]
+
+    # --- Pass 2: currency expressions for candidates only ---
+    currency_data: dict[str, tuple[int, int]] = {}  # col -> (currency_extra_match, acct_neg)
+    if currency_candidates:
+        pass2_query = build_pass2_currency_query(
+            currency_candidates,
+            table_name=table_name,
+            decimal_separator=decimal_separator,
+            thousand_separator=thousand_separator,
+            allow_leading_decimal_point=allow_leading_decimal_point,
+        )
+        row2 = conn.execute(pass2_query).fetchone()
+        if row2 is None:
+            raise RuntimeError("pass2 currency query returned no rows")
+        for i, col in enumerate(currency_candidates):
+            currency_data[col] = (int(row2[i * 2]), int(row2[i * 2 + 1]))
+
+    # --- Build profiles: merge pass1 + pass2 ---
+    profiles: dict[str, ColumnProfile] = {}
+    for column_name in columns:
+        non_empty, bool_m, int_m, float_m, swapped_m, nullish_m = pass1_data[column_name]
+        if column_name in currency_data:
+            currency_extra_match_count, accounting_negative_match_count = currency_data[column_name]
+            currency_match_count = min(non_empty, float_m + currency_extra_match_count)
+        else:
+            # Non-candidate: set currency_match_count = float_match_count.
+            # Type inference picks decimal first (higher priority), so currency_ratio
+            # will equal decimal_ratio -> infer_column_type won't select currency.
+            currency_match_count = float_m
+            accounting_negative_match_count = 0
 
         profiles[column_name] = ColumnProfile(
             column_name=column_name,
             row_count=row_count,
-            non_empty_count=non_empty_count,
-            bool_match_count=bool_match_count,
-            int_match_count=int_match_count,
-            float_match_count=float_match_count,
-            swapped_float_match_count=swapped_float_match_count,
+            non_empty_count=non_empty,
+            bool_match_count=bool_m,
+            int_match_count=int_m,
+            float_match_count=float_m,
+            swapped_float_match_count=swapped_m,
             currency_match_count=currency_match_count,
             accounting_negative_match_count=accounting_negative_match_count,
-            nullish_count=nullish_count,
+            nullish_count=nullish_m,
         )
 
     store_column_profiles(conn, profiles, profile_table_name=profile_table_name)

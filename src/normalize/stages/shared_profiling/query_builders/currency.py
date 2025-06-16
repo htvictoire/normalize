@@ -115,6 +115,8 @@ def accounting_negative_predicate(value_expr: str) -> str:
 def currency_marker_predicate(lower_value_expr: str) -> str:
     """Cheap marker predicate for currency-like rows before expensive transforms."""
     contains_token = rf"^.*(?:{CURRENCY_TOKEN_PATTERN}).*$"
-    accounting = r"^\(.*\)$|^.*-$|^.*\s+(?:cr|dr)$"
+    # Require at least one digit so pure-text values like "(N/A)", "note-", "unknown cr"
+    # don't trigger the expensive strip/sign expressions downstream.
+    accounting = r"^\(.*\d.*\)$|^.*\d.*-$|^.*\d.*\s+(?:cr|dr)$"
     full_pattern = rf"{contains_token}|{accounting}"
     return f"REGEXP_FULL_MATCH({lower_value_expr}, {quote_string(full_pattern)})"

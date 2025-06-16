@@ -9,7 +9,7 @@ from time import perf_counter
 from typing import Any
 
 from normalize.core.duckdb_manager import DuckDBManager, resolve_db_path
-from normalize.core.engine.background import run_profiling_background, write_parquets_background
+from normalize.core.engine.background import write_parquets_background
 from normalize.core.engine.config import EngineConfig
 from normalize.core.engine.issues import build_issues, issue_to_dict
 from normalize.core.engine.pipeline.currency import collect_currency_analysis
@@ -33,7 +33,7 @@ from normalize.stages.header_canonicalization import HeaderCanonicalizationStage
 from normalize.stages.ingestion import IngestionStage
 from normalize.stages.quality_metrics import QualityMetricsStage
 from normalize.stages.row_normalization import RowNormalizationStage
-from normalize.stages.shared_profiling import store_column_profiles
+from normalize.stages.shared_profiling import compute_and_store_column_profiles
 from normalize.stages.type_inference import TypeInferenceStage
 from normalize.utils.checksums import sha256_file
 
@@ -70,42 +70,41 @@ def run_pipeline(
         threads=effective.threads,
         database=db_path,
     ) as conn:
-        with ThreadPoolExecutor(max_workers=1) as profile_pool:
-            profile_future = profile_pool.submit(
-                run_profiling_background,
-                source_csv,
-                effective.header_mode,
-                effective.header_row_index,
-                effective.encoding,
-                effective.delimiter,
-                token_policy,
-                effective.decimal_separator,
-                effective.thousand_separator,
-                effective.allow_leading_decimal_point,
-            )
+        ingestion = IngestionStage()
+        ingestion_result = ingestion.execute(
+            conn,
+            source_csv,
+            header_mode=effective.header_mode,
+            header_row_index=effective.header_row_index,
+            encoding=effective.encoding,
+            delimiter=effective.delimiter,
+        )
+        stage_seconds["ingestion"] = float(ingestion.metrics.get("duration_seconds", 0.0))
+        stage_metrics["ingestion"] = dict(ingestion.metrics)
 
-            ingestion = IngestionStage()
-            ingestion_result = ingestion.execute(
-                conn,
-                source_csv,
-                header_mode=effective.header_mode,
-                header_row_index=effective.header_row_index,
-                encoding=effective.encoding,
-                delimiter=effective.delimiter,
-            )
-            stage_seconds["ingestion"] = float(ingestion.metrics.get("duration_seconds", 0.0))
-            stage_metrics["ingestion"] = dict(ingestion.metrics)
+        header = HeaderCanonicalizationStage()
+        header.execute(conn)
+        stage_seconds["header_canonicalization"] = float(
+            header.metrics.get("duration_seconds", 0.0)
+        )
+        stage_metrics["header_canonicalization"] = dict(header.metrics)
 
-            header = HeaderCanonicalizationStage()
-            header.execute(conn)
-            stage_seconds["header_canonicalization"] = float(
-                header.metrics.get("duration_seconds", 0.0)
-            )
-            stage_metrics["header_canonicalization"] = dict(header.metrics)
-
-            bg_profiles = profile_future.result()
-
-        store_column_profiles(conn, bg_profiles)
+        profiling_start = perf_counter()
+        profiles = compute_and_store_column_profiles(
+            conn,
+            table_name="raw_input",
+            token_policy=token_policy,
+            decimal_separator=effective.decimal_separator,
+            thousand_separator=effective.thousand_separator,
+            allow_leading_decimal_point=effective.allow_leading_decimal_point,
+            currency_candidate_threshold=effective.profiling_currency_candidate_threshold,
+        )
+        profiling_duration = perf_counter() - profiling_start
+        stage_seconds["shared_profiling"] = profiling_duration
+        stage_metrics["shared_profiling"] = {
+            "duration_seconds": profiling_duration,
+            "column_count": len(profiles),
+        }
 
         type_inference = TypeInferenceStage(
             numeric_threshold=effective.type_inference_numeric_threshold,
@@ -118,6 +117,7 @@ def run_pipeline(
             thousand_separator=effective.thousand_separator,
             allow_leading_decimal_point=effective.allow_leading_decimal_point,
             date_formats=effective.date_formats,
+            currency_candidate_threshold=effective.profiling_currency_candidate_threshold,
             **token_kwargs,
         )
         type_inference_issues = list(getattr(type_inference, "detected_issues", []))
@@ -127,7 +127,7 @@ def run_pipeline(
         currency_analysis = collect_currency_analysis(
             conn,
             inferred_types=inferred_types,
-            profiles=bg_profiles,
+            profiles=profiles,
             null_tokens=token_policy.null_tokens,
         )
         pattern_consistency_ratio = currency_analysis["pattern_consistency_ratio"]
@@ -200,6 +200,7 @@ def run_pipeline(
                 decimal_separator=effective.decimal_separator,
                 thousand_separator=effective.thousand_separator,
                 allow_leading_decimal_point=effective.allow_leading_decimal_point,
+                currency_candidate_threshold=effective.profiling_currency_candidate_threshold,
                 **token_kwargs,
             )
             stage_seconds["quality_metrics"] = float(quality.metrics.get("duration_seconds", 0.0))

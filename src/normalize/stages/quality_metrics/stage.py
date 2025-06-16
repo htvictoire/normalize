@@ -60,9 +60,10 @@ class QualityMetricsStage(Stage):
         null_tokens: list[str] | None,
         boolean_true_tokens: list[str] | None,
         boolean_false_tokens: list[str] | None,
-        decimal_separator: str = ".",
-        thousand_separator: str = "",
-        allow_leading_decimal_point: bool = False,
+        decimal_separator: str,
+        thousand_separator: str,
+        allow_leading_decimal_point: bool,
+        currency_candidate_threshold: float,
         include_unique_ratio: bool = False,
         include_per_column_parse_error_counts: bool = False,
         approximate_unique: bool = False,
@@ -91,6 +92,7 @@ class QualityMetricsStage(Stage):
                 decimal_separator=decimal_separator,
                 thousand_separator=thousand_separator,
                 allow_leading_decimal_point=allow_leading_decimal_point,
+                currency_candidate_threshold=currency_candidate_threshold,
             )
         if not columns:
             result: dict[str, object] = {

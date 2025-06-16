@@ -31,6 +31,13 @@ def infer_column_type(
         return "integer"
     if profile.decimal_ratio >= numeric_threshold:
         return "decimal"
-    if profile.currency_ratio >= currency_threshold:
+    # Only classify as currency when there are rows with actual currency-specific
+    # content (tokens or accounting notation). If currency_ratio == decimal_ratio,
+    # all "currency" matches are plain decimals that just cleared the lower
+    # threshold — don't misclassify a messy decimal column as currency.
+    if (
+        profile.currency_ratio >= currency_threshold
+        and profile.currency_ratio > profile.decimal_ratio
+    ):
         return "currency"
     return "string"

@@ -36,6 +36,7 @@ def run_profiling_background(
     decimal_separator: str,
     thousand_separator: str,
     allow_leading_decimal_point: bool,
+    currency_candidate_threshold: float,
 ) -> dict[str, ColumnProfile]:
     """Run column profiling on a separate in-memory DuckDB connection.
 
@@ -82,6 +83,7 @@ def run_profiling_background(
             decimal_separator=decimal_separator,
             thousand_separator=thousand_separator,
             allow_leading_decimal_point=allow_leading_decimal_point,
+            currency_candidate_threshold=currency_candidate_threshold,
         )
     finally:
         conn.close()

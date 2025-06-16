@@ -34,6 +34,7 @@ class EngineConfig:
     type_inference_numeric_threshold: float
     type_inference_boolean_threshold: float
     type_inference_currency_threshold: float
+    profiling_currency_candidate_threshold: float
     assign_indices: bool
     drop_empty_rows: bool
     full_raw_row: bool
@@ -66,6 +67,9 @@ class EngineConfig:
         )
         _validate_ratio_threshold(
             "type_inference_currency_threshold", self.type_inference_currency_threshold
+        )
+        _validate_ratio_threshold(
+            "profiling_currency_candidate_threshold", self.profiling_currency_candidate_threshold
         )
 
         normalized_date_formats: dict[str, str] = {}
