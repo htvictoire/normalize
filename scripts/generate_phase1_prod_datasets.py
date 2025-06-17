@@ -1,4 +1,4 @@
-"""Generate production-like CSV datasets for Phase 1 manual testing.
+"""Generate production-like CSV datasets for manual testing.
 
 Outputs (under data/ by default):
 - prod_like_10k.csv
@@ -8,14 +8,18 @@ Outputs (under data/ by default):
 
 Design goals:
 - deterministic data (same content every run)
-- production-like business fields (clean, valid values)
-- 15 columns to exercise steps 1-6 with realistic typed data
+- realistic values and mixed formatting patterns
+- 15 columns, including 3 date columns with different formats:
+  - Order Date: %Y-%m-%d
+  - Invoice Date: %d/%m/%Y
+  - Posting Date Serial: EXCEL_SERIAL-compatible integer days
 - streaming writes to avoid high memory usage on large files
 """
 
 from __future__ import annotations
 
 import argparse
+import csv
 import hashlib
 import time
 from dataclasses import dataclass
@@ -26,55 +30,55 @@ HEADERS = [
     "Order ID",
     "Customer ID",
     "Order Date",
+    "Invoice Date",
+    "Posting Date Serial",
     "Region",
     "Country Code",
     "Currency",
     "Sales Channel",
-    "Account Tier",
     "Payment Method",
     "Units",
     "Gross Amount",
     "Discount Rate",
     "Priority Order",
-    "Fulfillment Days",
     "Order Status",
 ]
 
-REGIONS = ["North America", "Europe", "Asia Pacific", "Latin America", "Middle East"]
-COUNTRIES_BY_REGION = {
-    "North America": ["US", "CA", "MX"],
-    "Europe": ["DE", "FR", "GB", "IT", "ES"],
-    "Asia Pacific": ["JP", "SG", "AU", "IN"],
-    "Latin America": ["BR", "CL", "CO"],
-    "Middle East": ["AE", "SA", "QA"],
-}
-CURRENCY_BY_COUNTRY = {
-    "US": "USD",
-    "CA": "CAD",
-    "MX": "MXN",
-    "DE": "EUR",
-    "FR": "EUR",
-    "GB": "GBP",
-    "IT": "EUR",
-    "ES": "EUR",
-    "JP": "JPY",
-    "SG": "SGD",
-    "AU": "AUD",
-    "IN": "INR",
-    "BR": "BRL",
-    "CL": "CLP",
-    "CO": "COP",
-    "AE": "AED",
-    "SA": "SAR",
-    "QA": "QAR",
-}
-CHANNELS = ["Web", "Mobile App", "Marketplace", "Partner"]
-TIERS = ["basic", "silver", "gold", "enterprise"]
-PAYMENTS = ["card", "bank_transfer", "wallet", "invoice"]
-STATUSES = ["processing", "shipped", "delivered", "completed"]
+MARKETS = [
+    ("North America", "US", "USD", "$", ".", ","),
+    ("Europe", "DE", "EUR", "€", ",", "."),
+    ("Asia Pacific", "JP", "JPY", "¥", ".", ","),
+    ("Europe", "GB", "GBP", "£", ".", ","),
+    ("Asia Pacific", "CN", "CNY", "CN¥", ".", ","),
+    ("Europe", "CH", "CHF", "CHF", ".", ","),
+    ("North America", "CA", "CAD", "C$", ".", ","),
+    ("Oceania", "AU", "AUD", "A$", ".", ","),
+    ("Asia Pacific", "HK", "HKD", "HK$", ".", ","),
+    ("Asia Pacific", "SG", "SGD", "S$", ".", ","),
+    ("Europe", "SE", "SEK", "SEK", ",", "."),
+    ("Europe", "NO", "NOK", "NOK", ",", "."),
+    ("Oceania", "NZ", "NZD", "NZ$", ".", ","),
+    ("Latin America", "MX", "MXN", "MX$", ".", ","),
+    ("Asia Pacific", "IN", "INR", "₹", ".", ","),
+    ("Asia Pacific", "KR", "KRW", "₩", ".", ","),
+    ("Latin America", "BR", "BRL", "R$", ",", "."),
+    ("Africa", "ZA", "ZAR", "ZAR", ".", ","),
+    ("Middle East", "TR", "TRY", "₺", ",", "."),
+    ("Middle East", "AE", "AED", "AED", ".", ","),
+]
+CHANNELS = ["Web", "Mobile App", "Marketplace", "Partner", "Retail POS", "Inside Sales"]
+PAYMENTS = ["card", "wallet", "bank_transfer", "invoice", "cash_on_delivery"]
+STATUSES = ["processing", "shipped", "completed", "on_hold", "refunded", "cancelled", "delayed"]
+PRIORITY_TOKENS = ["true", "false", "yes", "no", "1", "0", "TRUE", "FALSE"]
 
-# Precompute a realistic two-year date cycle to avoid per-row datetime overhead.
-DATE_CYCLE = [(date(2024, 1, 1) + timedelta(days=i)).isoformat() for i in range(730)]
+BASE_DATE = date(2023, 1, 1)
+DATE_CYCLE_DAYS = 1461  # 4 years including a leap year.
+DATE_CACHE_ISO = [
+    (BASE_DATE + timedelta(days=i)).strftime("%Y-%m-%d") for i in range(DATE_CYCLE_DAYS)
+]
+DATE_CACHE_DMY = [
+    (BASE_DATE + timedelta(days=i)).strftime("%d/%m/%Y") for i in range(DATE_CYCLE_DAYS)
+]
 
 
 @dataclass(frozen=True)
@@ -91,66 +95,159 @@ DATASETS = [
 ]
 
 
-def format_row(i: int) -> str:
-    region = REGIONS[i % len(REGIONS)]
-    countries = COUNTRIES_BY_REGION[region]
-    country = countries[(i // len(REGIONS)) % len(countries)]
-    currency = CURRENCY_BY_COUNTRY[country]
+def _format_grouped(integer_part: int, thousand_sep: str) -> str:
+    grouped = f"{integer_part:,}"
+    if thousand_sep != ",":
+        grouped = grouped.replace(",", thousand_sep)
+    return grouped
 
-    order_id = f"ORD-{i + 1:011d}"
-    customer_id = str(100_000 + ((i * 17) % 900_000))
-    order_date = DATE_CYCLE[i % len(DATE_CYCLE)]
-    sales_channel = CHANNELS[(i * 3 + 1) % len(CHANNELS)]
-    account_tier = TIERS[(i * 5 + 2) % len(TIERS)]
-    payment_method = PAYMENTS[(i * 7 + 3) % len(PAYMENTS)]
 
-    units = 1 + (i % 12)
-    gross_cents = 2_500 + ((i * 37) % 250_000)  # 25.00 .. 2525.00
-    discount_bps = (i * 13) % 2_000  # 0.00% .. 19.99%
-    gross_amount = gross_cents / 100.0
-    discount_rate = discount_bps / 10_000.0
+def _format_local_number(cents: int, decimal_sep: str, thousand_sep: str, index: int) -> str:
+    sign = ""
+    if index % 137 == 0:
+        sign = "-"
+    elif index % 97 == 0:
+        sign = "+"
 
-    priority_order = "true" if (i % 5 == 0) else "false"
-    fulfillment_days = 1 + ((i * 11) % 10)
-    order_status = STATUSES[(i * 2 + 1) % len(STATUSES)]
+    base_cents = abs(cents)
+    int_part = base_cents // 100
+    frac = base_cents % 100
+    grouped = _format_grouped(int_part, thousand_sep)
 
-    values = [
-        order_id,
-        customer_id,
-        order_date,
+    if index % 503 == 0:
+        core = f"{grouped}{decimal_sep}"
+    elif index % 389 == 0:
+        core = f"{decimal_sep}{frac:02d}"
+        sign = "-"
+    elif index % 257 == 0:
+        core = f"{decimal_sep}{frac:02d}"
+    else:
+        core = f"{grouped}{decimal_sep}{frac:02d}"
+    return f"{sign}{core}"
+
+
+def _format_gross_amount(currency_code: str, symbol: str, number_text: str, index: int) -> str:
+    style_index = index % 10
+    unsigned_text = number_text.lstrip("+-")
+    styles = (
+        f"{symbol}{number_text}",
+        f"{currency_code} {number_text}",
+        f"{number_text} {currency_code}",
+        f"{symbol} {number_text}",
+        f"({symbol}{unsigned_text})",
+        f"{unsigned_text}-",
+        f"{unsigned_text} CR",
+        f"{unsigned_text} DR",
+        unsigned_text,
+        f"{currency_code} {unsigned_text}",
+    )
+    return styles[style_index]
+
+
+def _format_discount_rate(decimal_sep: str, index: int) -> str:
+    if index % 499 == 0:
+        return "n/a"
+    if index % 997 == 0:
+        return ""
+    rate = ((index * 7) % 3500) / 10_000
+    text = f"{rate:.4f}"
+    if decimal_sep == ",":
+        return text.replace(".", ",")
+    return text
+
+
+def _format_units(thousand_sep: str, index: int) -> str:
+    if index % 311 == 0:
+        return ""
+    units = ((index * 11) % 5000) + 1
+    if index % 77 == 0:
+        return _format_grouped(units, thousand_sep)
+    return str(units)
+
+
+def _date_value_from_offset(offset: int) -> date:
+    return BASE_DATE + timedelta(days=offset)
+
+
+def _excel_serial_from_date(day_value: date) -> int:
+    excel_epoch = date(1899, 12, 30)
+    return (day_value - excel_epoch).days
+
+
+def _format_order_date(offset: int, index: int) -> str:
+    if index % 997 == 0:
+        return ""
+    if index % 1543 == 0:
+        return "n/a"
+    return DATE_CACHE_ISO[offset]
+
+
+def _format_invoice_date(offset: int, index: int) -> str:
+    if index % 991 == 0:
+        return ""
+    if index % 1871 == 0:
+        return "n/a"
+    return DATE_CACHE_DMY[offset]
+
+
+def _format_posting_serial(offset: int, index: int) -> str:
+    if index % 983 == 0:
+        return ""
+    if index % 1999 == 0:
+        return "n/a"
+    day_value = _date_value_from_offset(offset)
+    return str(_excel_serial_from_date(day_value))
+
+
+def format_row(index: int) -> list[str]:
+    row_number = index + 1
+    offset = row_number % DATE_CYCLE_DAYS
+    region, country, currency_code, symbol, decimal_sep, thousand_sep = MARKETS[
+        row_number % len(MARKETS)
+    ]
+    cents = ((row_number * 173) % 9_500_000) + 50
+    number_text = _format_local_number(cents, decimal_sep, thousand_sep, row_number)
+
+    return [
+        f"ORD-{row_number:011d}",
+        str(100_000 + ((row_number * 17) % 900_000)),
+        _format_order_date(offset, row_number),
+        _format_invoice_date(offset, row_number),
+        _format_posting_serial(offset, row_number),
         region,
         country,
-        currency,
-        sales_channel,
-        account_tier,
-        payment_method,
-        str(units),
-        f"{gross_amount:.2f}",
-        f"{discount_rate:.4f}",
-        priority_order,
-        str(fulfillment_days),
-        order_status,
+        currency_code,
+        CHANNELS[row_number % len(CHANNELS)],
+        PAYMENTS[row_number % len(PAYMENTS)],
+        _format_units(thousand_sep, row_number),
+        _format_gross_amount(currency_code, symbol, number_text, row_number),
+        _format_discount_rate(decimal_sep, row_number),
+        PRIORITY_TOKENS[row_number % len(PRIORITY_TOKENS)],
+        STATUSES[row_number % len(STATUSES)],
     ]
-    return ",".join(values)
 
 
 def write_dataset(path: Path, rows: int, *, progress_every: int) -> None:
     started = time.perf_counter()
     path.parent.mkdir(parents=True, exist_ok=True)
-    hasher = hashlib.sha256()
 
     with path.open("w", encoding="utf-8", newline="", buffering=1024 * 1024) as f:
-        header_line = ",".join(HEADERS) + "\n"
-        f.write(header_line)
-        hasher.update(header_line.encode("utf-8"))
+        writer = csv.writer(f)
+        writer.writerow(HEADERS)
         for i in range(rows):
-            line = format_row(i) + "\n"
-            f.write(line)
-            hasher.update(line.encode("utf-8"))
+            row = format_row(i)
+            writer.writerow(row)
             if progress_every > 0 and (i + 1) % progress_every == 0:
                 elapsed = time.perf_counter() - started
                 print(f"  wrote {i + 1:,}/{rows:,} rows in {elapsed:.1f}s", flush=True)
 
+    hasher = hashlib.sha256()
+    with path.open("rb") as binary_file:
+        while True:
+            chunk = binary_file.read(1024 * 1024)
+            if not chunk:
+                break
+            hasher.update(chunk)
     checksum = hasher.hexdigest()
     sidecar_path = path.with_suffix(path.suffix + ".sha256")
     sidecar_path.write_text(f"{checksum}\n", encoding="utf-8")

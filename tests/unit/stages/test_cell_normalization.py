@@ -5,7 +5,7 @@ import pytest
 from normalize.core.duckdb_manager import DuckDBManager
 from normalize.stages.cell_normalization import CellNormalizationStage
 
-TOKEN_ARGS = {
+COMMON_ARGS = {
     "null_tokens": ["", "null", "none", "n/a", "-"],
     "boolean_true_tokens": ["true", "yes", "1"],
     "boolean_false_tokens": ["false", "no", "0"],
@@ -42,7 +42,7 @@ def test_cell_normalization_applies_casts_and_issue_codes() -> None:
             "bool_col": "boolean",
             "text_col": "string",
         }
-        stage.execute(conn, inferred, **TOKEN_ARGS)
+        stage.execute(conn, inferred, **COMMON_ARGS)
 
         rows = conn.execute(
             """
@@ -78,7 +78,7 @@ def test_cell_normalization_rejects_missing_inferred_column() -> None:
         conn.execute("CREATE TABLE raw_input (a VARCHAR, b VARCHAR)")
         conn.execute("INSERT INTO raw_input VALUES ('1', '2')")
         with pytest.raises(ValueError, match="MISSING_INFERRED_TYPES"):
-            stage.execute(conn, {"a": "integer"}, **TOKEN_ARGS)
+            stage.execute(conn, {"a": "integer"}, **COMMON_ARGS)
 
 
 def test_cell_normalization_applies_user_defined_boolean_tokens() -> None:
@@ -132,7 +132,7 @@ def test_cell_normalization_materializes_indices_when_missing() -> None:
         stage.execute(
             conn,
             {"int_col": "integer", "text_col": "string"},
-            **TOKEN_ARGS,
+            **COMMON_ARGS,
         )
         rows = conn.execute(
             """
@@ -169,7 +169,7 @@ def test_cell_normalization_can_disable_audit_json_payloads() -> None:
             {"int_col": "integer"},
             emit_raw_row=False,
             emit_parse_issues=False,
-            **TOKEN_ARGS,
+            **COMMON_ARGS,
         )
 
         rows = conn.execute(
@@ -206,7 +206,7 @@ def test_cell_normalization_normalizes_decimal_with_declared_separators() -> Non
             {"amount": "decimal"},
             decimal_separator=",",
             thousand_separator=".",
-            **TOKEN_ARGS,
+            **COMMON_ARGS,
         )
         rows = conn.execute("SELECT amount FROM raw_input ORDER BY _row_index").fetchall()
         assert rows == [(1234.56,), (2000.1,)]
@@ -235,7 +235,7 @@ def test_cell_normalization_parses_declared_dates_and_flags_invalid_date() -> No
             conn,
             {"tx_date": "date"},
             date_formats={"A": "%d/%m/%Y"},
-            **TOKEN_ARGS,
+            **COMMON_ARGS,
         )
         rows = conn.execute(
             """
@@ -272,7 +272,7 @@ def test_cell_normalization_leading_decimal_point_toggle() -> None:
             decimal_separator=".",
             thousand_separator=",",
             allow_leading_decimal_point=False,
-            **TOKEN_ARGS,
+            **COMMON_ARGS,
         )
         strict_row = conn.execute(
             "SELECT amount, _parse_error_count, _parse_issues FROM raw_input"
@@ -300,7 +300,7 @@ def test_cell_normalization_leading_decimal_point_toggle() -> None:
             decimal_separator=".",
             thousand_separator=",",
             allow_leading_decimal_point=True,
-            **TOKEN_ARGS,
+            **COMMON_ARGS,
         )
         relaxed_row = conn.execute(
             "SELECT amount, _parse_error_count FROM raw_input"
@@ -331,7 +331,7 @@ def test_cell_normalization_resolves_date_formats_by_table_order() -> None:
             conn,
             {"tx_date": "date", "value": "string"},
             date_formats={"A": "%d/%m/%Y"},
-            **TOKEN_ARGS,
+            **COMMON_ARGS,
         )
         row = conn.execute("SELECT tx_date, _parse_error_count FROM raw_input").fetchone()
         assert row is not None
@@ -364,7 +364,7 @@ def test_cell_normalization_supports_trailing_decimal_and_plus_sign() -> None:
             decimal_separator=".",
             thousand_separator=",",
             allow_leading_decimal_point=True,
-            **TOKEN_ARGS,
+            **COMMON_ARGS,
         )
         rows = conn.execute(
             "SELECT amount, _parse_error_count FROM raw_input ORDER BY _row_index"
@@ -397,7 +397,7 @@ def test_cell_normalization_with_empty_thousand_separator() -> None:
             decimal_separator=".",
             thousand_separator="",
             allow_leading_decimal_point=True,
-            **TOKEN_ARGS,
+            **COMMON_ARGS,
         )
         rows = conn.execute(
             "SELECT amount, _parse_error_count FROM raw_input ORDER BY _row_index"
@@ -436,7 +436,7 @@ def test_cell_normalization_normalizes_currency_and_accounting_notation() -> Non
             decimal_separator=".",
             thousand_separator=",",
             allow_leading_decimal_point=True,
-            **TOKEN_ARGS,
+            **COMMON_ARGS,
         )
         rows = conn.execute(
             "SELECT amount, _parse_error_count FROM raw_input ORDER BY _row_index"
@@ -478,7 +478,7 @@ def test_cell_normalization_emits_invalid_currency_issue() -> None:
             decimal_separator=".",
             thousand_separator=",",
             allow_leading_decimal_point=True,
-            **TOKEN_ARGS,
+            **COMMON_ARGS,
         )
         rows = conn.execute(
             "SELECT amount, _parse_error_count, _parse_issues FROM raw_input ORDER BY _row_index"

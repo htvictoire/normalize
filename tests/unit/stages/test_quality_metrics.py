@@ -5,10 +5,14 @@ import pytest
 from normalize.core.duckdb_manager import DuckDBManager
 from normalize.stages.quality_metrics import QualityMetricsStage
 
-TOKEN_ARGS = {
+COMMON_ARGS = {
     "null_tokens": ["", "null", "none", "n/a", "-"],
     "boolean_true_tokens": ["true", "yes", "1"],
     "boolean_false_tokens": ["false", "no", "0"],
+    "decimal_separator": ".",
+    "thousand_separator": ",",
+    "allow_leading_decimal_point": True,
+    "currency_candidate_threshold": 0.95,
 }
 
 
@@ -38,7 +42,7 @@ def test_quality_metrics_counts_and_ratios() -> None:
 
         result = stage.execute(
             conn,
-            **TOKEN_ARGS,
+            **COMMON_ARGS,
             include_unique_ratio=True,
             include_per_column_parse_error_counts=True,
         )
@@ -82,7 +86,7 @@ def test_quality_metrics_fast_mode_uses_row_parse_error_counter() -> None:
             """
         )
 
-        result = stage.execute(conn, **TOKEN_ARGS)
+        result = stage.execute(conn, **COMMON_ARGS)
         assert result["total_parse_error_cells"] == 1
 
         column_metrics = cast(dict[str, dict[str, float | int | None]], result["column_metrics"])
@@ -131,7 +135,7 @@ def test_quality_metrics_uses_precomputed_quality_profile_when_available() -> No
             """
         )
 
-        result = stage.execute(conn, **TOKEN_ARGS)
+        result = stage.execute(conn, **COMMON_ARGS)
         assert result["row_count"] == 2
         assert result["total_cells"] == 4
         assert result["total_nullish_cells"] == 1

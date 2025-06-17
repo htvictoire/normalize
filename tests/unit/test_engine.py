@@ -26,6 +26,7 @@ def _engine_config(duckdb_path: str) -> EngineConfig:
         type_inference_numeric_threshold=0.95,
         type_inference_boolean_threshold=0.95,
         type_inference_currency_threshold=0.50,
+        profiling_currency_candidate_threshold=0.95,
         assign_indices=True,
         drop_empty_rows=True,
         emit_raw_row=True,
@@ -270,6 +271,7 @@ def test_engine_manifest_replay_config_includes_phase15_fields(tmp_path: Path) -
     assert effective_config["thousand_separator"] == "."
     assert effective_config["allow_leading_decimal_point"] is True
     assert effective_config["type_inference_currency_threshold"] == pytest.approx(0.5)
+    assert effective_config["profiling_currency_candidate_threshold"] == pytest.approx(0.95)
     assert effective_config["date_formats"] == {"A": "%d/%m/%Y"}
 
 

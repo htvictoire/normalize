@@ -1,7 +1,7 @@
 from normalize.core.duckdb_manager import DuckDBManager
 from normalize.stages.type_inference import TypeInferenceStage
 
-TOKEN_ARGS = {
+COMMON_ARGS = {
     "null_tokens": ["", "null", "none", "n/a", "-"],
     "boolean_true_tokens": ["true", "yes", "1"],
     "boolean_false_tokens": ["false", "no", "0"],
@@ -12,10 +12,11 @@ STAGE_ARGS = {
     "currency_threshold": 0.50,
 }
 INFERENCE_ARGS = {
-    **TOKEN_ARGS,
+    **COMMON_ARGS,
     "decimal_separator": ".",
     "thousand_separator": ",",
     "allow_leading_decimal_point": True,
+    "currency_candidate_threshold": 0.95,
     "date_formats": {},
 }
 
@@ -114,10 +115,11 @@ def test_type_inference_supports_eu_separators() -> None:
         )
         inferred = stage.execute(
             conn,
-            **TOKEN_ARGS,
+            **COMMON_ARGS,
             decimal_separator=",",
             thousand_separator=".",
             allow_leading_decimal_point=True,
+            currency_candidate_threshold=0.95,
             date_formats={},
         )
         assert inferred == {"amount": "decimal"}
@@ -137,10 +139,11 @@ def test_type_inference_emits_separator_mismatch_issue() -> None:
         )
         inferred = stage.execute(
             conn,
-            **TOKEN_ARGS,
+            **COMMON_ARGS,
             decimal_separator=".",
             thousand_separator=",",
             allow_leading_decimal_point=True,
+            currency_candidate_threshold=0.95,
             date_formats={},
         )
         assert inferred == {"amount": "string"}
@@ -163,10 +166,11 @@ def test_type_inference_declares_date_by_position_and_warns_unknown_position() -
         )
         inferred = stage.execute(
             conn,
-            **TOKEN_ARGS,
+            **COMMON_ARGS,
             decimal_separator=".",
             thousand_separator=",",
             allow_leading_decimal_point=True,
+            currency_candidate_threshold=0.95,
             date_formats={"A": "%d/%m/%Y", "Z": "%Y-%m-%d"},
         )
         assert inferred == {"tx_date": "date", "value": "integer"}
@@ -188,10 +192,11 @@ def test_type_inference_resolves_date_columns_by_table_order() -> None:
         )
         inferred = stage.execute(
             conn,
-            **TOKEN_ARGS,
+            **COMMON_ARGS,
             decimal_separator=".",
             thousand_separator=",",
             allow_leading_decimal_point=True,
+            currency_candidate_threshold=0.95,
             date_formats={"A": "%d/%m/%Y"},
         )
         assert inferred == {"tx_date": "date", "value": "integer"}
@@ -211,10 +216,11 @@ def test_type_inference_leading_decimal_point_toggle() -> None:
         )
         inferred_allow = stage.execute(
             conn,
-            **TOKEN_ARGS,
+            **COMMON_ARGS,
             decimal_separator=".",
             thousand_separator=",",
             allow_leading_decimal_point=True,
+            currency_candidate_threshold=0.95,
             date_formats={},
         )
         assert inferred_allow == {"amount": "decimal"}
@@ -231,10 +237,11 @@ def test_type_inference_leading_decimal_point_toggle() -> None:
         )
         inferred_disallow = stage.execute(
             conn,
-            **TOKEN_ARGS,
+            **COMMON_ARGS,
             decimal_separator=".",
             thousand_separator=",",
             allow_leading_decimal_point=False,
+            currency_candidate_threshold=0.95,
             date_formats={},
         )
 
@@ -255,10 +262,11 @@ def test_type_inference_supports_trailing_decimal_and_plus_sign() -> None:
         )
         inferred = stage.execute(
             conn,
-            **TOKEN_ARGS,
+            **COMMON_ARGS,
             decimal_separator=".",
             thousand_separator=",",
             allow_leading_decimal_point=True,
+            currency_candidate_threshold=0.95,
             date_formats={},
         )
         assert inferred == {"amount": "decimal"}
@@ -278,10 +286,11 @@ def test_type_inference_with_empty_thousand_separator() -> None:
         )
         inferred = stage.execute(
             conn,
-            **TOKEN_ARGS,
+            **COMMON_ARGS,
             decimal_separator=".",
             thousand_separator="",
             allow_leading_decimal_point=True,
+            currency_candidate_threshold=0.95,
             date_formats={},
         )
         assert inferred == {"amount": "decimal"}
@@ -303,10 +312,11 @@ def test_type_inference_detects_currency_with_symbol_and_bare_values() -> None:
         )
         inferred = stage.execute(
             conn,
-            **TOKEN_ARGS,
+            **COMMON_ARGS,
             decimal_separator=".",
             thousand_separator=",",
             allow_leading_decimal_point=True,
+            currency_candidate_threshold=0.95,
             date_formats={},
         )
         assert inferred == {"amount": "currency"}

@@ -11,7 +11,7 @@ from normalize.stages.ingestion import IngestionStage
 from normalize.stages.ingestion.contracts import HeaderMode
 from normalize.stages.type_inference import TypeInferenceStage
 
-_TOKEN_ARGS = {
+_COMMON_ARGS = {
     "null_tokens": ["", "null", "none", "n/a", "-"],
     "boolean_true_tokens": ["true", "yes", "1"],
     "boolean_false_tokens": ["false", "no", "0"],
@@ -73,10 +73,11 @@ def _infer_types_for_case(
         )
         return inference.execute(
             conn,
-            **_TOKEN_ARGS,
+            **_COMMON_ARGS,
             decimal_separator=config_overrides["decimal_separator"],
             thousand_separator=config_overrides["thousand_separator"],
             allow_leading_decimal_point=config_overrides["allow_leading_decimal_point"],
+            currency_candidate_threshold=0.95,
             date_formats=config_overrides["date_formats"],
         )
 
@@ -104,6 +105,7 @@ def _build_engine_config(
         type_inference_numeric_threshold=0.95,
         type_inference_boolean_threshold=0.95,
         type_inference_currency_threshold=0.50,
+        profiling_currency_candidate_threshold=0.95,
         assign_indices=True,
         drop_empty_rows=True,
         emit_raw_row=False,

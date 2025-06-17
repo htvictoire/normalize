@@ -11,7 +11,7 @@ def test_service_loads_small_file(tmp_path) -> None:
     csv_path.write_text("Name,Age\nAlice,30\nBob,41\n", encoding="utf-8")
 
     with DuckDBManager() as conn:
-        result = run_ingestion(
+        run_ingestion(
             IngestionRequest(
                 conn=conn,
                 csv_path=csv_path,
@@ -21,7 +21,6 @@ def test_service_loads_small_file(tmp_path) -> None:
                 delimiter=",",
             )
         )
-        assert result.row_count == 2
         assert conn.execute("SELECT COUNT(*) FROM raw_input").fetchone()[0] == 2
 
 
@@ -30,7 +29,7 @@ def test_service_loads_large_file(tmp_path) -> None:
     csv_path.write_text("id\n" + ("1\n" * 1000), encoding="utf-8")
 
     with DuckDBManager() as conn:
-        result = run_ingestion(
+        run_ingestion(
             IngestionRequest(
                 conn=conn,
                 csv_path=csv_path,
@@ -40,7 +39,6 @@ def test_service_loads_large_file(tmp_path) -> None:
                 delimiter=",",
             )
         )
-        assert result.row_count == 1000
         assert conn.execute("SELECT COUNT(*) FROM raw_input").fetchone()[0] == 1000
 
 
@@ -49,7 +47,7 @@ def test_service_supports_latin1_input(tmp_path) -> None:
     csv_path.write_bytes("Name,Age\nJosé,30\n".encode("latin-1"))
 
     with DuckDBManager() as conn:
-        result = run_ingestion(
+        run_ingestion(
             IngestionRequest(
                 conn=conn,
                 csv_path=csv_path,
@@ -59,7 +57,7 @@ def test_service_supports_latin1_input(tmp_path) -> None:
                 delimiter=",",
             )
         )
-        assert result.row_count == 1
+        assert conn.execute("SELECT COUNT(*) FROM raw_input").fetchone()[0] == 1
         assert conn.execute("SELECT Name FROM raw_input").fetchone()[0] == "José"
 
 
@@ -97,7 +95,7 @@ def test_service_supports_explicit_absent_header_mode(tmp_path) -> None:
                 delimiter=",",
             )
         )
-        assert result.row_count == 2
+        assert conn.execute("SELECT COUNT(*) FROM raw_input").fetchone()[0] == 2
         assert result.column_names == ["column0", "column1"]
 
 

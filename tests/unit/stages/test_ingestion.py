@@ -19,7 +19,6 @@ def test_ingestion_registers_raw_input_and_returns_metadata(tmp_path) -> None:
             encoding="utf-8",
             delimiter=",",
         )
-        assert result.row_count == 2
         assert result.column_names == ["Name", "Age", "Score"]
         assert conn.execute("SELECT COUNT(*) FROM raw_input").fetchone()[0] == 2
         assert conn.execute("SELECT * FROM raw_input ORDER BY Age").fetchall() == [
