@@ -13,8 +13,6 @@ SOURCE_FORMAT_FIELDS = frozenset(
         "header_row_index",
         "decimal_separator",
         "thousand_separator",
-        "allow_leading_decimal_point",
-        "date_formats",
     }
 )
 

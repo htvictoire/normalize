@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from normalize.core.column_config import serialize_column_config_map
 from normalize.core.engine.config import EngineConfig
 
 
@@ -16,15 +17,10 @@ def build_replay_config(effective: EngineConfig) -> dict[str, Any]:
         "delimiter": effective.delimiter,
         "decimal_separator": effective.decimal_separator,
         "thousand_separator": effective.thousand_separator,
-        "allow_leading_decimal_point": effective.allow_leading_decimal_point,
-        "date_formats": dict(effective.date_formats),
+        "column_config": serialize_column_config_map(effective.column_config),
         "null_tokens": list(effective.null_tokens),
         "boolean_true_tokens": list(effective.boolean_true_tokens),
         "boolean_false_tokens": list(effective.boolean_false_tokens),
-        "type_inference_numeric_threshold": effective.type_inference_numeric_threshold,
-        "type_inference_boolean_threshold": effective.type_inference_boolean_threshold,
-        "type_inference_currency_threshold": effective.type_inference_currency_threshold,
-        "profiling_currency_candidate_threshold": effective.profiling_currency_candidate_threshold,
         "assign_indices": effective.assign_indices,
         "drop_empty_rows": effective.drop_empty_rows,
         "full_raw_row": effective.full_raw_row,

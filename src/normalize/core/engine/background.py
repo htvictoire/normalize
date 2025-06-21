@@ -7,6 +7,7 @@ from time import perf_counter
 
 import duckdb as _duckdb
 
+from normalize.core.numeric_formats import NumericFormat
 from normalize.core.sql_helpers import quote_identifier, read_columns
 from normalize.core.token_policy import TokenPolicy
 from normalize.stages.artifact_materialization.export import (
@@ -35,6 +36,8 @@ def run_profiling_background(
     token_policy: TokenPolicy,
     decimal_separator: str,
     thousand_separator: str,
+    grouping_style: str,
+    numeric_formats: dict[str, NumericFormat] | None,
     allow_leading_decimal_point: bool,
     currency_candidate_threshold: float,
 ) -> dict[str, ColumnProfile]:
@@ -82,6 +85,8 @@ def run_profiling_background(
             token_policy=token_policy,
             decimal_separator=decimal_separator,
             thousand_separator=thousand_separator,
+            grouping_style=grouping_style,
+            numeric_formats=numeric_formats,
             allow_leading_decimal_point=allow_leading_decimal_point,
             currency_candidate_threshold=currency_candidate_threshold,
         )

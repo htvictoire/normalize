@@ -4,47 +4,41 @@ from __future__ import annotations
 
 from typing import Any
 
+from normalize.core.column_config import ColumnConfig, column_config_type
 from normalize.core.domain import NormalizationIssue
 from normalize.core.engine.issues import (
-    build_invalid_currency_issue,
     build_mixed_currency_issue,
 )
 from normalize.core.sql_helpers import quote_identifier, quote_string
 from normalize.stages.cell_normalization.currency_helpers import (
     build_currency_symbol_extract_expr,
 )
-from normalize.stages.shared_profiling import ColumnProfile
 
 
 def collect_currency_analysis(
     conn: Any,
     *,
-    inferred_types: dict[str, str],
-    profiles: dict[str, ColumnProfile],
+    column_config: dict[str, ColumnConfig],
     null_tokens: tuple[str, ...],
 ) -> dict[str, Any]:
     """Collect mixed-symbol warnings and pattern-consistency for currency columns."""
-    currency_columns = [name for name, inferred in inferred_types.items() if inferred == "currency"]
+    currency_columns = [
+        name for name, config in column_config.items() if column_config_type(config) == "currency"
+    ]
     if not currency_columns:
         return {"pattern_consistency_ratio": 1.0, "issues": []}
 
     issues: list[NormalizationIssue] = []
     per_column_ratios: list[float] = []
-
-    all_symbol_counts = read_currency_symbol_counts(
+    symbol_stats = read_currency_symbol_stats(
         conn,
         currency_columns=currency_columns,
         null_tokens=null_tokens,
     )
 
     for column_name in currency_columns:
-        profile = profiles.get(column_name)
-        if profile is None:
-            raise RuntimeError(f"missing profile for currency column: {column_name}")
-        non_nullish_count = max(profile.row_count - profile.nullish_count, 0)
-        invalid_count = max(non_nullish_count - profile.currency_match_count, 0)
-
-        symbol_counts = all_symbol_counts.get(column_name, [])
+        non_nullish_count = symbol_stats[column_name]["non_nullish_count"]
+        symbol_counts = symbol_stats[column_name]["symbol_counts"]
         observed_symbols = [symbol for symbol, _ in symbol_counts]
         dominant_symbol: str | None = None
         dominant_symbol_count = 0
@@ -68,10 +62,6 @@ def collect_currency_analysis(
                     dominant_symbol_ratio=dominant_symbol_ratio,
                 )
             )
-        if invalid_count > 0:
-            issues.append(
-                build_invalid_currency_issue(column_name=column_name, invalid_count=invalid_count)
-            )
 
     pattern_consistency_ratio = (
         1.0 if not per_column_ratios else sum(per_column_ratios) / len(per_column_ratios)
@@ -82,14 +72,16 @@ def collect_currency_analysis(
     }
 
 
-def read_currency_symbol_counts(
+def read_currency_symbol_stats(
     conn: Any,
     *,
     currency_columns: list[str],
     null_tokens: tuple[str, ...],
-) -> dict[str, list[tuple[str, int]]]:
-    """Return symbol->count for all currency columns in one table scan."""
-    result: dict[str, list[tuple[str, int]]] = {col: [] for col in currency_columns}
+) -> dict[str, dict[str, Any]]:
+    """Return per-column non-null counts and symbol frequency in one table scan."""
+    result: dict[str, dict[str, Any]] = {
+        col: {"non_nullish_count": 0, "symbol_counts": []} for col in currency_columns
+    }
     if not currency_columns:
         return result
 
@@ -101,6 +93,31 @@ def read_currency_symbol_counts(
     nullish_predicate = build_nullish_predicate("raw_value", null_tokens)
     symbol_expr = build_currency_symbol_extract_expr("raw_value")
 
+    count_rows = conn.execute(
+        f"""
+        WITH source AS (
+            SELECT {casted_columns}
+            FROM raw_input
+        ), long_values AS (
+            SELECT column_name, raw_value
+            FROM source
+            UNPIVOT INCLUDE NULLS (raw_value FOR column_name IN ({unpivot_columns}))
+        ), filtered AS (
+            SELECT
+                column_name,
+                raw_value,
+                {symbol_expr} AS symbol
+            FROM long_values
+            WHERE NOT ({nullish_predicate})
+        )
+            SELECT column_name AS col_name, COUNT(*) AS non_nullish_count
+            FROM filtered
+            GROUP BY column_name
+            """
+    ).fetchall()
+    for col_name, non_nullish_count in count_rows:
+        result[str(col_name)]["non_nullish_count"] = int(non_nullish_count)
+
     rows = conn.execute(
         f"""
         WITH source AS (
@@ -110,15 +127,16 @@ def read_currency_symbol_counts(
             SELECT column_name, raw_value
             FROM source
             UNPIVOT INCLUDE NULLS (raw_value FOR column_name IN ({unpivot_columns}))
-        )
-        SELECT column_name AS col_name, symbol, COUNT(*) AS symbol_count
-        FROM (
+        ), filtered AS (
             SELECT
                 column_name,
+                raw_value,
                 {symbol_expr} AS symbol
             FROM long_values
             WHERE NOT ({nullish_predicate})
-        ) s
+        )
+        SELECT column_name AS col_name, symbol, COUNT(*) AS symbol_count
+        FROM filtered
         WHERE symbol IS NOT NULL
         GROUP BY column_name, symbol
         ORDER BY column_name, symbol_count DESC, symbol ASC
@@ -126,7 +144,7 @@ def read_currency_symbol_counts(
     ).fetchall()
 
     for col_name, symbol, symbol_count in rows:
-        result[str(col_name)].append((str(symbol), int(symbol_count)))
+        result[str(col_name)]["symbol_counts"].append((str(symbol), int(symbol_count)))
     return result
 
 

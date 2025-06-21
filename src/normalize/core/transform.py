@@ -207,10 +207,10 @@ def execute_combined_transform(
     conn.execute(sql)
     sql_seconds = perf_counter() - start
 
-    rows_after = int(conn.execute(f"SELECT COUNT(*) FROM {table_name}").fetchone()[0])
-
     t0 = perf_counter()
-    _refresh_quality_profile(conn, table_name=table_name, data_columns=list(cell_plan.data_columns))
+    rows_after = _refresh_quality_profile(
+        conn, table_name=table_name, data_columns=list(cell_plan.data_columns)
+    )
     precompute_seconds = perf_counter() - t0
 
     return {
@@ -229,18 +229,25 @@ def _refresh_quality_profile(
     *,
     table_name: str,
     data_columns: list[str],
-) -> None:
-    """Materialize lightweight per-column counters for the quality stage."""
+) -> int:
+    """Materialize lightweight per-column counters for the quality stage.
+
+    Returns row_count so the caller can skip a redundant COUNT(*) query.
+    """
     profile_table = "_quality_profile_raw_input"
     conn.execute(
         f"CREATE OR REPLACE TABLE {profile_table} ("
         "column_name VARCHAR, row_count BIGINT, "
-        "nullish_count BIGINT, non_null_count BIGINT)"
+        "nullish_count BIGINT, non_null_count BIGINT, "
+        "total_parse_error_cells BIGINT)"
     )
     if not data_columns:
-        return
+        return 0
 
-    agg_exprs: list[str] = ["COUNT(*) AS row_count"]
+    agg_exprs: list[str] = [
+        "COUNT(*) AS row_count",
+        "COALESCE(SUM(_parse_error_count), 0) AS total_parse_error_cells",
+    ]
     for col in data_columns:
         q = quote_identifier(col)
         nullish_alias = quote_identifier(f"{col}__nullish")
@@ -255,16 +262,19 @@ def _refresh_quality_profile(
         raise RuntimeError("quality precompute query returned no rows")
 
     row_count = int(row[0])
-    inserts: list[tuple[str, int, int, int]] = []
-    offset = 1
+    total_parse_error_cells = int(row[1])
+    inserts: list[tuple[str, int, int, int, int]] = []
+    offset = 2
     for col in data_columns:
         nullish = int(row[offset])
         non_null = int(row[offset + 1])
         offset += 2
-        inserts.append((col, row_count, nullish, non_null))
+        inserts.append((col, row_count, nullish, non_null, total_parse_error_cells))
 
     conn.executemany(
         f"INSERT INTO {profile_table} "
-        "(column_name, row_count, nullish_count, non_null_count) VALUES (?, ?, ?, ?)",
+        "(column_name, row_count, nullish_count, non_null_count, total_parse_error_cells) "
+        "VALUES (?, ?, ?, ?, ?)",
         inserts,
     )
+    return row_count

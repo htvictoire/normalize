@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Mapping
 from concurrent.futures import Future, ThreadPoolExecutor
 from pathlib import Path
 from time import perf_counter
 from typing import Any
 
+from normalize.core.column_config import ColumnConfig
+from normalize.core.column_positions import build_position_to_name
 from normalize.core.duckdb_manager import DuckDBManager, resolve_db_path
 from normalize.core.engine.background import write_parquets_background
 from normalize.core.engine.config import EngineConfig
@@ -33,8 +36,6 @@ from normalize.stages.header_canonicalization import HeaderCanonicalizationStage
 from normalize.stages.ingestion import IngestionStage
 from normalize.stages.quality_metrics import QualityMetricsStage
 from normalize.stages.row_normalization import RowNormalizationStage
-from normalize.stages.shared_profiling import compute_and_store_column_profiles
-from normalize.stages.type_inference import TypeInferenceStage
 from normalize.utils.checksums import sha256_file
 
 
@@ -89,45 +90,15 @@ def run_pipeline(
         )
         stage_metrics["header_canonicalization"] = dict(header.metrics)
 
-        profiling_start = perf_counter()
-        profiles = compute_and_store_column_profiles(
-            conn,
-            table_name="raw_input",
-            token_policy=token_policy,
-            decimal_separator=effective.decimal_separator,
-            thousand_separator=effective.thousand_separator,
-            allow_leading_decimal_point=effective.allow_leading_decimal_point,
-            currency_candidate_threshold=effective.profiling_currency_candidate_threshold,
+        raw_columns = read_columns(conn, "raw_input")
+        resolved_column_config = resolve_column_config_by_canonical(
+            data_columns=raw_columns,
+            column_config=effective.column_config,
         )
-        profiling_duration = perf_counter() - profiling_start
-        stage_seconds["shared_profiling"] = profiling_duration
-        stage_metrics["shared_profiling"] = {
-            "duration_seconds": profiling_duration,
-            "column_count": len(profiles),
-        }
-
-        type_inference = TypeInferenceStage(
-            numeric_threshold=effective.type_inference_numeric_threshold,
-            boolean_threshold=effective.type_inference_boolean_threshold,
-            currency_threshold=effective.type_inference_currency_threshold,
-        )
-        inferred_types = type_inference.execute(
-            conn,
-            decimal_separator=effective.decimal_separator,
-            thousand_separator=effective.thousand_separator,
-            allow_leading_decimal_point=effective.allow_leading_decimal_point,
-            date_formats=effective.date_formats,
-            currency_candidate_threshold=effective.profiling_currency_candidate_threshold,
-            **token_kwargs,
-        )
-        type_inference_issues = list(getattr(type_inference, "detected_issues", []))
-        stage_seconds["type_inference"] = float(type_inference.metrics.get("duration_seconds", 0.0))
-        stage_metrics["type_inference"] = dict(type_inference.metrics)
 
         currency_analysis = collect_currency_analysis(
             conn,
-            inferred_types=inferred_types,
-            profiles=profiles,
+            column_config=resolved_column_config,
             null_tokens=token_policy.null_tokens,
         )
         pattern_consistency_ratio = currency_analysis["pattern_consistency_ratio"]
@@ -142,11 +113,7 @@ def run_pipeline(
         cell_norm = CellNormalizationStage()
         cell_plan = cell_norm.plan(
             conn,
-            inferred_types,
-            decimal_separator=effective.decimal_separator,
-            thousand_separator=effective.thousand_separator,
-            allow_leading_decimal_point=effective.allow_leading_decimal_point,
-            date_formats=effective.date_formats,
+            column_config=resolved_column_config,
             full_raw_row=effective.full_raw_row,
             emit_raw_row=effective.emit_raw_row,
             emit_parse_issues=effective.emit_parse_issues,
@@ -197,11 +164,6 @@ def run_pipeline(
                 include_unique_ratio=effective.include_unique_ratio,
                 include_per_column_parse_error_counts=effective.include_per_column_parse_error_counts,
                 approximate_unique=effective.approximate_unique,
-                decimal_separator=effective.decimal_separator,
-                thousand_separator=effective.thousand_separator,
-                allow_leading_decimal_point=effective.allow_leading_decimal_point,
-                currency_candidate_threshold=effective.profiling_currency_candidate_threshold,
-                **token_kwargs,
             )
             stage_seconds["quality_metrics"] = float(quality.metrics.get("duration_seconds", 0.0))
             stage_metrics["quality_metrics"] = dict(quality.metrics)
@@ -211,7 +173,7 @@ def run_pipeline(
                 float(quality_result["completeness_ratio"]),
                 pattern_consistency_ratio=pattern_consistency_ratio,
             )
-            issues = [*type_inference_issues, *currency_issues, *build_issues(quality_result)]
+            issues = [*currency_issues, *build_issues(quality_result)]
             decision_policy = DecisionPolicy.from_inputs(
                 ready_threshold=effective.decision_ready_threshold,
                 warning_threshold=effective.decision_warning_threshold,
@@ -327,3 +289,27 @@ def run_pipeline(
         "artifacts": artifacts if run_mode == "APPLY" else None,
         "stage_seconds": stage_seconds,
     }
+
+
+def resolve_column_config_by_canonical(
+    *,
+    data_columns: list[str],
+    column_config: dict[str, ColumnConfig] | Mapping[str, ColumnConfig],
+) -> dict[str, ColumnConfig]:
+    """Resolve position-keyed column config entries to canonical column names."""
+    position_to_name = build_position_to_name(data_columns)
+    resolved: dict[str, ColumnConfig] = {}
+    for position_key, spec in column_config.items():
+        canonical_name = position_to_name.get(position_key)
+        if canonical_name is None:
+            raise ValueError(
+                "column_config position key "
+                f"{position_key!r} is out of range for {len(data_columns)} columns"
+            )
+        resolved[canonical_name] = spec
+    missing = sorted(column_name for column_name in data_columns if column_name not in resolved)
+    if missing:
+        raise ValueError(
+            "column_config is missing declarations for columns: " f"{', '.join(missing)}"
+        )
+    return resolved

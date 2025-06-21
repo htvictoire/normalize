@@ -36,19 +36,63 @@ def main() -> None:
         delimiter=",",
         decimal_separator=".",
         thousand_separator=",",
-        allow_leading_decimal_point=True,
-        date_formats={
-            "C": "%Y-%m-%d",
-            "D": "%d/%m/%Y",
-            "E": "EXCEL_SERIAL",
+        column_config={
+            # Order ID
+            "A": {"type": "string"},
+            # Customer ID
+            "B": {
+                "type": "integer",
+                "decimal_separator": ".",
+                "thousand_separator": ",",
+                "grouping_style": "western",
+            },
+            # Order Date
+            "C": {"type": "date", "date_format": "%Y-%m-%d"},
+            # Invoice Date
+            "D": {"type": "date", "date_format": "%d/%m/%Y"},
+            # Posting Date Serial
+            "E": {"type": "date", "date_format": "EXCEL_SERIAL"},
+            # Region
+            "F": {"type": "string"},
+            # Country Code
+            "G": {"type": "string"},
+            # Currency
+            "H": {"type": "string"},
+            # Sales Channel
+            "I": {"type": "string"},
+            # Payment Method
+            "J": {"type": "string"},
+            # Units
+            "K": {
+                "type": "integer",
+                "decimal_separator": ".",
+                "thousand_separator": ",",
+                "grouping_style": "western",
+            },
+            # Gross Amount
+            "L": {
+                "type": "currency",
+                "decimal_separator": ".",
+                "thousand_separator": ",",
+                "grouping_style": "western",
+                "allow_leading_decimal_point": True,
+            },
+            # Discount Rate
+            "M": {
+                "type": "decimal",
+                "decimal_separator": ".",
+                "thousand_separator": ",",
+                "grouping_style": "western",
+                "allow_leading_decimal_point": True,
+            },
+            # Priority Order
+            "N": {"type": "boolean"},
+            # Order Status
+            "O": {"type": "string"},
         },
         null_tokens=("", "null", "none", "n/a", "-"),
         boolean_true_tokens=("true", "yes", "1"),
         boolean_false_tokens=("false", "no", "0"),
-        type_inference_numeric_threshold=0.95,
-        type_inference_boolean_threshold=0.95,
-        type_inference_currency_threshold=0.50,
-        profiling_currency_candidate_threshold=0.95,
         assign_indices=True,
         drop_empty_rows=True,
         emit_raw_row=True,
