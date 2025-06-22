@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
+
+from normalize.core.numeric_formats import NumericFormat
 from normalize.core.token_policy import TokenPolicy
 from normalize.stages.shared_profiling.query_builders.currency import (
     accounting_negative_predicate,
@@ -30,38 +33,57 @@ def build_profile_query(
     token_policy: TokenPolicy,
     decimal_separator: str,
     thousand_separator: str,
-    allow_leading_decimal_point: bool,
+    grouping_style: str = "western",
+    numeric_formats_by_column: Mapping[str, NumericFormat] | None = None,
+    allow_leading_decimal_point: bool = False,
 ) -> str:
     """Build one-pass aggregate SQL query for profiling all columns."""
     source_exprs: list[str] = []
     exprs: list[str] = ["COUNT(*) AS row_count"]
     null_in_clause = token_in_clause(token_policy.null_tokens)
     boolean_in_clause = token_in_clause(token_policy.boolean_tokens)
-    decimal = decimal_pattern(
-        decimal_separator,
-        thousand_separator,
-        allow_leading_decimal_point=allow_leading_decimal_point,
-    )
-    integer = integer_pattern(thousand_separator)
-    normalized_separator_predicate = has_any_separator_predicate(
-        "BASE_VALUE_PLACEHOLDER",
-        [decimal_separator, thousand_separator],
-    )
-    has_separator_template = normalized_separator_predicate
-    swapped_float_template = "FALSE"
-    if thousand_separator:
-        swapped_pattern = decimal_pattern(
-            thousand_separator,
-            decimal_separator,
-            allow_leading_decimal_point=allow_leading_decimal_point,
-        )
-        swapped_float_template = (
-            f"{has_separator_template} "
-            f"AND REGEXP_FULL_MATCH(BASE_VALUE_PLACEHOLDER, {quote_string(swapped_pattern)}) "
-            "AND TRY_CAST(SWAPPED_VALUE_PLACEHOLDER AS DOUBLE) IS NOT NULL"
-        )
-
     for index, column_name in enumerate(columns):
+        column_format = (
+            numeric_formats_by_column.get(column_name) if numeric_formats_by_column else None
+        )
+        column_decimal_separator = (
+            decimal_separator if column_format is None else column_format.decimal_separator
+        )
+        column_thousand_separator = (
+            thousand_separator if column_format is None else column_format.thousand_separator
+        )
+        column_grouping_style = (
+            grouping_style if column_format is None else column_format.grouping_style
+        )
+        decimal = decimal_pattern(
+            column_decimal_separator,
+            column_thousand_separator,
+            allow_leading_decimal_point=allow_leading_decimal_point,
+            grouping_style=column_grouping_style,
+        )
+        integer = integer_pattern(
+            column_thousand_separator,
+            grouping_style=column_grouping_style,
+        )
+        normalized_separator_predicate = has_any_separator_predicate(
+            "BASE_VALUE_PLACEHOLDER",
+            [column_decimal_separator, column_thousand_separator],
+        )
+        has_separator_template = normalized_separator_predicate
+        swapped_float_template = "FALSE"
+        if column_thousand_separator:
+            swapped_pattern = decimal_pattern(
+                column_thousand_separator,
+                column_decimal_separator,
+                allow_leading_decimal_point=allow_leading_decimal_point,
+                grouping_style=column_grouping_style,
+            )
+            swapped_float_template = (
+                f"{has_separator_template} "
+                f"AND REGEXP_FULL_MATCH(BASE_VALUE_PLACEHOLDER, {quote_string(swapped_pattern)}) "
+                "AND TRY_CAST(SWAPPED_VALUE_PLACEHOLDER AS DOUBLE) IS NOT NULL"
+            )
+
         quoted = quote_identifier(column_name)
         base_alias = f"__c{index}_base"
         lower_alias = f"__c{index}_lower"
@@ -74,17 +96,26 @@ def build_profile_query(
 
         source_exprs.append(f"NULLIF(TRIM(CAST({quoted} AS VARCHAR)), '') AS {base_alias}")
         source_exprs.append(f"LOWER(TRIM(CAST({quoted} AS VARCHAR))) AS {lower_alias}")
-        source_exprs.append(
-            f"{normalize_numeric_expr(base_alias, decimal_separator, thousand_separator)} "
-            f"AS {normalized_alias}"
+        normalized_expr = normalize_numeric_expr(
+            base_alias,
+            column_decimal_separator,
+            column_thousand_separator,
         )
         source_exprs.append(
-            f"{normalize_integer_expr(base_alias, thousand_separator)} AS {normalized_int_alias}"
+            f"{normalized_expr} AS {normalized_alias}"
         )
-        if thousand_separator:
+        source_exprs.append(
+            f"{normalize_integer_expr(base_alias, column_thousand_separator)} "
+            f"AS {normalized_int_alias}"
+        )
+        if column_thousand_separator:
+            swapped_normalized_expr = normalize_numeric_expr(
+                base_alias,
+                column_thousand_separator,
+                column_decimal_separator,
+            )
             source_exprs.append(
-                f"{normalize_numeric_expr(base_alias, thousand_separator, decimal_separator)} "
-                f"AS {normalized_swapped_alias}"
+                f"{swapped_normalized_expr} AS {normalized_swapped_alias}"
             )
         else:
             source_exprs.append(f"NULL AS {normalized_swapped_alias}")
@@ -102,8 +133,8 @@ def build_profile_query(
         )
         normalized_currency_expr = normalize_numeric_expr(
             currency_signed_alias,
-            decimal_separator,
-            thousand_separator,
+            column_decimal_separator,
+            column_thousand_separator,
         )
         source_exprs.append(f"{normalized_currency_expr} AS {normalized_currency_alias}")
 
@@ -204,38 +235,57 @@ def build_pass1_profile_query(
     token_policy: TokenPolicy,
     decimal_separator: str,
     thousand_separator: str,
-    allow_leading_decimal_point: bool,
+    grouping_style: str = "western",
+    numeric_formats_by_column: Mapping[str, NumericFormat] | None = None,
+    allow_leading_decimal_point: bool = False,
 ) -> str:
     """Cheap pass: null/bool/int/float counts for all columns — no currency expressions."""
     source_exprs: list[str] = []
     exprs: list[str] = ["COUNT(*) AS row_count"]
     null_in_clause = token_in_clause(token_policy.null_tokens)
     boolean_in_clause = token_in_clause(token_policy.boolean_tokens)
-    decimal = decimal_pattern(
-        decimal_separator,
-        thousand_separator,
-        allow_leading_decimal_point=allow_leading_decimal_point,
-    )
-    integer = integer_pattern(thousand_separator)
-    normalized_separator_predicate = has_any_separator_predicate(
-        "BASE_VALUE_PLACEHOLDER",
-        [decimal_separator, thousand_separator],
-    )
-    has_separator_template = normalized_separator_predicate
-    swapped_float_template = "FALSE"
-    if thousand_separator:
-        swapped_pattern = decimal_pattern(
-            thousand_separator,
-            decimal_separator,
-            allow_leading_decimal_point=allow_leading_decimal_point,
-        )
-        swapped_float_template = (
-            f"{has_separator_template} "
-            f"AND REGEXP_FULL_MATCH(BASE_VALUE_PLACEHOLDER, {quote_string(swapped_pattern)}) "
-            "AND TRY_CAST(SWAPPED_VALUE_PLACEHOLDER AS DOUBLE) IS NOT NULL"
-        )
-
     for index, column_name in enumerate(columns):
+        column_format = (
+            numeric_formats_by_column.get(column_name) if numeric_formats_by_column else None
+        )
+        column_decimal_separator = (
+            decimal_separator if column_format is None else column_format.decimal_separator
+        )
+        column_thousand_separator = (
+            thousand_separator if column_format is None else column_format.thousand_separator
+        )
+        column_grouping_style = (
+            grouping_style if column_format is None else column_format.grouping_style
+        )
+        decimal = decimal_pattern(
+            column_decimal_separator,
+            column_thousand_separator,
+            allow_leading_decimal_point=allow_leading_decimal_point,
+            grouping_style=column_grouping_style,
+        )
+        integer = integer_pattern(
+            column_thousand_separator,
+            grouping_style=column_grouping_style,
+        )
+        normalized_separator_predicate = has_any_separator_predicate(
+            "BASE_VALUE_PLACEHOLDER",
+            [column_decimal_separator, column_thousand_separator],
+        )
+        has_separator_template = normalized_separator_predicate
+        swapped_float_template = "FALSE"
+        if column_thousand_separator:
+            swapped_pattern = decimal_pattern(
+                column_thousand_separator,
+                column_decimal_separator,
+                allow_leading_decimal_point=allow_leading_decimal_point,
+                grouping_style=column_grouping_style,
+            )
+            swapped_float_template = (
+                f"{has_separator_template} "
+                f"AND REGEXP_FULL_MATCH(BASE_VALUE_PLACEHOLDER, {quote_string(swapped_pattern)}) "
+                "AND TRY_CAST(SWAPPED_VALUE_PLACEHOLDER AS DOUBLE) IS NOT NULL"
+            )
+
         quoted = quote_identifier(column_name)
         base_alias = f"__c{index}_base"
         lower_alias = f"__c{index}_lower"
@@ -245,17 +295,26 @@ def build_pass1_profile_query(
 
         source_exprs.append(f"NULLIF(TRIM(CAST({quoted} AS VARCHAR)), '') AS {base_alias}")
         source_exprs.append(f"LOWER(TRIM(CAST({quoted} AS VARCHAR))) AS {lower_alias}")
-        source_exprs.append(
-            f"{normalize_numeric_expr(base_alias, decimal_separator, thousand_separator)} "
-            f"AS {normalized_alias}"
+        normalized_expr = normalize_numeric_expr(
+            base_alias,
+            column_decimal_separator,
+            column_thousand_separator,
         )
         source_exprs.append(
-            f"{normalize_integer_expr(base_alias, thousand_separator)} AS {normalized_int_alias}"
+            f"{normalized_expr} AS {normalized_alias}"
         )
-        if thousand_separator:
+        source_exprs.append(
+            f"{normalize_integer_expr(base_alias, column_thousand_separator)} "
+            f"AS {normalized_int_alias}"
+        )
+        if column_thousand_separator:
+            swapped_normalized_expr = normalize_numeric_expr(
+                base_alias,
+                column_thousand_separator,
+                column_decimal_separator,
+            )
             source_exprs.append(
-                f"{normalize_numeric_expr(base_alias, thousand_separator, decimal_separator)} "
-                f"AS {normalized_swapped_alias}"
+                f"{swapped_normalized_expr} AS {normalized_swapped_alias}"
             )
         else:
             source_exprs.append(f"NULL AS {normalized_swapped_alias}")
@@ -333,7 +392,9 @@ def build_pass2_currency_query(
     table_name: str,
     decimal_separator: str,
     thousand_separator: str,
-    allow_leading_decimal_point: bool,
+    grouping_style: str = "western",
+    numeric_formats_by_column: Mapping[str, NumericFormat] | None = None,
+    allow_leading_decimal_point: bool = False,
 ) -> str:
     """Currency pass: expensive currency expressions for candidate columns only.
 
@@ -346,13 +407,25 @@ def build_pass2_currency_query(
     """
     source_exprs: list[str] = []
     exprs: list[str] = []
-    decimal = decimal_pattern(
-        decimal_separator,
-        thousand_separator,
-        allow_leading_decimal_point=allow_leading_decimal_point,
-    )
-
     for index, column_name in enumerate(columns):
+        column_format = (
+            numeric_formats_by_column.get(column_name) if numeric_formats_by_column else None
+        )
+        column_decimal_separator = (
+            decimal_separator if column_format is None else column_format.decimal_separator
+        )
+        column_thousand_separator = (
+            thousand_separator if column_format is None else column_format.thousand_separator
+        )
+        column_grouping_style = (
+            grouping_style if column_format is None else column_format.grouping_style
+        )
+        decimal = decimal_pattern(
+            column_decimal_separator,
+            column_thousand_separator,
+            allow_leading_decimal_point=allow_leading_decimal_point,
+            grouping_style=column_grouping_style,
+        )
         quoted = quote_identifier(column_name)
         base_alias = f"__c{index}_base"
         lower_alias = f"__c{index}_lower"
@@ -376,8 +449,8 @@ def build_pass2_currency_query(
         )
         normalized_currency_expr = normalize_numeric_expr(
             currency_signed_alias,
-            decimal_separator,
-            thousand_separator,
+            column_decimal_separator,
+            column_thousand_separator,
         )
         source_exprs.append(f"{normalized_currency_expr} AS {normalized_currency_alias}")
 

@@ -2,8 +2,12 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
+
 from duckdb import DuckDBPyConnection
 
+from normalize.core.column_positions import build_position_to_name
+from normalize.core.numeric_formats import NumericFormat, resolve_numeric_formats_by_canonical
 from normalize.core.token_policy import TokenPolicy
 from normalize.stages.shared_profiling.contracts import (
     DEFAULT_PROFILE_TABLE_NAME,
@@ -28,6 +32,8 @@ def ensure_column_profiles(
     token_policy: TokenPolicy,
     decimal_separator: str,
     thousand_separator: str,
+    grouping_style: str,
+    numeric_formats: Mapping[str, NumericFormat] | None,
     allow_leading_decimal_point: bool,
     currency_candidate_threshold: float,
 ) -> dict[str, ColumnProfile]:
@@ -46,6 +52,8 @@ def ensure_column_profiles(
         token_policy=token_policy,
         decimal_separator=decimal_separator,
         thousand_separator=thousand_separator,
+        grouping_style=grouping_style,
+        numeric_formats=numeric_formats,
         allow_leading_decimal_point=allow_leading_decimal_point,
         currency_candidate_threshold=currency_candidate_threshold,
     )
@@ -111,6 +119,8 @@ def compute_and_store_column_profiles(
     token_policy: TokenPolicy,
     decimal_separator: str,
     thousand_separator: str,
+    grouping_style: str,
+    numeric_formats: Mapping[str, NumericFormat] | None,
     allow_leading_decimal_point: bool,
     currency_candidate_threshold: float,
 ) -> dict[str, ColumnProfile]:
@@ -126,6 +136,11 @@ def compute_and_store_column_profiles(
     validate_identifier(table_name)
     validate_identifier(profile_table_name)
     columns = read_data_columns(conn, table_name)
+    position_to_canonical = build_position_to_name(columns)
+    numeric_formats_by_column = resolve_numeric_formats_by_canonical(
+        numeric_formats=numeric_formats,
+        position_to_canonical=position_to_canonical,
+    )
 
     if not columns:
         conn.execute(
@@ -153,6 +168,8 @@ def compute_and_store_column_profiles(
         token_policy=token_policy,
         decimal_separator=decimal_separator,
         thousand_separator=thousand_separator,
+        grouping_style=grouping_style,
+        numeric_formats_by_column=numeric_formats_by_column,
         allow_leading_decimal_point=allow_leading_decimal_point,
     )
     row = conn.execute(pass1_query).fetchone()
@@ -193,6 +210,8 @@ def compute_and_store_column_profiles(
             table_name=table_name,
             decimal_separator=decimal_separator,
             thousand_separator=thousand_separator,
+            grouping_style=grouping_style,
+            numeric_formats_by_column=numeric_formats_by_column,
             allow_leading_decimal_point=allow_leading_decimal_point,
         )
         row2 = conn.execute(pass2_query).fetchone()

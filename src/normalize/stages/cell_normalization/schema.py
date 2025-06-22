@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 
-from normalize.stages.type_inference import SUPPORTED_INFERRED_TYPES
+from normalize.core.column_config import ColumnConfig, column_config_type
 
 AUDIT_COLUMNS = {
     "_row_index",
@@ -15,16 +15,24 @@ AUDIT_COLUMNS = {
 }
 
 
-def validate_inferred_types(
-    inferred_types: Mapping[str, str],
+def validate_column_config(
+    column_config: Mapping[str, ColumnConfig],
     data_columns: Sequence[str],
 ) -> None:
-    """Ensure every data column has a known inferred type."""
-    missing = [column for column in data_columns if column not in inferred_types]
+    """Ensure every data column has a declared config entry."""
+    missing = [column for column in data_columns if column not in column_config]
     if missing:
-        raise ValueError(f"MISSING_INFERRED_TYPES:{','.join(sorted(missing))}")
-    unknown_types = sorted(
-        {value for value in inferred_types.values() if value not in SUPPORTED_INFERRED_TYPES}
+        raise ValueError(f"MISSING_COLUMN_CONFIG:{','.join(sorted(missing))}")
+    extras = [column for column in column_config if column not in data_columns]
+    if extras:
+        raise ValueError(f"UNKNOWN_COLUMN_CONFIG:{','.join(sorted(extras))}")
+    unsupported = sorted(
+        {
+            column_config_type(spec)
+            for spec in column_config.values()
+            if column_config_type(spec)
+            not in {"string", "boolean", "integer", "decimal", "currency", "date"}
+        }
     )
-    if unknown_types:
-        raise ValueError(f"UNSUPPORTED_INFERRED_TYPES:{','.join(unknown_types)}")
+    if unsupported:
+        raise ValueError(f"UNSUPPORTED_COLUMN_TYPES:{','.join(unsupported)}")

@@ -5,6 +5,14 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 
+from normalize.core.column_config import (
+    ColumnConfig,
+    CurrencyColumnConfig,
+    DateColumnConfig,
+    DecimalColumnConfig,
+    IntegerColumnConfig,
+    column_config_type,
+)
 from normalize.core.token_policy import TokenPolicy
 from normalize.stages.cell_normalization.naming import (
     issue_alias,
@@ -33,12 +41,8 @@ class CellExpressionFragments:
 def build_cell_expression_fragments(
     *,
     data_columns: Sequence[str],
-    inferred_types: Mapping[str, str],
+    column_config: Mapping[str, ColumnConfig],
     token_policy: TokenPolicy,
-    decimal_separator: str,
-    thousand_separator: str,
-    allow_leading_decimal_point: bool,
-    date_formats_by_canonical: Mapping[str, str],
     emit_raw_row: bool,
     emit_parse_issues: bool,
 ) -> CellExpressionFragments:
@@ -50,7 +54,8 @@ def build_cell_expression_fragments(
     row_error_terms: list[str] = []
 
     for column_name in data_columns:
-        inferred_type = inferred_types[column_name]
+        spec = column_config[column_name]
+        inferred_type = column_config_type(spec)
         quoted_column = quote_identifier(column_name)
         raw_alias = quote_identifier(parse_raw_alias(column_name))
         lower_alias = quote_identifier(parse_lower_alias(column_name))
@@ -63,7 +68,22 @@ def build_cell_expression_fragments(
                 build_nullish_predicate(raw_alias, lower_alias, token_policy.null_tokens),
             )
         )
-        date_format = date_formats_by_canonical.get(column_name)
+        if isinstance(spec, IntegerColumnConfig):
+            column_decimal_separator = spec.decimal_separator
+            column_thousand_separator = spec.thousand_separator
+            column_grouping_style = spec.grouping_style
+            allow_leading_decimal_point = False
+        elif isinstance(spec, DecimalColumnConfig | CurrencyColumnConfig):
+            column_decimal_separator = spec.decimal_separator
+            column_thousand_separator = spec.thousand_separator
+            column_grouping_style = spec.grouping_style
+            allow_leading_decimal_point = spec.allow_leading_decimal_point
+        else:
+            column_decimal_separator = ""
+            column_thousand_separator = ""
+            column_grouping_style = ""
+            allow_leading_decimal_point = False
+        date_format = spec.date_format if isinstance(spec, DateColumnConfig) else None
         col_parse_entries, normalized_expr, issue_expr = build_column_exprs(
             column_name,
             inferred_type,
@@ -72,8 +92,9 @@ def build_cell_expression_fragments(
             normalized_raw_value=lower_alias,
             true_tokens=token_policy.boolean_true_tokens,
             false_tokens=token_policy.boolean_false_tokens,
-            decimal_separator=decimal_separator,
-            thousand_separator=thousand_separator,
+            decimal_separator=column_decimal_separator,
+            thousand_separator=column_thousand_separator,
+            grouping_style=column_grouping_style,
             allow_leading_decimal_point=allow_leading_decimal_point,
             date_format=date_format,
         )

@@ -9,6 +9,7 @@ from duckdb import DuckDBPyConnection
 
 from normalize.core.column_positions import build_position_to_name
 from normalize.core.domain import IssueSeverity, NormalizationIssue
+from normalize.core.numeric_formats import NumericFormat, resolve_numeric_formats_by_canonical
 from normalize.core.sql_helpers import read_columns
 from normalize.core.token_policy import TokenPolicy
 from normalize.stages.base import Stage
@@ -69,6 +70,8 @@ class TypeInferenceStage(Stage):
         boolean_false_tokens: list[str] | None,
         decimal_separator: str,
         thousand_separator: str,
+        grouping_style: str,
+        numeric_formats: Mapping[str, NumericFormat] | None,
         allow_leading_decimal_point: bool,
         currency_candidate_threshold: float,
         date_formats: Mapping[str, str] | None = None,
@@ -79,6 +82,14 @@ class TypeInferenceStage(Stage):
             boolean_true_tokens=boolean_true_tokens,
             boolean_false_tokens=boolean_false_tokens,
         )
+        columns_in_order = read_columns(conn, table_name)
+        resolved_position_to_canonical = build_position_to_name(columns_in_order)
+        declared_numeric_formats = dict(numeric_formats or {})
+        resolved_numeric_formats_by_canonical = resolve_numeric_formats_by_canonical(
+            numeric_formats=declared_numeric_formats,
+            position_to_canonical=resolved_position_to_canonical,
+        )
+
         profiles = ensure_column_profiles(
             conn,
             table_name=table_name,
@@ -86,14 +97,15 @@ class TypeInferenceStage(Stage):
             token_policy=token_policy,
             decimal_separator=decimal_separator,
             thousand_separator=thousand_separator,
+            grouping_style=grouping_style,
+            numeric_formats=numeric_formats,
             allow_leading_decimal_point=allow_leading_decimal_point,
             currency_candidate_threshold=currency_candidate_threshold,
         )
-        columns_in_order = read_columns(conn, table_name)
-        resolved_position_to_canonical = build_position_to_name(columns_in_order)
         declared_date_formats = dict(date_formats or {})
         resolved_issues = _resolve_unknown_position_keys(
             declared_date_formats=declared_date_formats,
+            declared_numeric_formats=declared_numeric_formats,
             position_to_canonical=resolved_position_to_canonical,
         )
         resolved_date_formats_by_canonical = _resolve_date_formats_by_canonical(
@@ -108,6 +120,14 @@ class TypeInferenceStage(Stage):
                 inferred[column_name] = "date"
                 continue
 
+            column_format = resolved_numeric_formats_by_canonical.get(column_name)
+            column_decimal_separator = (
+                decimal_separator if column_format is None else column_format.decimal_separator
+            )
+            column_thousand_separator = (
+                thousand_separator if column_format is None else column_format.thousand_separator
+            )
+
             inferred_type = infer_column_type(
                 profile,
                 numeric_threshold=self._numeric_threshold,
@@ -118,13 +138,13 @@ class TypeInferenceStage(Stage):
                 profile=profile,
                 inferred_type=inferred_type,
                 numeric_threshold=self._numeric_threshold,
-                thousand_separator=thousand_separator,
+                thousand_separator=column_thousand_separator,
             ):
                 detected_issues.append(
                     _build_separator_mismatch_issue(
                         column_name=column_name,
-                        decimal_separator=decimal_separator,
-                        thousand_separator=thousand_separator,
+                        decimal_separator=column_decimal_separator,
+                        thousand_separator=column_thousand_separator,
                         numeric_threshold=self._numeric_threshold,
                         declared_decimal_ratio=profile.decimal_ratio,
                         swapped_decimal_ratio=profile.swapped_decimal_ratio,
@@ -154,12 +174,13 @@ class TypeInferenceStage(Stage):
 def _resolve_unknown_position_keys(
     *,
     declared_date_formats: Mapping[str, str],
+    declared_numeric_formats: Mapping[str, NumericFormat],
     position_to_canonical: Mapping[str, str],
 ) -> list[NormalizationIssue]:
-    if not declared_date_formats:
+    if not declared_date_formats and not declared_numeric_formats:
         return []
     issues: list[NormalizationIssue] = []
-    for position_key in sorted(declared_date_formats):
+    for position_key in sorted({*declared_date_formats, *declared_numeric_formats}):
         if position_key not in position_to_canonical:
             issues.append(
                 _build_unknown_column_reference_issue(position_key, len(position_to_canonical))

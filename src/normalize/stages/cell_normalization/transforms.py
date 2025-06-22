@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 from collections.abc import Sequence
 
+from normalize.core.numeric_formats import GROUPING_STYLE_INDIAN
 from normalize.stages.cell_normalization.currency_helpers import (
     build_currency_numeric_candidate_expr,
 )
@@ -38,6 +39,7 @@ def build_column_exprs(
     false_tokens: Sequence[str],
     decimal_separator: str,
     thousand_separator: str,
+    grouping_style: str,
     allow_leading_decimal_point: bool,
     date_format: str | None = None,
 ) -> _ColumnExprs:
@@ -53,15 +55,30 @@ def build_column_exprs(
         return ([], normalized, "NULL")
 
     if inferred_type == "integer":
+        trimmed_raw_value = f"TRIM({raw_value})"
+        integer_value = _normalize_integer_value(
+            trimmed_raw_value,
+            thousand_separator=thousand_separator,
+        )
+        integer_pattern = _integer_pattern_regex(
+            thousand_separator=thousand_separator,
+            grouping_style=grouping_style,
+        )
+        match_alias = quote_identifier(parse_match_alias(column_name))
         cast_alias = quote_identifier(parse_cast_alias(column_name))
-        cast_expr = f"TRY_CAST({raw_value} AS BIGINT)"
-        normalized = f"CASE WHEN {nullish_predicate} THEN NULL ELSE {cast_alias} END"
-        issue = (
+        match_expr = f"REGEXP_FULL_MATCH({trimmed_raw_value}, {quote_string(integer_pattern)})"
+        cast_expr = f"TRY_CAST({integer_value} AS BIGINT)"
+        normalized = (
             f"CASE WHEN {nullish_predicate} THEN NULL "
-            f"WHEN {cast_alias} IS NULL THEN 'INVALID_INTEGER' "
+            f"WHEN {match_alias} THEN {cast_alias} "
             "ELSE NULL END"
         )
-        return ([(cast_alias, cast_expr)], normalized, issue)
+        issue = (
+            f"CASE WHEN {nullish_predicate} THEN NULL "
+            f"WHEN {match_alias} AND {cast_alias} IS NOT NULL THEN NULL "
+            "ELSE 'INVALID_INTEGER' END"
+        )
+        return ([(match_alias, match_expr), (cast_alias, cast_expr)], normalized, issue)
 
     if inferred_type in {"float", "decimal"}:
         trimmed_raw_value = f"TRIM({raw_value})"
@@ -73,6 +90,7 @@ def build_column_exprs(
         decimal_pattern = _decimal_pattern_regex(
             decimal_separator=decimal_separator,
             thousand_separator=thousand_separator,
+            grouping_style=grouping_style,
             allow_leading_decimal_point=allow_leading_decimal_point,
         )
         match_alias = quote_identifier(parse_match_alias(column_name))
@@ -102,6 +120,7 @@ def build_column_exprs(
         decimal_pattern = _decimal_pattern_regex(
             decimal_separator=decimal_separator,
             thousand_separator=thousand_separator,
+            grouping_style=grouping_style,
             allow_leading_decimal_point=allow_leading_decimal_point,
         )
         match_alias = quote_identifier(parse_match_alias(column_name))
@@ -121,8 +140,6 @@ def build_column_exprs(
         return ([(match_alias, match_expr), (cast_alias, cast_expr)], normalized, issue)
 
     if inferred_type == "date":
-        if date_format is None:
-            raise ValueError(f"MISSING_DATE_FORMAT:{column_name}")
         date_alias = quote_identifier(parse_date_alias(column_name))
         if date_format == "EXCEL_SERIAL":
             date_expr = f"(DATE '1899-12-30' + TRY_CAST({raw_value} AS INTEGER))"
@@ -195,10 +212,21 @@ def _normalize_numeric_value(
     return normalized
 
 
+def _normalize_integer_value(
+    value_expr: str,
+    *,
+    thousand_separator: str,
+) -> str:
+    if not thousand_separator:
+        return value_expr
+    return f"REPLACE({value_expr}, {quote_string(thousand_separator)}, '')"
+
+
 def _decimal_pattern_regex(
     *,
     decimal_separator: str,
     thousand_separator: str,
+    grouping_style: str,
     allow_leading_decimal_point: bool,
 ) -> str:
     decimal = re.escape(decimal_separator)
@@ -209,7 +237,26 @@ def _decimal_pattern_regex(
             return rf"^[+-]?(?:{base}|{leading_decimal})$"
         return rf"^[+-]?{base}$"
     thousand = re.escape(thousand_separator)
-    grouped = rf"(?:[0-9]{{1,3}}(?:{thousand}[0-9]{{3}})+|[0-9]+)(?:{decimal}[0-9]*)?"
+    grouped_integer = _grouped_integer_pattern(thousand, grouping_style=grouping_style)
+    grouped = rf"(?:{grouped_integer}|[0-9]+)(?:{decimal}[0-9]*)?"
     if allow_leading_decimal_point:
         return rf"^[+-]?(?:{grouped}|{leading_decimal})$"
     return rf"^[+-]?{grouped}$"
+
+
+def _integer_pattern_regex(
+    *,
+    thousand_separator: str,
+    grouping_style: str,
+) -> str:
+    if not thousand_separator:
+        return r"^[+-]?[0-9]+$"
+    thousand = re.escape(thousand_separator)
+    grouped_integer = _grouped_integer_pattern(thousand, grouping_style=grouping_style)
+    return rf"^[+-]?(?:{grouped_integer}|[0-9]+)$"
+
+
+def _grouped_integer_pattern(thousand: str, *, grouping_style: str) -> str:
+    if grouping_style == GROUPING_STYLE_INDIAN:
+        return rf"[0-9]{{1,3}}(?:{thousand}[0-9]{{2}})*{thousand}[0-9]{{3}}"
+    return rf"[0-9]{{1,3}}(?:{thousand}[0-9]{{3}})+"

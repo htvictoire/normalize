@@ -7,13 +7,10 @@ from time import perf_counter
 
 from duckdb import DuckDBPyConnection
 
-from normalize.core.column_positions import build_position_to_name
+from normalize.core.column_config import ColumnConfig
 from normalize.core.token_policy import TokenPolicy
 from normalize.core.transform import CellPlan
 from normalize.stages.base import Stage
-from normalize.stages.cell_normalization.date_resolution import (
-    resolve_date_formats_by_canonical,
-)
 from normalize.stages.cell_normalization.execution import execute_cell_rewrite
 from normalize.stages.cell_normalization.fragments import (
     build_cell_expression_fragments,
@@ -24,7 +21,7 @@ from normalize.stages.cell_normalization.quality_precompute import (
 )
 from normalize.stages.cell_normalization.schema import (
     AUDIT_COLUMNS,
-    validate_inferred_types,
+    validate_column_config,
 )
 from normalize.stages.cell_normalization.sql_helpers import (
     read_columns,
@@ -59,16 +56,12 @@ class CellNormalizationStage(Stage):
     def plan(
         self,
         conn: DuckDBPyConnection,
-        inferred_types: Mapping[str, str],
         *,
+        column_config: Mapping[str, ColumnConfig],
         table_name: str = "raw_input",
         null_tokens: Sequence[str] | None,
         boolean_true_tokens: Sequence[str] | None,
         boolean_false_tokens: Sequence[str] | None,
-        decimal_separator: str = ".",
-        thousand_separator: str = "",
-        allow_leading_decimal_point: bool = False,
-        date_formats: Mapping[str, str] | None = None,
         full_raw_row: bool = False,
         emit_raw_row: bool = True,
         emit_parse_issues: bool = True,
@@ -83,21 +76,12 @@ class CellNormalizationStage(Stage):
 
         columns = read_columns(conn, table_name)
         data_columns = [column for column in columns if column not in AUDIT_COLUMNS]
-        validate_inferred_types(inferred_types, data_columns)
-        resolved_position_to_canonical = build_position_to_name(data_columns)
-        resolved_date_formats_by_canonical = resolve_date_formats_by_canonical(
-            date_formats=date_formats,
-            position_to_canonical=resolved_position_to_canonical,
-        )
+        validate_column_config(column_config, data_columns)
 
         fragments = build_cell_expression_fragments(
             data_columns=data_columns,
-            inferred_types=inferred_types,
+            column_config=column_config,
             token_policy=token_policy,
-            decimal_separator=decimal_separator,
-            thousand_separator=thousand_separator,
-            allow_leading_decimal_point=allow_leading_decimal_point,
-            date_formats_by_canonical=resolved_date_formats_by_canonical,
             emit_raw_row=emit_raw_row,
             emit_parse_issues=emit_parse_issues,
         )
@@ -112,16 +96,12 @@ class CellNormalizationStage(Stage):
     def execute(
         self,
         conn: DuckDBPyConnection,
-        inferred_types: Mapping[str, str],
         *,
+        column_config: Mapping[str, ColumnConfig],
         table_name: str = "raw_input",
         null_tokens: Sequence[str] | None,
         boolean_true_tokens: Sequence[str] | None,
         boolean_false_tokens: Sequence[str] | None,
-        decimal_separator: str = ".",
-        thousand_separator: str = "",
-        allow_leading_decimal_point: bool = False,
-        date_formats: Mapping[str, str] | None = None,
         full_raw_row: bool = False,
         emit_raw_row: bool = True,
         emit_parse_issues: bool = True,
@@ -136,21 +116,12 @@ class CellNormalizationStage(Stage):
 
         columns = read_columns(conn, table_name)
         data_columns = [column for column in columns if column not in AUDIT_COLUMNS]
-        validate_inferred_types(inferred_types, data_columns)
-        resolved_position_to_canonical = build_position_to_name(data_columns)
-        resolved_date_formats_by_canonical = resolve_date_formats_by_canonical(
-            date_formats=date_formats,
-            position_to_canonical=resolved_position_to_canonical,
-        )
+        validate_column_config(column_config, data_columns)
 
         fragments = build_cell_expression_fragments(
             data_columns=data_columns,
-            inferred_types=inferred_types,
+            column_config=column_config,
             token_policy=token_policy,
-            decimal_separator=decimal_separator,
-            thousand_separator=thousand_separator,
-            allow_leading_decimal_point=allow_leading_decimal_point,
-            date_formats_by_canonical=resolved_date_formats_by_canonical,
             emit_raw_row=emit_raw_row,
             emit_parse_issues=emit_parse_issues,
         )

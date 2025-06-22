@@ -167,6 +167,14 @@ def read_total_parse_error_cells(
     return sum(per_column.values())
 
 
+def read_precomputed_total_parse_error_cells(conn: DuckDBPyConnection) -> int:
+    """Read total parse error cells from `_quality_profile_raw_input` precompute table."""
+    row = conn.execute(
+        "SELECT COALESCE(MAX(total_parse_error_cells), 0) FROM _quality_profile_raw_input"
+    ).fetchone()
+    return 0 if row is None else int(row[0])
+
+
 def read_precomputed_row_count(conn: DuckDBPyConnection) -> int:
     """Read row_count from `_quality_profile_raw_input` precompute table."""
     row = conn.execute(
