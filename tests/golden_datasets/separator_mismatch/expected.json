@@ -14,7 +14,6 @@
       "declared_date": "date"
     },
     "issue_codes": [
-      "SEPARATOR_MISMATCH",
       "PARSE_ERRORS_PRESENT"
     ],
     "status": "READY_WITH_WARNINGS",

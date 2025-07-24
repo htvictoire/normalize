@@ -7,6 +7,27 @@ from normalize.core.engine import EngineConfig, NormalizationEngine
 from normalize.stages.ingestion.contracts import HeaderMode
 
 
+def _sample_column_config() -> dict[str, dict[str, object]]:
+    return {
+        "A": {
+            "type": "integer",
+            "decimal_separator": ".",
+            "thousand_separator": ",",
+            "grouping_style": "western",
+        },
+        "B": {
+            "type": "decimal",
+            "decimal_separator": ".",
+            "thousand_separator": ",",
+            "grouping_style": "western",
+            "allow_leading_decimal_point": True,
+        },
+        "C": {
+            "type": "boolean",
+        },
+    }
+
+
 def _engine_config(duckdb_path: str) -> EngineConfig:
     return EngineConfig(
         rules_version="v1",
@@ -18,15 +39,10 @@ def _engine_config(duckdb_path: str) -> EngineConfig:
         delimiter=",",
         decimal_separator=".",
         thousand_separator=",",
-        allow_leading_decimal_point=True,
-        date_formats={},
+        column_config=_sample_column_config(),
         null_tokens=("", "null", "none", "n/a", "-"),
         boolean_true_tokens=("true", "yes", "1"),
         boolean_false_tokens=("false", "no", "0"),
-        type_inference_numeric_threshold=0.95,
-        type_inference_boolean_threshold=0.95,
-        type_inference_currency_threshold=0.50,
-        profiling_currency_candidate_threshold=0.95,
         assign_indices=True,
         drop_empty_rows=True,
         emit_raw_row=True,
@@ -214,7 +230,7 @@ def test_engine_fingerprint_changes_when_decimal_separator_changes(tmp_path: Pat
     assert run_dot["fingerprint"] != run_comma["fingerprint"]
 
 
-def test_engine_fingerprint_changes_when_date_formats_change(tmp_path: Path) -> None:
+def test_engine_fingerprint_changes_when_column_config_changes(tmp_path: Path) -> None:
     csv_path = tmp_path / "input.csv"
     _write_sample_csv(csv_path)
     base_config = _engine_config("placeholder.duckdb")
@@ -226,11 +242,19 @@ def test_engine_fingerprint_changes_when_date_formats_change(tmp_path: Path) -> 
             **{
                 **base_config.__dict__,
                 "duckdb_path": str(tmp_path / "a.duckdb"),
-                "date_formats": {},
+                "column_config": _sample_column_config(),
             }
         ),
         mode="PROFILE",
     )
+    changed_config = _sample_column_config()
+    changed_config["B"] = {
+        "type": "decimal",
+        "decimal_separator": ",",
+        "thousand_separator": ".",
+        "grouping_style": "western",
+        "allow_leading_decimal_point": True,
+    }
     run_b = NormalizationEngine().run(
         csv_path=csv_path,
         output_dir=tmp_path / "out_b",
@@ -238,7 +262,7 @@ def test_engine_fingerprint_changes_when_date_formats_change(tmp_path: Path) -> 
             **{
                 **base_config.__dict__,
                 "duckdb_path": str(tmp_path / "b.duckdb"),
-                "date_formats": {"A": "%d/%m/%Y"},
+                "column_config": changed_config,
             }
         ),
         mode="PROFILE",
@@ -247,7 +271,7 @@ def test_engine_fingerprint_changes_when_date_formats_change(tmp_path: Path) -> 
     assert run_a["fingerprint"] != run_b["fingerprint"]
 
 
-def test_engine_manifest_replay_config_includes_phase15_fields(tmp_path: Path) -> None:
+def test_engine_manifest_replay_config_includes_no_guessing_fields(tmp_path: Path) -> None:
     csv_path = tmp_path / "input.csv"
     _write_sample_csv(csv_path)
     config = EngineConfig(
@@ -255,7 +279,20 @@ def test_engine_manifest_replay_config_includes_phase15_fields(tmp_path: Path) -
             **_engine_config(str(tmp_path / "manifest.duckdb")).__dict__,
             "decimal_separator": ",",
             "thousand_separator": ".",
-            "date_formats": {"A": "%d/%m/%Y"},
+            "column_config": {
+                "A": {
+                    "type": "date",
+                    "date_format": "%d/%m/%Y",
+                },
+                "B": {
+                    "type": "decimal",
+                    "decimal_separator": ",",
+                    "thousand_separator": ".",
+                    "grouping_style": "western",
+                    "allow_leading_decimal_point": True,
+                },
+                "C": {"type": "boolean"},
+            },
         }
     )
     result = NormalizationEngine().run(
@@ -269,10 +306,11 @@ def test_engine_manifest_replay_config_includes_phase15_fields(tmp_path: Path) -
     effective_config = manifest["replay_instructions"]["effective_config"]
     assert effective_config["decimal_separator"] == ","
     assert effective_config["thousand_separator"] == "."
-    assert effective_config["allow_leading_decimal_point"] is True
-    assert effective_config["type_inference_currency_threshold"] == pytest.approx(0.5)
-    assert effective_config["profiling_currency_candidate_threshold"] == pytest.approx(0.95)
-    assert effective_config["date_formats"] == {"A": "%d/%m/%Y"}
+    assert "column_config" in effective_config
+    assert effective_config["column_config"]["A"] == {
+        "type": "date",
+        "date_format": "%d/%m/%Y",
+    }
 
 
 def test_engine_config_rejects_equal_decimal_and_thousand_separators() -> None:
@@ -288,36 +326,53 @@ def test_engine_config_rejects_equal_decimal_and_thousand_separators() -> None:
         )
 
 
-def test_engine_config_normalizes_date_format_position_keys() -> None:
+def test_engine_config_normalizes_column_config_position_keys() -> None:
     config = EngineConfig(
         **{
             **_engine_config("unused.duckdb").__dict__,
-            "date_formats": {"a": "%d/%m/%Y"},
+            "column_config": {
+                "a": {
+                    "type": "date",
+                    "date_format": "%d/%m/%Y",
+                }
+            },
         }
     )
-    assert config.date_formats == {"A": "%d/%m/%Y"}
+    assert config.column_config.keys() == {"A"}
 
 
 def test_engine_config_rejects_date_format_without_directives() -> None:
     with pytest.raises(
-        ValueError, match="date_formats\\['A'\\] must contain at least one strptime directive"
+        ValueError,
+        match="column_config\\['A'\\]\\.date_format must contain at least one strptime directive",
     ):
         EngineConfig(
             **{
                 **_engine_config("unused.duckdb").__dict__,
-                "date_formats": {"A": "INVALID_FORMAT"},
+                "column_config": {
+                    "A": {
+                        "type": "date",
+                        "date_format": "INVALID_FORMAT",
+                    }
+                },
             }
         )
 
 
 def test_engine_config_rejects_invalid_duckdb_date_directive() -> None:
     with pytest.raises(
-        ValueError, match="date_formats\\['A'\\] contains invalid DuckDB strptime directives"
+        ValueError,
+        match="column_config\\['A'\\]\\.date_format contains invalid DuckDB strptime directives",
     ):
         EngineConfig(
             **{
                 **_engine_config("unused.duckdb").__dict__,
-                "date_formats": {"A": "%Q"},
+                "column_config": {
+                    "A": {
+                        "type": "date",
+                        "date_format": "%Q",
+                    }
+                },
             }
         )
 
@@ -340,7 +395,20 @@ def test_engine_emits_mixed_currency_warning_without_blocking_ready_status(
         encoding="utf-8",
     )
 
-    config = _engine_config(str(tmp_path / "mixed.duckdb"))
+    config = EngineConfig(
+        **{
+            **_engine_config(str(tmp_path / "mixed.duckdb")).__dict__,
+            "column_config": {
+                "A": {
+                    "type": "currency",
+                    "decimal_separator": ".",
+                    "thousand_separator": ",",
+                    "grouping_style": "western",
+                    "allow_leading_decimal_point": True,
+                }
+            },
+        }
+    )
     result = NormalizationEngine().run(
         csv_path=csv_path,
         output_dir=tmp_path / "out_mixed",

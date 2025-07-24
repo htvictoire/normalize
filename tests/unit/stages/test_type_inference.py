@@ -1,10 +1,13 @@
 from normalize.core.duckdb_manager import DuckDBManager
+from normalize.core.numeric_formats import NumericFormat
 from normalize.stages.type_inference import TypeInferenceStage
 
 COMMON_ARGS = {
     "null_tokens": ["", "null", "none", "n/a", "-"],
     "boolean_true_tokens": ["true", "yes", "1"],
     "boolean_false_tokens": ["false", "no", "0"],
+    "grouping_style": "western",
+    "numeric_formats": {},
 }
 STAGE_ARGS = {
     "numeric_threshold": 0.95,
@@ -336,3 +339,31 @@ def test_type_inference_keeps_integer_priority_over_currency() -> None:
         )
         inferred = stage.execute(conn, **INFERENCE_ARGS)
         assert inferred == {"amount": "integer"}
+
+
+def test_type_inference_supports_indian_grouping_per_column() -> None:
+    stage = TypeInferenceStage(**STAGE_ARGS)
+    with DuckDBManager() as conn:
+        conn.execute("CREATE TABLE raw_input (amount VARCHAR)")
+        conn.execute(
+            """
+            INSERT INTO raw_input VALUES
+                ('1,23,456.78'),
+                ('12,34,567.90'),
+                ('999')
+            """
+        )
+        inferred = stage.execute(
+            conn,
+            **{
+                **INFERENCE_ARGS,
+                "numeric_formats": {
+                    "A": NumericFormat(
+                        decimal_separator=".",
+                        thousand_separator=",",
+                        grouping_style="indian",
+                    )
+                },
+            },
+        )
+        assert inferred == {"amount": "decimal"}

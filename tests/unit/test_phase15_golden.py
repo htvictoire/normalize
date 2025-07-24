@@ -4,18 +4,10 @@ from typing import Any
 
 import pytest
 
-from normalize.core.duckdb_manager import DuckDBManager
+from normalize.core.column_positions import index_to_position_key
 from normalize.core.engine import EngineConfig, NormalizationEngine
-from normalize.stages.header_canonicalization import HeaderCanonicalizationStage
-from normalize.stages.ingestion import IngestionStage
 from normalize.stages.ingestion.contracts import HeaderMode
-from normalize.stages.type_inference import TypeInferenceStage
 
-_COMMON_ARGS = {
-    "null_tokens": ["", "null", "none", "n/a", "-"],
-    "boolean_true_tokens": ["true", "yes", "1"],
-    "boolean_false_tokens": ["false", "no", "0"],
-}
 _GOLDEN_ROOT = Path(__file__).resolve().parents[1] / "golden_datasets"
 
 
@@ -31,12 +23,10 @@ def test_phase15_golden_datasets(case_name: str, tmp_path: Path) -> None:
     expected = expected_payload["expected"]
     input_csv = case_root / "input.csv"
 
-    inferred_types = _infer_types_for_case(input_csv, config_overrides)
-    assert inferred_types == expected["inferred_types"]
-
     config = _build_engine_config(
         duckdb_path=str(tmp_path / f"{case_name}.duckdb"),
         config_overrides=config_overrides,
+        inferred_types=expected["inferred_types"],
     )
     result = NormalizationEngine().run(
         csv_path=input_csv,
@@ -51,41 +41,11 @@ def test_phase15_golden_datasets(case_name: str, tmp_path: Path) -> None:
     _assert_quality_score(result["quality_score"], expected.get("quality_score_assertion"))
 
 
-def _infer_types_for_case(
-    input_csv: Path,
-    config_overrides: dict[str, Any],
-) -> dict[str, str]:
-    with DuckDBManager() as conn:
-        ingestion = IngestionStage()
-        ingestion.execute(
-            conn,
-            input_csv,
-            header_mode=HeaderMode.PRESENT,
-            header_row_index=1,
-            encoding="utf-8",
-            delimiter=",",
-        )
-        HeaderCanonicalizationStage().execute(conn)
-        inference = TypeInferenceStage(
-            numeric_threshold=0.95,
-            boolean_threshold=0.95,
-            currency_threshold=0.50,
-        )
-        return inference.execute(
-            conn,
-            **_COMMON_ARGS,
-            decimal_separator=config_overrides["decimal_separator"],
-            thousand_separator=config_overrides["thousand_separator"],
-            allow_leading_decimal_point=config_overrides["allow_leading_decimal_point"],
-            currency_candidate_threshold=0.95,
-            date_formats=config_overrides["date_formats"],
-        )
-
-
 def _build_engine_config(
     *,
     duckdb_path: str,
     config_overrides: dict[str, Any],
+    inferred_types: dict[str, str],
 ) -> EngineConfig:
     return EngineConfig(
         rules_version="v1",
@@ -97,15 +57,10 @@ def _build_engine_config(
         delimiter=",",
         decimal_separator=config_overrides["decimal_separator"],
         thousand_separator=config_overrides["thousand_separator"],
-        allow_leading_decimal_point=config_overrides["allow_leading_decimal_point"],
-        date_formats=config_overrides["date_formats"],
+        column_config=_build_column_config(config_overrides, inferred_types),
         null_tokens=("", "null", "none", "n/a", "-"),
         boolean_true_tokens=("true", "yes", "1"),
         boolean_false_tokens=("false", "no", "0"),
-        type_inference_numeric_threshold=0.95,
-        type_inference_boolean_threshold=0.95,
-        type_inference_currency_threshold=0.50,
-        profiling_currency_candidate_threshold=0.95,
         assign_indices=True,
         drop_empty_rows=True,
         emit_raw_row=False,
@@ -118,6 +73,58 @@ def _build_engine_config(
         decision_warning_threshold=85.0,
         trace_mode="sparse",
     )
+
+
+def _build_column_config(
+    config_overrides: dict[str, Any],
+    inferred_types: dict[str, str],
+) -> dict[str, dict[str, Any]]:
+    date_formats = dict(config_overrides.get("date_formats", {}))
+    allow_leading_decimal_point = bool(config_overrides.get("allow_leading_decimal_point"))
+    decimal_separator = str(config_overrides["decimal_separator"])
+    thousand_separator = str(config_overrides["thousand_separator"])
+
+    column_config: dict[str, dict[str, Any]] = {}
+    for index, (_, inferred_type) in enumerate(inferred_types.items()):
+        position_key = index_to_position_key(index)
+        if inferred_type == "string":
+            column_config[position_key] = {"type": "string"}
+        elif inferred_type == "boolean":
+            column_config[position_key] = {"type": "boolean"}
+        elif inferred_type == "integer":
+            column_config[position_key] = {
+                "type": "integer",
+                "decimal_separator": decimal_separator,
+                "thousand_separator": thousand_separator,
+                "grouping_style": "western",
+            }
+        elif inferred_type in {"decimal", "float"}:
+            column_config[position_key] = {
+                "type": "decimal",
+                "decimal_separator": decimal_separator,
+                "thousand_separator": thousand_separator,
+                "grouping_style": "western",
+                "allow_leading_decimal_point": allow_leading_decimal_point,
+            }
+        elif inferred_type == "currency":
+            column_config[position_key] = {
+                "type": "currency",
+                "decimal_separator": decimal_separator,
+                "thousand_separator": thousand_separator,
+                "grouping_style": "western",
+                "allow_leading_decimal_point": allow_leading_decimal_point,
+            }
+        elif inferred_type == "date":
+            date_format = date_formats.get(position_key)
+            if date_format is None:
+                raise ValueError(f"missing date format for declared date column at {position_key}")
+            column_config[position_key] = {
+                "type": "date",
+                "date_format": date_format,
+            }
+        else:
+            raise ValueError(f"unsupported inferred type in golden dataset: {inferred_type}")
+    return column_config
 
 
 def _assert_quality_score(score: float, assertion: str | None) -> None:

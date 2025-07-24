@@ -2,6 +2,14 @@ import json
 
 import pytest
 
+from normalize.core.column_config import (
+    BooleanColumnConfig,
+    CurrencyColumnConfig,
+    DateColumnConfig,
+    DecimalColumnConfig,
+    IntegerColumnConfig,
+    StringColumnConfig,
+)
 from normalize.core.duckdb_manager import DuckDBManager
 from normalize.stages.cell_normalization import CellNormalizationStage
 
@@ -10,6 +18,49 @@ COMMON_ARGS = {
     "boolean_true_tokens": ["true", "yes", "1"],
     "boolean_false_tokens": ["false", "no", "0"],
 }
+
+
+def _integer_config(
+    *,
+    decimal_separator: str = ".",
+    thousand_separator: str = ",",
+    grouping_style: str = "western",
+) -> IntegerColumnConfig:
+    return IntegerColumnConfig(
+        decimal_separator=decimal_separator,
+        thousand_separator=thousand_separator,
+        grouping_style=grouping_style,
+    )
+
+
+def _decimal_config(
+    *,
+    decimal_separator: str = ".",
+    thousand_separator: str = ",",
+    grouping_style: str = "western",
+    allow_leading_decimal_point: bool = False,
+) -> DecimalColumnConfig:
+    return DecimalColumnConfig(
+        decimal_separator=decimal_separator,
+        thousand_separator=thousand_separator,
+        grouping_style=grouping_style,
+        allow_leading_decimal_point=allow_leading_decimal_point,
+    )
+
+
+def _currency_config(
+    *,
+    decimal_separator: str = ".",
+    thousand_separator: str = ",",
+    grouping_style: str = "western",
+    allow_leading_decimal_point: bool = False,
+) -> CurrencyColumnConfig:
+    return CurrencyColumnConfig(
+        decimal_separator=decimal_separator,
+        thousand_separator=thousand_separator,
+        grouping_style=grouping_style,
+        allow_leading_decimal_point=allow_leading_decimal_point,
+    )
 
 
 def test_cell_normalization_applies_casts_and_issue_codes() -> None:
@@ -36,13 +87,13 @@ def test_cell_normalization_applies_casts_and_issue_codes() -> None:
             """
         )
 
-        inferred = {
-            "int_col": "integer",
-            "float_col": "float",
-            "bool_col": "boolean",
-            "text_col": "string",
+        column_config = {
+            "int_col": _integer_config(),
+            "float_col": _decimal_config(),
+            "bool_col": BooleanColumnConfig(),
+            "text_col": StringColumnConfig(),
         }
-        stage.execute(conn, inferred, **COMMON_ARGS)
+        stage.execute(conn, column_config=column_config, **COMMON_ARGS)
 
         rows = conn.execute(
             """
@@ -77,8 +128,8 @@ def test_cell_normalization_rejects_missing_inferred_column() -> None:
     with DuckDBManager() as conn:
         conn.execute("CREATE TABLE raw_input (a VARCHAR, b VARCHAR)")
         conn.execute("INSERT INTO raw_input VALUES ('1', '2')")
-        with pytest.raises(ValueError, match="MISSING_INFERRED_TYPES"):
-            stage.execute(conn, {"a": "integer"}, **COMMON_ARGS)
+        with pytest.raises(ValueError, match="MISSING_COLUMN_CONFIG"):
+            stage.execute(conn, column_config={"a": _integer_config()}, **COMMON_ARGS)
 
 
 def test_cell_normalization_applies_user_defined_boolean_tokens() -> None:
@@ -102,7 +153,7 @@ def test_cell_normalization_applies_user_defined_boolean_tokens() -> None:
         )
         stage.execute(
             conn,
-            {"bool_col": "boolean"},
+            column_config={"bool_col": BooleanColumnConfig()},
             null_tokens=["", "null"],
             boolean_true_tokens=["yes"],
             boolean_false_tokens=["no"],
@@ -131,7 +182,10 @@ def test_cell_normalization_materializes_indices_when_missing() -> None:
         )
         stage.execute(
             conn,
-            {"int_col": "integer", "text_col": "string"},
+            column_config={
+                "int_col": _integer_config(),
+                "text_col": StringColumnConfig(),
+            },
             **COMMON_ARGS,
         )
         rows = conn.execute(
@@ -166,7 +220,7 @@ def test_cell_normalization_can_disable_audit_json_payloads() -> None:
 
         stage.execute(
             conn,
-            {"int_col": "integer"},
+            column_config={"int_col": _integer_config()},
             emit_raw_row=False,
             emit_parse_issues=False,
             **COMMON_ARGS,
@@ -203,9 +257,12 @@ def test_cell_normalization_normalizes_decimal_with_declared_separators() -> Non
         )
         stage.execute(
             conn,
-            {"amount": "decimal"},
-            decimal_separator=",",
-            thousand_separator=".",
+            column_config={
+                "amount": _decimal_config(
+                    decimal_separator=",",
+                    thousand_separator=".",
+                )
+            },
             **COMMON_ARGS,
         )
         rows = conn.execute("SELECT amount FROM raw_input ORDER BY _row_index").fetchall()
@@ -233,8 +290,7 @@ def test_cell_normalization_parses_declared_dates_and_flags_invalid_date() -> No
         )
         stage.execute(
             conn,
-            {"tx_date": "date"},
-            date_formats={"A": "%d/%m/%Y"},
+            column_config={"tx_date": DateColumnConfig(date_format="%d/%m/%Y")},
             **COMMON_ARGS,
         )
         rows = conn.execute(
@@ -268,10 +324,7 @@ def test_cell_normalization_leading_decimal_point_toggle() -> None:
 
         stage.execute(
             conn,
-            {"amount": "decimal"},
-            decimal_separator=".",
-            thousand_separator=",",
-            allow_leading_decimal_point=False,
+            column_config={"amount": _decimal_config(allow_leading_decimal_point=False)},
             **COMMON_ARGS,
         )
         strict_row = conn.execute(
@@ -296,10 +349,7 @@ def test_cell_normalization_leading_decimal_point_toggle() -> None:
         conn.execute("INSERT INTO raw_input VALUES ('.5', 1, 1)")
         stage.execute(
             conn,
-            {"amount": "decimal"},
-            decimal_separator=".",
-            thousand_separator=",",
-            allow_leading_decimal_point=True,
+            column_config={"amount": _decimal_config(allow_leading_decimal_point=True)},
             **COMMON_ARGS,
         )
         relaxed_row = conn.execute(
@@ -329,8 +379,10 @@ def test_cell_normalization_resolves_date_formats_by_table_order() -> None:
         )
         stage.execute(
             conn,
-            {"tx_date": "date", "value": "string"},
-            date_formats={"A": "%d/%m/%Y"},
+            column_config={
+                "tx_date": DateColumnConfig(date_format="%d/%m/%Y"),
+                "value": StringColumnConfig(),
+            },
             **COMMON_ARGS,
         )
         row = conn.execute("SELECT tx_date, _parse_error_count FROM raw_input").fetchone()
@@ -360,10 +412,7 @@ def test_cell_normalization_supports_trailing_decimal_and_plus_sign() -> None:
         )
         stage.execute(
             conn,
-            {"amount": "decimal"},
-            decimal_separator=".",
-            thousand_separator=",",
-            allow_leading_decimal_point=True,
+            column_config={"amount": _decimal_config(allow_leading_decimal_point=True)},
             **COMMON_ARGS,
         )
         rows = conn.execute(
@@ -393,10 +442,12 @@ def test_cell_normalization_with_empty_thousand_separator() -> None:
         )
         stage.execute(
             conn,
-            {"amount": "decimal"},
-            decimal_separator=".",
-            thousand_separator="",
-            allow_leading_decimal_point=True,
+            column_config={
+                "amount": _decimal_config(
+                    thousand_separator="",
+                    allow_leading_decimal_point=True,
+                )
+            },
             **COMMON_ARGS,
         )
         rows = conn.execute(
@@ -432,10 +483,9 @@ def test_cell_normalization_normalizes_currency_and_accounting_notation() -> Non
         )
         stage.execute(
             conn,
-            {"amount": "currency"},
-            decimal_separator=".",
-            thousand_separator=",",
-            allow_leading_decimal_point=True,
+            column_config={
+                "amount": _currency_config(allow_leading_decimal_point=True),
+            },
             **COMMON_ARGS,
         )
         rows = conn.execute(
@@ -474,10 +524,9 @@ def test_cell_normalization_emits_invalid_currency_issue() -> None:
         )
         stage.execute(
             conn,
-            {"amount": "currency"},
-            decimal_separator=".",
-            thousand_separator=",",
-            allow_leading_decimal_point=True,
+            column_config={
+                "amount": _currency_config(allow_leading_decimal_point=True),
+            },
             **COMMON_ARGS,
         )
         rows = conn.execute(
@@ -488,3 +537,41 @@ def test_cell_normalization_emits_invalid_currency_issue() -> None:
         assert rows[1][1] == 1
         issues = json.loads(rows[1][2])
         assert issues["amount"] == "INVALID_CURRENCY"
+
+
+def test_cell_normalization_honors_per_column_currency_separators() -> None:
+    stage = CellNormalizationStage()
+    with DuckDBManager() as conn:
+        conn.execute(
+            """
+            CREATE TABLE raw_input (
+                amount VARCHAR,
+                _row_index BIGINT,
+                _global_row_index BIGINT
+            )
+            """
+        )
+        conn.execute(
+            """
+            INSERT INTO raw_input VALUES
+                ('NOK 32,43', 1, 1),
+                ('NOK 1.234,50', 2, 2),
+                ('NOK 99,00', 3, 3)
+            """
+        )
+        stage.execute(
+            conn,
+            column_config={
+                "amount": _currency_config(
+                    decimal_separator=",",
+                    thousand_separator=".",
+                    grouping_style="western",
+                    allow_leading_decimal_point=True,
+                )
+            },
+            **COMMON_ARGS,
+        )
+        rows = conn.execute(
+            "SELECT amount, _parse_error_count FROM raw_input ORDER BY _row_index"
+        ).fetchall()
+        assert rows == [(32.43, 0), (1234.5, 0), (99.0, 0)]
