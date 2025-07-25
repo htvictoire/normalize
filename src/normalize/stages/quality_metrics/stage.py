@@ -79,11 +79,7 @@ class QualityMetricsStage(Stage):
         row_count = read_precomputed_row_count(conn)
         total_nullish_cells = read_precomputed_total_nullish_cells(conn)
         total_cells = row_count * len(columns)
-        total_parse_error_cells = read_total_parse_error_cells(
-            conn,
-            table_name=table_name,
-            columns=columns,
-        )
+        total_parse_error_cells = read_precomputed_total_parse_error_cells(conn)
         unique_stats: dict[str, dict[str, int]] | None = None
         detailed_stats: dict[str, dict[str, int]] | None = None
         if include_unique_ratio:

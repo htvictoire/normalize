@@ -35,15 +35,16 @@ def test_quality_metrics_counts_and_ratios() -> None:
                 column_name VARCHAR,
                 row_count BIGINT,
                 nullish_count BIGINT,
-                non_null_count BIGINT
+                non_null_count BIGINT,
+                total_parse_error_cells BIGINT
             )
             """
         )
         conn.execute(
             """
             INSERT INTO _quality_profile_raw_input VALUES
-                ('int_col', 3, 1, 2),
-                ('text_col', 3, 1, 2)
+                ('int_col', 3, 1, 2, 1),
+                ('text_col', 3, 1, 2, 1)
             """
         )
 
@@ -97,15 +98,16 @@ def test_quality_metrics_fast_mode_uses_row_parse_error_counter() -> None:
                 column_name VARCHAR,
                 row_count BIGINT,
                 nullish_count BIGINT,
-                non_null_count BIGINT
+                non_null_count BIGINT,
+                total_parse_error_cells BIGINT
             )
             """
         )
         conn.execute(
             """
             INSERT INTO _quality_profile_raw_input VALUES
-                ('int_col', 3, 1, 2),
-                ('text_col', 3, 1, 2)
+                ('int_col', 3, 1, 2, 1),
+                ('text_col', 3, 1, 2, 1)
             """
         )
 
@@ -146,15 +148,16 @@ def test_quality_metrics_uses_precomputed_quality_profile_when_available() -> No
                 column_name VARCHAR,
                 row_count BIGINT,
                 nullish_count BIGINT,
-                non_null_count BIGINT
+                non_null_count BIGINT,
+                total_parse_error_cells BIGINT
             )
             """
         )
         conn.execute(
             """
             INSERT INTO _quality_profile_raw_input VALUES
-                ('int_col', 2, 1, 1),
-                ('text_col', 2, 0, 2)
+                ('int_col', 2, 1, 1, 1),
+                ('text_col', 2, 0, 2, 1)
             """
         )
 
