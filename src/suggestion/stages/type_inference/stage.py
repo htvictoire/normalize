@@ -13,12 +13,12 @@ from normalize.core.numeric_formats import NumericFormat, resolve_numeric_format
 from normalize.core.sql_helpers import read_columns
 from normalize.core.token_policy import TokenPolicy
 from normalize.stages.base import Stage
-from normalize.stages.shared_profiling import (
+from suggestion.stages.shared_profiling import (
     DEFAULT_PROFILE_TABLE_NAME,
     ColumnProfile,
     ensure_column_profiles,
 )
-from normalize.stages.type_inference.inference import infer_column_type
+from suggestion.stages.type_inference.inference import infer_column_type
 
 ISSUE_CODE_SEPARATOR_MISMATCH = "SEPARATOR_MISMATCH"
 ISSUE_CODE_UNKNOWN_COLUMN_REFERENCE = "UNKNOWN_COLUMN_REFERENCE"

@@ -1,6 +1,6 @@
 from normalize.core.duckdb_manager import DuckDBManager
 from normalize.core.numeric_formats import NumericFormat
-from normalize.stages.type_inference import TypeInferenceStage
+from suggestion.stages.type_inference import TypeInferenceStage
 
 COMMON_ARGS = {
     "null_tokens": ["", "null", "none", "n/a", "-"],

@@ -10,7 +10,7 @@ from normalize.core.sql_helpers import (
     read_columns,
     validate_identifier,
 )
-from normalize.stages.shared_profiling.contracts import AUDIT_COLUMNS
+from suggestion.stages.shared_profiling.contracts import AUDIT_COLUMNS
 
 
 def read_data_columns(conn: DuckDBPyConnection, table_name: str) -> list[str]:

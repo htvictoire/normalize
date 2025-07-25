@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
-from normalize.stages.shared_profiling.sql_helpers import quote_string
+from suggestion.stages.shared_profiling.sql_helpers import quote_string
 
 
 def has_any_separator_predicate(base_value: str, separators: Sequence[str]) -> str:

@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 
 from normalize.core.numeric_formats import GROUPING_STYLE_INDIAN
-from normalize.stages.shared_profiling.sql_helpers import quote_string
+from suggestion.stages.shared_profiling.sql_helpers import quote_string
 
 
 def decimal_pattern(

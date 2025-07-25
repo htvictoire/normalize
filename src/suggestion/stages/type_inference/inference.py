@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from normalize.stages.shared_profiling import ColumnProfile
+from suggestion.stages.shared_profiling import ColumnProfile
 
 
 def infer_column_type(

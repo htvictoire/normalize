@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 
-from normalize.stages.shared_profiling.sql_helpers import quote_string
+from suggestion.stages.shared_profiling.sql_helpers import quote_string
 
 CURRENCY_SYMBOLS = (
     "$",

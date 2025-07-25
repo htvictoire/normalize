@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
-from normalize.stages.shared_profiling.sql_helpers import quote_string
+from suggestion.stages.shared_profiling.sql_helpers import quote_string
 
 
 def token_in_clause(tokens: Sequence[str]) -> str | None:

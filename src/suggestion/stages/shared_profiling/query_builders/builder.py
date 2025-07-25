@@ -6,24 +6,24 @@ from collections.abc import Mapping
 
 from normalize.core.numeric_formats import NumericFormat
 from normalize.core.token_policy import TokenPolicy
-from normalize.stages.shared_profiling.query_builders.currency import (
+from suggestion.stages.shared_profiling.query_builders.currency import (
     accounting_negative_predicate,
     apply_accounting_sign_expr,
     currency_marker_predicate,
     strip_currency_affix_expr,
 )
-from normalize.stages.shared_profiling.query_builders.numeric import (
+from suggestion.stages.shared_profiling.query_builders.numeric import (
     decimal_pattern,
     integer_pattern,
     normalize_integer_expr,
     normalize_numeric_expr,
 )
-from normalize.stages.shared_profiling.query_builders.predicates import (
+from suggestion.stages.shared_profiling.query_builders.predicates import (
     has_any_separator_predicate,
     swapped_float_predicate,
 )
-from normalize.stages.shared_profiling.query_builders.tokens import token_in_clause
-from normalize.stages.shared_profiling.sql_helpers import quote_identifier, quote_string
+from suggestion.stages.shared_profiling.query_builders.tokens import token_in_clause
+from suggestion.stages.shared_profiling.sql_helpers import quote_identifier, quote_string
 
 
 def build_profile_query(

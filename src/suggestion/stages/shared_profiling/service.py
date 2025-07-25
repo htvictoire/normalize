@@ -9,15 +9,15 @@ from duckdb import DuckDBPyConnection
 from normalize.core.column_positions import build_position_to_name
 from normalize.core.numeric_formats import NumericFormat, resolve_numeric_formats_by_canonical
 from normalize.core.token_policy import TokenPolicy
-from normalize.stages.shared_profiling.contracts import (
+from suggestion.stages.shared_profiling.contracts import (
     DEFAULT_PROFILE_TABLE_NAME,
     ColumnProfile,
 )
-from normalize.stages.shared_profiling.query_builders import (
+from suggestion.stages.shared_profiling.query_builders import (
     build_pass1_profile_query,
     build_pass2_currency_query,
 )
-from normalize.stages.shared_profiling.sql_helpers import (
+from suggestion.stages.shared_profiling.sql_helpers import (
     read_data_columns,
     table_exists,
     validate_identifier,
