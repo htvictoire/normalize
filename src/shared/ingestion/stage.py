@@ -2,7 +2,7 @@
 Pipeline ingestion stage adapter.
 
 This stage intentionally contains no file-loading implementation details.
-It delegates to `normalize.stages.ingestion` package so ingestion behavior
+It delegates to `shared.ingestion` package so ingestion behavior
 can evolve without changing stage orchestration contracts.
 """
 
@@ -12,13 +12,13 @@ from pathlib import Path
 
 from duckdb import DuckDBPyConnection
 
-from normalize.stages.base import Stage
-from normalize.stages.ingestion.contracts import (
+from shared.ingestion.contracts import (
     HeaderMode,
     IngestionRequest,
     IngestionResult,
 )
-from normalize.stages.ingestion.service import run_ingestion
+from shared.ingestion.service import run_ingestion
+from shared.stages.base import Stage
 
 
 class IngestionStage(Stage):

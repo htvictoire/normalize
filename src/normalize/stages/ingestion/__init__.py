@@ -1,24 +1,5 @@
-"""
-Ingestion stage package.
+"""Compatibility re-export for ingestion stage."""
 
-This package owns CSV ingestion concerns for the pipeline and exposes:
-- `IngestionStage` stage adapter
-- typed ingestion contracts
-- strict CSV option helpers
-"""
+from shared.ingestion.stage import IngestionStage
 
-from normalize.stages.ingestion.contracts import (
-    HeaderMode,
-    IngestionRequest,
-    IngestionResult,
-)
-from normalize.stages.ingestion.service import run_ingestion
-from normalize.stages.ingestion.stage import IngestionStage
-
-__all__ = [
-    "HeaderMode",
-    "IngestionRequest",
-    "IngestionResult",
-    "IngestionStage",
-    "run_ingestion",
-]
+__all__ = ["IngestionStage"]

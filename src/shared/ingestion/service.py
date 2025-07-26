@@ -13,13 +13,13 @@ from __future__ import annotations
 
 from time import perf_counter
 
-from normalize.stages.ingestion.checksum import sha256_stream
-from normalize.stages.ingestion.contracts import (
+from shared.ingestion.checksum import sha256_stream
+from shared.ingestion.contracts import (
     IngestionRequest,
     IngestionResult,
 )
-from normalize.stages.ingestion.csv.loader import DirectCsvIngestor
-from normalize.stages.ingestion.csv.options import (
+from shared.ingestion.csv.loader import DirectCsvIngestor
+from shared.ingestion.csv.options import (
     resolve_delimiter_option,
     resolve_encoding_option,
 )

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from normalize.stages.ingestion.contracts import HeaderMode
+from shared.ingestion.contracts import HeaderMode
 
 SUPPORTED_ENCODINGS = {"utf-8", "utf-8-sig", "latin-1", "utf-16"}
 

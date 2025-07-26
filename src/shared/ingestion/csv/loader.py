@@ -11,9 +11,9 @@ from pathlib import Path
 
 from duckdb import DuckDBPyConnection
 
-from normalize.core.sql_helpers import read_columns, validate_identifier
-from normalize.stages.ingestion.contracts import HeaderMode
-from normalize.stages.ingestion.csv.options import resolve_header_options
+from shared.db.sql import read_columns, validate_identifier
+from shared.ingestion.contracts import HeaderMode
+from shared.ingestion.csv.options import resolve_header_options
 
 
 class DirectCsvIngestor:

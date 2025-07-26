@@ -15,6 +15,8 @@ class Settings(BaseSettings):
     """
 
     duckdb_memory_limit: str = "4GB"
+    postgres_dsn: str = "postgresql://normalize:normalize@localhost:5438/normalize"
+    api_base_url: str = "http://localhost:8000"
 
     model_config = SettingsConfigDict(
         env_prefix="NORMALIZE_",
