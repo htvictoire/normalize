@@ -9,7 +9,6 @@ from typing import Any
 
 from duckdb import DuckDBPyConnection
 
-from normalize.core.sql_helpers import read_columns, validate_identifier
 from normalize.stages.artifact_materialization.constants import (
     AUDIT_OUTPUT_COLUMNS,
 )
@@ -23,8 +22,9 @@ from normalize.stages.artifact_materialization.manifest import (
     write_manifest,
 )
 from normalize.stages.artifact_materialization.trace import write_trace_parquet
-from normalize.stages.base import Stage
 from normalize.utils.checksums import sha256_file
+from shared.db.sql import read_columns, validate_identifier
+from shared.stages.base import Stage
 
 
 class ArtifactMaterializationStage(Stage):

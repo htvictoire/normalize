@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from duckdb import DuckDBPyConnection
 
-from normalize.core.sql_helpers import (
+from shared.db.sql import (
     quote_identifier,
     read_columns,
     validate_identifier,

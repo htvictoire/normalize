@@ -2,24 +2,19 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from time import perf_counter
 
 from duckdb import DuckDBPyConnection
 
-from normalize.stages.base import Stage
-from normalize.stages.quality_metrics.queries import (
-    read_detailed_column_stats,
-    read_parse_error_stats,
-    read_precomputed_column_null_stats,
-    read_precomputed_row_count,
-    read_precomputed_total_nullish_cells,
-    read_precomputed_total_parse_error_cells,
-    read_unique_stats,
-)
+from normalize.stages.quality_metrics.queries.detailed import read_detailed_column_stats
+from normalize.stages.quality_metrics.queries.parse_errors import read_parse_error_stats
+from normalize.stages.quality_metrics.queries.unique import read_unique_stats
 from normalize.stages.quality_metrics.sql_helpers import (
     read_data_columns,
     validate_identifier,
 )
+from shared.stages.base import Stage
 
 
 class QualityMetricsStage(Stage):
@@ -49,6 +44,9 @@ class QualityMetricsStage(Stage):
         self,
         conn: DuckDBPyConnection,
         *,
+        row_count: int,
+        per_column_stats: Mapping[str, Mapping[str, int]],
+        total_parse_error_cells: int,
         table_name: str = "raw_input",
         include_unique_ratio: bool = False,
         include_per_column_parse_error_counts: bool = False,
@@ -58,7 +56,6 @@ class QualityMetricsStage(Stage):
         validate_identifier(table_name)
 
         columns = read_data_columns(conn, table_name)
-        precomputed_null_stats = read_precomputed_column_null_stats(conn)
         if not columns:
             result: dict[str, object] = {
                 "row_count": 0,
@@ -76,10 +73,13 @@ class QualityMetricsStage(Stage):
             }
             return result
 
-        row_count = read_precomputed_row_count(conn)
-        total_nullish_cells = read_precomputed_total_nullish_cells(conn)
+        total_nullish_cells = 0
+        for column_name in columns:
+            column_stats = per_column_stats.get(column_name)
+            if column_stats is None:
+                raise ValueError(f"per_column_stats missing column: {column_name}")
+            total_nullish_cells += int(column_stats.get("nullish_count", 0))
         total_cells = row_count * len(columns)
-        total_parse_error_cells = read_precomputed_total_parse_error_cells(conn)
         unique_stats: dict[str, dict[str, int]] | None = None
         detailed_stats: dict[str, dict[str, int]] | None = None
         if include_unique_ratio:
@@ -107,10 +107,10 @@ class QualityMetricsStage(Stage):
 
         column_metrics: dict[str, dict[str, float | int | None]] = {}
         for column_name in columns:
-            stats = precomputed_null_stats.get(column_name)
+            stats = per_column_stats.get(column_name)
             if stats is None:
-                raise RuntimeError(f"missing precomputed stats for column: {column_name}")
-            null_ratio = 0.0 if row_count <= 0 else (stats["nullish_count"] / row_count)
+                raise ValueError(f"per_column_stats missing column: {column_name}")
+            null_ratio = 0.0 if row_count <= 0 else (int(stats["nullish_count"]) / row_count)
             unique_ratio: float | None = None
             if detailed_stats is not None:
                 stats = detailed_stats[column_name]
@@ -152,6 +152,5 @@ class QualityMetricsStage(Stage):
             "total_nullish_cells": total_nullish_cells,
             "include_unique_ratio": include_unique_ratio,
             "include_per_column_parse_error_counts": include_per_column_parse_error_counts,
-            "use_precomputed_quality": True,
         }
         return result

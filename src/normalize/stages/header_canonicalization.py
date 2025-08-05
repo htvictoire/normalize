@@ -7,13 +7,13 @@ from time import perf_counter
 
 from duckdb import DuckDBPyConnection
 
-from normalize.core.column_positions import build_position_to_name
-from normalize.core.sql_helpers import (
+from shared.db.sql import (
     quote_identifier,
     read_columns,
     validate_identifier,
 )
-from normalize.stages.base import Stage
+from shared.stages.base import Stage
+from shared.utils.column_positions import build_position_to_name
 
 
 class HeaderCanonicalizationStage(Stage):

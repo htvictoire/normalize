@@ -1,0 +1,21 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: normalize-postgres
+    environment:
+      POSTGRES_USER: normalize
+      POSTGRES_PASSWORD: normalize
+      POSTGRES_DB: normalize
+    ports:
+      - "5438:5432"
+    volumes:
+      - normalize_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U normalize -d normalize"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  normalize_pgdata:
+

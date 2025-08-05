@@ -8,7 +8,7 @@ from decimal import Decimal
 from time import perf_counter
 
 from normalize.core.domain import IssueSeverity, NormalizationIssue, RunStatus
-from normalize.stages.base import Stage
+from shared.stages.base import Stage
 
 
 @dataclass(frozen=True)

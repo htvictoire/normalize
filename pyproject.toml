@@ -10,9 +10,13 @@ readme = "implementation_guide_v2.md"
 requires-python = ">=3.14"
 dependencies = [
     "duckdb>=1.0",
+    "fastapi>=0.115",
     "pyarrow>=15.0",
+    "psycopg[binary]>=3.2",
     "pydantic>=2.6",
     "pydantic-settings>=2.0",
+    "requests>=2.32",
+    "uvicorn>=0.32",
 ]
 
 [project.optional-dependencies]
@@ -23,7 +27,8 @@ dev = [
 ]
 
 [project.scripts]
-normalize-runner = "runner:main"
+normalize-upload = "app.cli.upload:main"
+normalize-apply = "app.cli.normalize:main"
 
 [tool.setuptools.package-dir]
 "" = "src"

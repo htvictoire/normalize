@@ -7,26 +7,20 @@ from time import perf_counter
 
 from duckdb import DuckDBPyConnection
 
-from normalize.core.column_config import ColumnConfig
 from normalize.core.token_policy import TokenPolicy
-from normalize.core.transform import CellPlan
-from normalize.stages.base import Stage
+from normalize.core.transform.models import CellPlan
 from normalize.stages.cell_normalization.execution import execute_cell_rewrite
 from normalize.stages.cell_normalization.fragments import (
     build_cell_expression_fragments,
 )
 from normalize.stages.cell_normalization.planning import build_cell_plan
-from normalize.stages.cell_normalization.quality_precompute import (
-    refresh_quality_profile_precompute,
-)
-from normalize.stages.cell_normalization.schema import (
-    AUDIT_COLUMNS,
-    validate_column_config,
-)
+from normalize.stages.cell_normalization.schema import AUDIT_COLUMNS
 from normalize.stages.cell_normalization.sql_helpers import (
     read_columns,
     validate_identifier,
 )
+from shared.models.column import ColumnConfig
+from shared.stages.base import Stage
 
 
 class CellNormalizationStage(Stage):
@@ -76,7 +70,6 @@ class CellNormalizationStage(Stage):
 
         columns = read_columns(conn, table_name)
         data_columns = [column for column in columns if column not in AUDIT_COLUMNS]
-        validate_column_config(column_config, data_columns)
 
         fragments = build_cell_expression_fragments(
             data_columns=data_columns,
@@ -116,7 +109,6 @@ class CellNormalizationStage(Stage):
 
         columns = read_columns(conn, table_name)
         data_columns = [column for column in columns if column not in AUDIT_COLUMNS]
-        validate_column_config(column_config, data_columns)
 
         fragments = build_cell_expression_fragments(
             data_columns=data_columns,
@@ -140,7 +132,6 @@ class CellNormalizationStage(Stage):
             emit_raw_row=emit_raw_row,
             emit_parse_issues=emit_parse_issues,
         )
-        refresh_quality_profile_precompute(conn, table_name=table_name, data_columns=data_columns)
 
         row_count = int(conn.execute(f"SELECT COUNT(*) FROM {table_name}").fetchone()[0])
         self.metrics = {

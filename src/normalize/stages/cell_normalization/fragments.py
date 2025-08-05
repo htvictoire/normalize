@@ -5,14 +5,6 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 
-from normalize.core.column_config import (
-    ColumnConfig,
-    CurrencyColumnConfig,
-    DateColumnConfig,
-    DecimalColumnConfig,
-    IntegerColumnConfig,
-    column_config_type,
-)
 from normalize.core.token_policy import TokenPolicy
 from normalize.stages.cell_normalization.naming import (
     issue_alias,
@@ -21,9 +13,15 @@ from normalize.stages.cell_normalization.naming import (
     parse_raw_alias,
 )
 from normalize.stages.cell_normalization.sql_helpers import quote_identifier
-from normalize.stages.cell_normalization.transforms import (
-    build_column_exprs,
-    build_nullish_predicate,
+from normalize.stages.cell_normalization.transforms.dispatcher import build_column_exprs
+from normalize.stages.cell_normalization.transforms.nullish import build_nullish_predicate
+from shared.models.column import (
+    ColumnConfig,
+    CurrencyColumnConfig,
+    DateColumnConfig,
+    DecimalColumnConfig,
+    IntegerColumnConfig,
+    column_config_type,
 )
 
 

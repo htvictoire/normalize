@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from normalize.core.column_config import serialize_column_config_map
 from normalize.core.engine.config import EngineConfig
+from shared.models.column import serialize_column_config_map
 
 
 def build_replay_config(effective: EngineConfig) -> dict[str, Any]:

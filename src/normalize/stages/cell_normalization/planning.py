@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from normalize.core.transform import CellPlan
+from normalize.core.transform.models import CellPlan
 from normalize.stages.cell_normalization.fragments import CellExpressionFragments
 
 

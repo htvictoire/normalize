@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from normalize.core.sql_helpers import (
+from shared.db.sql import (
     quote_identifier,
     quote_string,
     read_columns,

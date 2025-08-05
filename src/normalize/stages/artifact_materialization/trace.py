@@ -6,7 +6,7 @@ from pathlib import Path
 
 from duckdb import DuckDBPyConnection
 
-from normalize.core.sql_helpers import (
+from shared.db.sql import (
     quote_identifier,
     quote_string,
     validate_identifier,

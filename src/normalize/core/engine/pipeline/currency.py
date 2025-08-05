@@ -4,15 +4,15 @@ from __future__ import annotations
 
 from typing import Any
 
-from normalize.core.column_config import ColumnConfig, column_config_type
 from normalize.core.domain import NormalizationIssue
 from normalize.core.engine.issues import (
     build_mixed_currency_issue,
 )
-from normalize.core.sql_helpers import quote_identifier, quote_string
 from normalize.stages.cell_normalization.currency_helpers import (
     build_currency_symbol_extract_expr,
 )
+from shared.db.sql import quote_identifier, quote_string
+from shared.models.column import ColumnConfig, column_config_type
 
 
 def collect_currency_analysis(
