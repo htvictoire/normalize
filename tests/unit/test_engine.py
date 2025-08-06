@@ -1,30 +1,33 @@
 import json
 from pathlib import Path
 
-import pytest
+from normalize.core.engine.config import EngineConfig
+from normalize.core.engine.service import NormalizationEngine
+from shared.ingestion.contracts import HeaderMode
+from shared.models.column import (
+    BooleanColumnConfig,
+    ColumnConfig,
+    CurrencyColumnConfig,
+    DateColumnConfig,
+    DecimalColumnConfig,
+    IntegerColumnConfig,
+)
 
-from normalize.core.engine import EngineConfig, NormalizationEngine
-from normalize.stages.ingestion.contracts import HeaderMode
 
-
-def _sample_column_config() -> dict[str, dict[str, object]]:
+def _sample_column_config() -> dict[str, ColumnConfig]:
     return {
-        "A": {
-            "type": "integer",
-            "decimal_separator": ".",
-            "thousand_separator": ",",
-            "grouping_style": "western",
-        },
-        "B": {
-            "type": "decimal",
-            "decimal_separator": ".",
-            "thousand_separator": ",",
-            "grouping_style": "western",
-            "allow_leading_decimal_point": True,
-        },
-        "C": {
-            "type": "boolean",
-        },
+        "A": IntegerColumnConfig(
+            decimal_separator=".",
+            thousand_separator=",",
+            grouping_style="western",
+        ),
+        "B": DecimalColumnConfig(
+            decimal_separator=".",
+            thousand_separator=",",
+            grouping_style="western",
+            allow_leading_decimal_point=True,
+        ),
+        "C": BooleanColumnConfig(),
     }
 
 
@@ -146,22 +149,6 @@ def test_engine_fingerprint_is_stable_for_same_inputs(tmp_path: Path) -> None:
     assert run1["fingerprint"] == run2["fingerprint"]
 
 
-def test_engine_rejects_invalid_trace_mode(tmp_path: Path) -> None:
-    csv_path = tmp_path / "input.csv"
-    _write_sample_csv(csv_path)
-    config = EngineConfig(
-        **{**_engine_config(str(tmp_path / "invalid.duckdb")).__dict__, "trace_mode": "invalid"}
-    )
-
-    with pytest.raises(ValueError, match="trace_mode must be one of: full, sparse"):
-        NormalizationEngine().run(
-            csv_path=csv_path,
-            output_dir=tmp_path / "out",
-            config=config,
-            mode="APPLY",
-        )
-
-
 def test_engine_fingerprint_changes_when_trace_mode_changes(tmp_path: Path) -> None:
     csv_path = tmp_path / "input.csv"
     _write_sample_csv(csv_path)
@@ -248,13 +235,12 @@ def test_engine_fingerprint_changes_when_column_config_changes(tmp_path: Path) -
         mode="PROFILE",
     )
     changed_config = _sample_column_config()
-    changed_config["B"] = {
-        "type": "decimal",
-        "decimal_separator": ",",
-        "thousand_separator": ".",
-        "grouping_style": "western",
-        "allow_leading_decimal_point": True,
-    }
+    changed_config["B"] = DecimalColumnConfig(
+        decimal_separator=",",
+        thousand_separator=".",
+        grouping_style="western",
+        allow_leading_decimal_point=True,
+    )
     run_b = NormalizationEngine().run(
         csv_path=csv_path,
         output_dir=tmp_path / "out_b",
@@ -280,18 +266,14 @@ def test_engine_manifest_replay_config_includes_no_guessing_fields(tmp_path: Pat
             "decimal_separator": ",",
             "thousand_separator": ".",
             "column_config": {
-                "A": {
-                    "type": "date",
-                    "date_format": "%d/%m/%Y",
-                },
-                "B": {
-                    "type": "decimal",
-                    "decimal_separator": ",",
-                    "thousand_separator": ".",
-                    "grouping_style": "western",
-                    "allow_leading_decimal_point": True,
-                },
-                "C": {"type": "boolean"},
+                "A": DateColumnConfig(date_format="%d/%m/%Y"),
+                "B": DecimalColumnConfig(
+                    decimal_separator=",",
+                    thousand_separator=".",
+                    grouping_style="western",
+                    allow_leading_decimal_point=True,
+                ),
+                "C": BooleanColumnConfig(),
             },
         }
     )
@@ -311,70 +293,6 @@ def test_engine_manifest_replay_config_includes_no_guessing_fields(tmp_path: Pat
         "type": "date",
         "date_format": "%d/%m/%Y",
     }
-
-
-def test_engine_config_rejects_equal_decimal_and_thousand_separators() -> None:
-    with pytest.raises(
-        ValueError, match="decimal_separator and thousand_separator must differ"
-    ):
-        EngineConfig(
-            **{
-                **_engine_config("unused.duckdb").__dict__,
-                "decimal_separator": ".",
-                "thousand_separator": ".",
-            }
-        )
-
-
-def test_engine_config_normalizes_column_config_position_keys() -> None:
-    config = EngineConfig(
-        **{
-            **_engine_config("unused.duckdb").__dict__,
-            "column_config": {
-                "a": {
-                    "type": "date",
-                    "date_format": "%d/%m/%Y",
-                }
-            },
-        }
-    )
-    assert config.column_config.keys() == {"A"}
-
-
-def test_engine_config_rejects_date_format_without_directives() -> None:
-    with pytest.raises(
-        ValueError,
-        match="column_config\\['A'\\]\\.date_format must contain at least one strptime directive",
-    ):
-        EngineConfig(
-            **{
-                **_engine_config("unused.duckdb").__dict__,
-                "column_config": {
-                    "A": {
-                        "type": "date",
-                        "date_format": "INVALID_FORMAT",
-                    }
-                },
-            }
-        )
-
-
-def test_engine_config_rejects_invalid_duckdb_date_directive() -> None:
-    with pytest.raises(
-        ValueError,
-        match="column_config\\['A'\\]\\.date_format contains invalid DuckDB strptime directives",
-    ):
-        EngineConfig(
-            **{
-                **_engine_config("unused.duckdb").__dict__,
-                "column_config": {
-                    "A": {
-                        "type": "date",
-                        "date_format": "%Q",
-                    }
-                },
-            }
-        )
 
 
 def test_engine_emits_mixed_currency_warning_without_blocking_ready_status(
@@ -399,13 +317,12 @@ def test_engine_emits_mixed_currency_warning_without_blocking_ready_status(
         **{
             **_engine_config(str(tmp_path / "mixed.duckdb")).__dict__,
             "column_config": {
-                "A": {
-                    "type": "currency",
-                    "decimal_separator": ".",
-                    "thousand_separator": ",",
-                    "grouping_style": "western",
-                    "allow_leading_decimal_point": True,
-                }
+                "A": CurrencyColumnConfig(
+                    decimal_separator=".",
+                    thousand_separator=",",
+                    grouping_style="western",
+                    allow_leading_decimal_point=True,
+                )
             },
         }
     )

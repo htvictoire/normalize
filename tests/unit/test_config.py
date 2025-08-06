@@ -1,4 +1,4 @@
-from normalize.config.settings import Settings
+from shared.settings import Settings
 
 
 def test_settings_defaults() -> None:

@@ -1,5 +1,5 @@
-from normalize.core.duckdb_manager import DuckDBManager
 from normalize.stages.row_normalization import RowNormalizationStage
+from shared.db.duckdb import DuckDBManager
 
 
 def test_row_normalization_drops_empty_rows_and_adds_indices() -> None:

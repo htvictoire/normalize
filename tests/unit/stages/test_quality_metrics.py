@@ -2,8 +2,8 @@ from typing import cast
 
 import pytest
 
-from normalize.core.duckdb_manager import DuckDBManager
 from normalize.stages.quality_metrics import QualityMetricsStage
+from shared.db.duckdb import DuckDBManager
 
 
 def test_quality_metrics_counts_and_ratios() -> None:
@@ -29,27 +29,15 @@ def test_quality_metrics_counts_and_ratios() -> None:
                 (3, NULL, 3, 3, '{}', '{"int_col":null,"text_col":null}')
             """
         )
-        conn.execute(
-            """
-            CREATE TABLE _quality_profile_raw_input (
-                column_name VARCHAR,
-                row_count BIGINT,
-                nullish_count BIGINT,
-                non_null_count BIGINT,
-                total_parse_error_cells BIGINT
-            )
-            """
-        )
-        conn.execute(
-            """
-            INSERT INTO _quality_profile_raw_input VALUES
-                ('int_col', 3, 1, 2, 1),
-                ('text_col', 3, 1, 2, 1)
-            """
-        )
 
         result = stage.execute(
             conn,
+            row_count=3,
+            per_column_stats={
+                "int_col": {"nullish_count": 1, "non_null_count": 2},
+                "text_col": {"nullish_count": 1, "non_null_count": 2},
+            },
+            total_parse_error_cells=1,
             include_unique_ratio=True,
             include_per_column_parse_error_counts=True,
         )
@@ -92,26 +80,16 @@ def test_quality_metrics_fast_mode_uses_row_parse_error_counter() -> None:
                 (3, NULL, 3, 3, 0, '{}', '{"int_col":null,"text_col":null}')
             """
         )
-        conn.execute(
-            """
-            CREATE TABLE _quality_profile_raw_input (
-                column_name VARCHAR,
-                row_count BIGINT,
-                nullish_count BIGINT,
-                non_null_count BIGINT,
-                total_parse_error_cells BIGINT
-            )
-            """
-        )
-        conn.execute(
-            """
-            INSERT INTO _quality_profile_raw_input VALUES
-                ('int_col', 3, 1, 2, 1),
-                ('text_col', 3, 1, 2, 1)
-            """
-        )
 
-        result = stage.execute(conn)
+        result = stage.execute(
+            conn,
+            row_count=3,
+            per_column_stats={
+                "int_col": {"nullish_count": 1, "non_null_count": 2},
+                "text_col": {"nullish_count": 1, "non_null_count": 2},
+            },
+            total_parse_error_cells=1,
+        )
         assert result["total_parse_error_cells"] == 1
 
         column_metrics = cast(dict[str, dict[str, float | int | None]], result["column_metrics"])
@@ -119,7 +97,7 @@ def test_quality_metrics_fast_mode_uses_row_parse_error_counter() -> None:
         assert column_metrics["int_col"]["parse_error_count"] is None
 
 
-def test_quality_metrics_uses_precomputed_quality_profile_when_available() -> None:
+def test_quality_metrics_requires_stats_for_all_columns() -> None:
     stage = QualityMetricsStage()
     with DuckDBManager() as conn:
         conn.execute(
@@ -142,30 +120,11 @@ def test_quality_metrics_uses_precomputed_quality_profile_when_available() -> No
                 (NULL, 'beta', 2, 2, 1, NULL, NULL)
             """
         )
-        conn.execute(
-            """
-            CREATE TABLE _quality_profile_raw_input (
-                column_name VARCHAR,
-                row_count BIGINT,
-                nullish_count BIGINT,
-                non_null_count BIGINT,
-                total_parse_error_cells BIGINT
-            )
-            """
-        )
-        conn.execute(
-            """
-            INSERT INTO _quality_profile_raw_input VALUES
-                ('int_col', 2, 1, 1, 1),
-                ('text_col', 2, 0, 2, 1)
-            """
-        )
 
-        result = stage.execute(conn)
-        assert result["row_count"] == 2
-        assert result["total_cells"] == 4
-        assert result["total_nullish_cells"] == 1
-        assert result["total_parse_error_cells"] == 1
-        assert result["parse_success_ratio"] == pytest.approx(2 / 3)
-        assert result["completeness_ratio"] == pytest.approx(3 / 4)
-        assert stage.metrics["use_precomputed_quality"] is True
+        with pytest.raises(ValueError, match="per_column_stats missing column"):
+            stage.execute(
+                conn,
+                row_count=2,
+                per_column_stats={"int_col": {"nullish_count": 1, "non_null_count": 1}},
+                total_parse_error_cells=1,
+            )

@@ -1,7 +1,7 @@
 import duckdb
 import pytest
 
-from normalize.core.duckdb_manager import DuckDBManager
+from shared.db.duckdb import DuckDBManager
 
 
 def test_duckdb_connection_opens_sets_memory_limit_and_closes() -> None:

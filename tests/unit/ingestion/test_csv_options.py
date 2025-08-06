@@ -1,7 +1,7 @@
 import pytest
 
-from normalize.stages.ingestion import HeaderMode
-from normalize.stages.ingestion.csv.options import (
+from shared.ingestion import HeaderMode
+from shared.ingestion.csv.options import (
     resolve_delimiter_option,
     resolve_encoding_option,
     resolve_header_options,

@@ -1,6 +1,6 @@
 import hashlib
 
-from normalize.stages.ingestion.checksum import sha256_stream
+from shared.ingestion.checksum import sha256_stream
 
 
 def test_sha256_stream_matches_hashlib(tmp_path) -> None:

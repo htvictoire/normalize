@@ -1,7 +1,7 @@
 import hashlib
 
-from normalize.core.duckdb_manager import DuckDBManager
-from normalize.stages.ingestion import HeaderMode, IngestionStage
+from shared.db.duckdb import DuckDBManager
+from shared.ingestion import HeaderMode, IngestionStage
 
 
 def test_ingestion_registers_raw_input_and_returns_metadata(tmp_path) -> None:

@@ -4,9 +4,19 @@ from typing import Any
 
 import pytest
 
-from normalize.core.column_positions import index_to_position_key
-from normalize.core.engine import EngineConfig, NormalizationEngine
-from normalize.stages.ingestion.contracts import HeaderMode
+from normalize.core.engine.config import EngineConfig
+from normalize.core.engine.service import NormalizationEngine
+from shared.ingestion.contracts import HeaderMode
+from shared.models.column import (
+    BooleanColumnConfig,
+    ColumnConfig,
+    CurrencyColumnConfig,
+    DateColumnConfig,
+    DecimalColumnConfig,
+    IntegerColumnConfig,
+    StringColumnConfig,
+)
+from shared.utils.column_positions import index_to_position_key
 
 _GOLDEN_ROOT = Path(__file__).resolve().parents[1] / "golden_datasets"
 
@@ -78,50 +88,44 @@ def _build_engine_config(
 def _build_column_config(
     config_overrides: dict[str, Any],
     inferred_types: dict[str, str],
-) -> dict[str, dict[str, Any]]:
+) -> dict[str, ColumnConfig]:
     date_formats = dict(config_overrides.get("date_formats", {}))
     allow_leading_decimal_point = bool(config_overrides.get("allow_leading_decimal_point"))
     decimal_separator = str(config_overrides["decimal_separator"])
     thousand_separator = str(config_overrides["thousand_separator"])
 
-    column_config: dict[str, dict[str, Any]] = {}
+    column_config: dict[str, ColumnConfig] = {}
     for index, (_, inferred_type) in enumerate(inferred_types.items()):
         position_key = index_to_position_key(index)
         if inferred_type == "string":
-            column_config[position_key] = {"type": "string"}
+            column_config[position_key] = StringColumnConfig()
         elif inferred_type == "boolean":
-            column_config[position_key] = {"type": "boolean"}
+            column_config[position_key] = BooleanColumnConfig()
         elif inferred_type == "integer":
-            column_config[position_key] = {
-                "type": "integer",
-                "decimal_separator": decimal_separator,
-                "thousand_separator": thousand_separator,
-                "grouping_style": "western",
-            }
+            column_config[position_key] = IntegerColumnConfig(
+                decimal_separator=decimal_separator,
+                thousand_separator=thousand_separator,
+                grouping_style="western",
+            )
         elif inferred_type in {"decimal", "float"}:
-            column_config[position_key] = {
-                "type": "decimal",
-                "decimal_separator": decimal_separator,
-                "thousand_separator": thousand_separator,
-                "grouping_style": "western",
-                "allow_leading_decimal_point": allow_leading_decimal_point,
-            }
+            column_config[position_key] = DecimalColumnConfig(
+                decimal_separator=decimal_separator,
+                thousand_separator=thousand_separator,
+                grouping_style="western",
+                allow_leading_decimal_point=allow_leading_decimal_point,
+            )
         elif inferred_type == "currency":
-            column_config[position_key] = {
-                "type": "currency",
-                "decimal_separator": decimal_separator,
-                "thousand_separator": thousand_separator,
-                "grouping_style": "western",
-                "allow_leading_decimal_point": allow_leading_decimal_point,
-            }
+            column_config[position_key] = CurrencyColumnConfig(
+                decimal_separator=decimal_separator,
+                thousand_separator=thousand_separator,
+                grouping_style="western",
+                allow_leading_decimal_point=allow_leading_decimal_point,
+            )
         elif inferred_type == "date":
             date_format = date_formats.get(position_key)
             if date_format is None:
                 raise ValueError(f"missing date format for declared date column at {position_key}")
-            column_config[position_key] = {
-                "type": "date",
-                "date_format": date_format,
-            }
+            column_config[position_key] = DateColumnConfig(date_format=date_format)
         else:
             raise ValueError(f"unsupported inferred type in golden dataset: {inferred_type}")
     return column_config

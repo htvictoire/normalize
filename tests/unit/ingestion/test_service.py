@@ -2,8 +2,8 @@ import hashlib
 
 import pytest
 
-from normalize.core.duckdb_manager import DuckDBManager
-from normalize.stages.ingestion import HeaderMode, IngestionRequest, run_ingestion
+from shared.db.duckdb import DuckDBManager
+from shared.ingestion import HeaderMode, IngestionRequest, run_ingestion
 
 
 def test_service_loads_small_file(tmp_path) -> None:

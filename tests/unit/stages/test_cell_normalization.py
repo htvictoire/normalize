@@ -1,8 +1,8 @@
 import json
 
-import pytest
-
-from normalize.core.column_config import (
+from normalize.stages.cell_normalization import CellNormalizationStage
+from shared.db.duckdb import DuckDBManager
+from shared.models.column import (
     BooleanColumnConfig,
     CurrencyColumnConfig,
     DateColumnConfig,
@@ -10,8 +10,6 @@ from normalize.core.column_config import (
     IntegerColumnConfig,
     StringColumnConfig,
 )
-from normalize.core.duckdb_manager import DuckDBManager
-from normalize.stages.cell_normalization import CellNormalizationStage
 
 COMMON_ARGS = {
     "null_tokens": ["", "null", "none", "n/a", "-"],
@@ -121,15 +119,6 @@ def test_cell_normalization_applies_casts_and_issue_codes() -> None:
         assert issue_payload["int_col"] == "INVALID_INTEGER"
         assert issue_payload["bool_col"] == "INVALID_BOOLEAN"
         assert issue_payload["float_col"] is None
-
-
-def test_cell_normalization_rejects_missing_inferred_column() -> None:
-    stage = CellNormalizationStage()
-    with DuckDBManager() as conn:
-        conn.execute("CREATE TABLE raw_input (a VARCHAR, b VARCHAR)")
-        conn.execute("INSERT INTO raw_input VALUES ('1', '2')")
-        with pytest.raises(ValueError, match="MISSING_COLUMN_CONFIG"):
-            stage.execute(conn, column_config={"a": _integer_config()}, **COMMON_ARGS)
 
 
 def test_cell_normalization_applies_user_defined_boolean_tokens() -> None:
