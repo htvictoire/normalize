@@ -73,7 +73,7 @@ ColumnConfig = Annotated[
     Field(discriminator="type"),
 ]
 
-_COLUMN_CONFIG_ADAPTER = TypeAdapter(ColumnConfig)
+_COLUMN_CONFIG_ADAPTER: TypeAdapter[ColumnConfig] = TypeAdapter(ColumnConfig)
 
 
 def column_config_type(config: ColumnConfig) -> ColumnType:

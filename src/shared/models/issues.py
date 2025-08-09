@@ -1,21 +1,10 @@
-"""Core domain enums and issue model."""
+"""Shared issue model used by profile and normalize phases."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import StrEnum
 from typing import Any
-
-
-class RunStatus(StrEnum):
-    """Run terminal and non-terminal statuses used by decision evaluation."""
-
-    PENDING = "PENDING"
-    RUNNING = "RUNNING"
-    READY = "READY"
-    READY_WITH_WARNINGS = "READY_WITH_WARNINGS"
-    BLOCKED = "BLOCKED"
-    FAILED = "FAILED"
 
 
 class IssueSeverity(StrEnum):
@@ -28,7 +17,7 @@ class IssueSeverity(StrEnum):
 
 @dataclass(frozen=True)
 class NormalizationIssue:
-    """Structured issue shape used in quality/decision stages."""
+    """Structured issue shape used in quality/decision/profile stages."""
 
     code: str
     severity: IssueSeverity
