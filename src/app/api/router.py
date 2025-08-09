@@ -62,6 +62,18 @@ def create_router(api: MainController) -> APIRouter:
             raise HTTPException(status_code=404, detail=f"instance not found: {instance_id}")
         return instance
 
+    @router.post("/normalize/instances/{instance_id}/profile", response_model=InstanceModel)
+    def profile_endpoint(instance_id: UUID) -> InstanceModel:
+        try:
+            instance = api.profile(instance_id)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except FileNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except (TypeError, ValueError) as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return instance
+
     @router.post("/normalize/instances/{instance_id}/normalize", response_model=InstanceModel)
     def normalize_endpoint(
         instance_id: UUID,

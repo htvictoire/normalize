@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 
-from suggestion.models import NumericCandidate
+from suggest.models import NumericCandidate
 
 DEFAULT_SAMPLE_ROWS = 2000
 DEFAULT_SAMPLES_PER_COLUMN = 256

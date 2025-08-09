@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from enum import StrEnum
 from pathlib import Path
-from typing import Any
+from profile.models import ProfileOutput
 from uuid import UUID, uuid4
 
 from pydantic import Field
@@ -17,11 +17,13 @@ from shared.models.profiling import ProfilingStats
 
 
 class InstanceStatus(StrEnum):
-    """Lifecycle status for two-phase normalization orchestration."""
+    """Lifecycle status for suggest->confirm->profile->normalize orchestration."""
 
     PENDING = "PENDING"
-    PROFILING = "PROFILING"
     AWAITING_CONFIRMATION = "AWAITING_CONFIRMATION"
+    CONFIRMED = "CONFIRMED"
+    PROFILING = "PROFILING"
+    PROFILED = "PROFILED"
     NORMALIZING = "NORMALIZING"
     READY = "READY"
     READY_WITH_WARNINGS = "READY_WITH_WARNINGS"
@@ -32,12 +34,8 @@ class InstanceStatus(StrEnum):
 class NormalizationOutput(MainModel):
     """Normalization-phase terminal output."""
 
-    total_parse_error_cells: int
-    quality_score: float
-    issues: list[dict[str, Any]]
     fingerprint: str
     artifacts: dict[str, str] | None
-    stage_metrics: dict[str, float]
 
 
 class InstanceModel(MainModel):
@@ -55,6 +53,7 @@ class InstanceModel(MainModel):
     profiling_stats: ProfilingStats | None = None
     confirmed_column_config: dict[str, ColumnConfig] | None = None
     operation_config: OperationConfig | None = None
+    profile_output: ProfileOutput | None = None
     normalization_output: NormalizationOutput | None = None
 
     @classmethod
@@ -98,7 +97,12 @@ class InstanceModel(MainModel):
         confirmed_column_config: dict[str, ColumnConfig],
         operation_config: OperationConfig,
     ) -> None:
-        """Persist caller-confirmed config and mark instance ready to normalize."""
+        """Persist caller-confirmed config and mark instance ready to profile."""
         self.confirmed_column_config = dict(confirmed_column_config)
         self.operation_config = operation_config
-        self.status = InstanceStatus.NORMALIZING
+        self.status = InstanceStatus.CONFIRMED
+
+    def set_profile_output(self, *, profile_output: ProfileOutput) -> None:
+        """Store full-dataset profile output and advance status to PROFILED."""
+        self.profile_output = profile_output
+        self.status = InstanceStatus.PROFILED

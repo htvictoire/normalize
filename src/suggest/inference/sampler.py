@@ -6,13 +6,13 @@ from collections.abc import Sequence
 
 from duckdb import DuckDBPyConnection
 
-from suggestion.constants import (
+from suggest.constants import (
     CROSS_COLUMN_MAJORITY_MIN_EVIDENCED,
     DEFAULT_SAMPLE_ROWS,
     DEFAULT_SAMPLES_PER_COLUMN,
 )
-from suggestion.inference.types import infer_column_type
-from suggestion.models import NumericSuggestion
+from suggest.inference.types import infer_column_type
+from suggest.models import NumericSuggestion
 
 _NUMERIC_TYPES = {"integer", "decimal", "currency"}
 _SAMPLE_SEED = 42

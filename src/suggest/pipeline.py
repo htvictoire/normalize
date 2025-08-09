@@ -10,10 +10,10 @@ from shared.ingestion import HeaderMode, IngestionRequest, run_ingestion
 from shared.ingestion.checksum import sha256_stream
 from shared.utils.column_positions import build_position_to_name
 from shared.utils.source_format import infer_source_format
-from suggestion.column_config_builder import build_suggested_column_config
-from suggestion.inference.sampler import infer_types_from_sample
-from suggestion.models import SuggestionOutput
-from suggestion.profiling import compute_profiling_stats
+from suggest.column_config_builder import build_suggested_column_config
+from suggest.inference.sampler import infer_types_from_sample
+from suggest.models import SuggestionOutput
+from suggest.profiling import compute_profiling_stats
 
 
 def run_suggestion(file_path: str | Path) -> SuggestionOutput:

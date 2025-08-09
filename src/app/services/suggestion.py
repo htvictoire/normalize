@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from suggestion.models import SuggestionOutput
-from suggestion.pipeline import run_suggestion
+from suggest.models import SuggestionOutput
+from suggest.pipeline import run_suggestion
 
 
 class SuggestionService:

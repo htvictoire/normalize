@@ -9,6 +9,7 @@ from app.models.instance import InstanceModel, InstanceStatus, NormalizationOutp
 from app.services.normalization.execution import execute_normalization
 from app.services.normalization.result import NormalizationResult
 from shared.models.column import ColumnConfig
+from shared.models.issues import IssueSeverity
 from shared.models.operation import OperationConfig, RunMode
 from shared.settings import get_settings
 
@@ -39,6 +40,13 @@ class NormalizationService:
         rules_version: str = "v1",
     ) -> NormalizationResult:
         """Execute normalization phase using confirmed config from one instance."""
+        if instance.status is not InstanceStatus.PROFILED:
+            raise ValueError("instance must be PROFILED before normalize")
+        if instance.profile_output is not None and any(
+            issue.severity is IssueSeverity.ERROR for issue in instance.profile_output.issues
+        ):
+            raise ValueError("instance has blocking profile issues")
+
         output_root = Path(output_dir)
         output_root.mkdir(parents=True, exist_ok=True)
         settings = get_settings()
@@ -51,25 +59,16 @@ class NormalizationService:
             duckdb_memory_limit=settings.duckdb_memory_limit,
         )
 
-        issue_dicts = result["issues"]
-        stage_seconds = result["stage_metrics"]
         artifacts = result["artifacts"] if mode == "APPLY" else None
 
         instance.status = InstanceStatus(result["status"])
         instance.normalization_output = NormalizationOutput(
-            total_parse_error_cells=result["total_parse_error_cells"],
-            quality_score=float(result["quality_score"]),
-            issues=issue_dicts,
             fingerprint=result["fingerprint"],
             artifacts=artifacts,
-            stage_metrics=stage_seconds,
         )
         return NormalizationResult(
             instance=instance,
             status=instance.status.value,
-            quality_score=float(result["quality_score"]),
-            issues=issue_dicts,
             fingerprint=result["fingerprint"],
             artifacts=artifacts,
-            stage_metrics=stage_seconds,
         )

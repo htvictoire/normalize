@@ -9,8 +9,10 @@ from uuid import UUID
 from app.models.instance import InstanceModel
 from app.persistence.serialization import instance_to_record, record_to_instance
 
+_psycopg_module: Any
+
 try:
-    import psycopg as _psycopg_module  # type: ignore[import-not-found]
+    import psycopg as _psycopg_module
 except ImportError:  # pragma: no cover - exercised when dependency is missing at runtime
     _psycopg_module = None
 

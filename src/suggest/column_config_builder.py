@@ -13,7 +13,7 @@ from shared.models.column import (
     IntegerColumnConfig,
     StringColumnConfig,
 )
-from suggestion.models import NumericSuggestion
+from suggest.models import NumericSuggestion
 
 
 def build_suggested_column_config(

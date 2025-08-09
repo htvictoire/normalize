@@ -9,6 +9,7 @@ from uuid import UUID
 from app.infra.postgres.repository import PostgresRunRepository
 from app.models.instance import InstanceModel
 from app.services.normalization import NormalizationResult, NormalizationService
+from app.services.profile import ProfileService
 from app.services.suggestion import SuggestionService
 from shared.models.column import ColumnConfig
 from shared.models.operation import OperationConfig, RunMode
@@ -22,6 +23,7 @@ class MainController:
         settings = get_settings()
         self._repository = PostgresRunRepository(dsn=settings.postgres_dsn)
         self._suggestion_service = SuggestionService()
+        self._profile_service = ProfileService()
         self._normalization_service = NormalizationService()
 
     def suggest(
@@ -66,6 +68,13 @@ class MainController:
     def get_instance(self, instance_id: UUID) -> InstanceModel | None:
         """Equivalent to `GET /normalize/instances/{id}`."""
         return self._repository.get(instance_id)
+
+    def profile(self, instance_id: UUID) -> InstanceModel:
+        """Equivalent to `POST /normalize/instances/{id}/profile`."""
+        instance = self._repository.get_required(instance_id)
+        profiled = self._profile_service.profile(instance)
+        self._repository.save(profiled)
+        return profiled
 
     def normalize(
         self,

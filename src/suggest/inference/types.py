@@ -5,9 +5,9 @@ from __future__ import annotations
 from collections.abc import Sequence
 from datetime import datetime
 
-from suggestion.constants import BOOLEAN_FALSE_TOKENS, BOOLEAN_TRUE_TOKENS, DATE_FORMAT_CANDIDATES
-from suggestion.inference.numeric.scoring import infer_best_numeric_fits
-from suggestion.models import NumericSuggestion
+from suggest.constants import BOOLEAN_FALSE_TOKENS, BOOLEAN_TRUE_TOKENS, DATE_FORMAT_CANDIDATES
+from suggest.inference.numeric.scoring import infer_best_numeric_fits
+from suggest.models import NumericSuggestion
 
 
 def infer_column_type(
@@ -29,7 +29,7 @@ def infer_column_type(
         matched_format = match_date_format(value)
         if matched_format is not None:
             date_format_counts[matched_format] += 1
-    best_date_format = max(date_format_counts, key=date_format_counts.get)
+    best_date_format = max(date_format_counts.items(), key=lambda item: item[1])[0]
     best_date_count = date_format_counts[best_date_format]
 
     inferred_type = "string"
