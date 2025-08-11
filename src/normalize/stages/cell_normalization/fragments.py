@@ -66,6 +66,9 @@ def build_cell_expression_fragments(
                 build_nullish_predicate(raw_alias, lower_alias, token_policy.null_tokens),
             )
         )
+        column_decimal_separator: str
+        column_thousand_separator: str
+        column_grouping_style: str
         if isinstance(spec, IntegerColumnConfig):
             column_decimal_separator = spec.decimal_separator
             column_thousand_separator = spec.thousand_separator

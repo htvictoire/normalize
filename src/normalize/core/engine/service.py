@@ -28,11 +28,8 @@ class NormalizationEngine:
 
         Returns:
         - `status`
-        - `quality_score`
-        - `issues`
         - `fingerprint`
         - `artifacts` (APPLY only; None for PROFILE)
-        - `stage_seconds`
         """
         run_mode = mode.upper()
         effective = config

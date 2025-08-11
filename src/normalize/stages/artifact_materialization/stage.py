@@ -105,7 +105,10 @@ class ArtifactMaterializationStage(Stage):
 
         issue_summary = build_issue_summary(issues or ())
         section_start = perf_counter()
-        duckdb_version = str(conn.execute("SELECT version()").fetchone()[0])
+        duckdb_version_row = conn.execute("SELECT version()").fetchone()
+        if duckdb_version_row is None:
+            raise RuntimeError("duckdb version query returned no rows")
+        duckdb_version = str(duckdb_version_row[0])
         timing["duckdb_version_read_seconds"] = perf_counter() - section_start
 
         # Row count from quality summary or query
@@ -120,9 +123,10 @@ class ArtifactMaterializationStage(Stage):
                 normalized_rows = None
         if normalized_rows is None:
             section_start = perf_counter()
-            normalized_rows = int(
-                conn.execute(f"SELECT COUNT(*) FROM {table_name}").fetchone()[0]
-            )
+            normalized_rows_row = conn.execute(f"SELECT COUNT(*) FROM {table_name}").fetchone()
+            if normalized_rows_row is None:
+                raise RuntimeError("row count query returned no rows")
+            normalized_rows = int(normalized_rows_row[0])
             timing["row_count_query_seconds"] = perf_counter() - section_start
         trace_rows = normalized_rows * len(data_columns)
 

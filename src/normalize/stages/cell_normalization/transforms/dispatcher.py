@@ -68,6 +68,8 @@ def build_column_exprs(
         )
 
     if inferred_type == "date":
+        if date_format is None:
+            raise ValueError(f"MISSING_DATE_FORMAT:{column_name}")
         return build_date_exprs(
             column_name,
             nullish_predicate,

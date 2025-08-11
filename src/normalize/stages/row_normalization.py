@@ -41,7 +41,10 @@ class RowNormalizationStage(Stage):
         Counts empty rows to enable the fast path (rowid+1 vs ROW_NUMBER).
         """
         validate_identifier(table_name)
-        rows_before = int(conn.execute(f"SELECT COUNT(*) FROM {table_name}").fetchone()[0])
+        rows_before_row = conn.execute(f"SELECT COUNT(*) FROM {table_name}").fetchone()
+        if rows_before_row is None:
+            raise RuntimeError("row count query returned no rows")
+        rows_before = int(rows_before_row[0])
 
         filter_predicate: str | None = None
         rows_dropped = 0
@@ -51,11 +54,12 @@ class RowNormalizationStage(Stage):
                 col for col in columns if col not in {"_row_index", "_global_row_index"}
             ]
             filter_predicate = _build_non_empty_predicate(data_columns)
-            non_empty = int(
-                conn.execute(
-                    f"SELECT COUNT(*) FROM {table_name} WHERE {filter_predicate}"
-                ).fetchone()[0]
-            )
+            non_empty_row = conn.execute(
+                f"SELECT COUNT(*) FROM {table_name} WHERE {filter_predicate}"
+            ).fetchone()
+            if non_empty_row is None:
+                raise RuntimeError("non-empty row count query returned no rows")
+            non_empty = int(non_empty_row[0])
             rows_dropped = rows_before - non_empty
 
         return RowPlan(
@@ -71,7 +75,10 @@ class RowNormalizationStage(Stage):
         start_time = perf_counter()
         validate_identifier(table_name)
 
-        rows_before = int(conn.execute(f"SELECT COUNT(*) FROM {table_name}").fetchone()[0])
+        rows_before_row = conn.execute(f"SELECT COUNT(*) FROM {table_name}").fetchone()
+        if rows_before_row is None:
+            raise RuntimeError("row count query returned no rows")
+        rows_before = int(rows_before_row[0])
         if self._drop_empty_rows:
             columns = read_columns(conn, table_name)
             data_columns = [
@@ -115,7 +122,10 @@ class RowNormalizationStage(Stage):
                 """
             )
 
-        rows_after = int(conn.execute(f"SELECT COUNT(*) FROM {table_name}").fetchone()[0])
+        rows_after_row = conn.execute(f"SELECT COUNT(*) FROM {table_name}").fetchone()
+        if rows_after_row is None:
+            raise RuntimeError("row count query returned no rows")
+        rows_after = int(rows_after_row[0])
         rows_dropped = rows_before - rows_after
         self.metrics = {
             "duration_seconds": perf_counter() - start_time,
