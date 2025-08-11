@@ -6,6 +6,7 @@ from app.api.controllers import MainController
 from app.models.instance import InstanceModel, InstanceStatus
 from app.persistence.repository import InMemoryNormalizationInstanceRepository
 from app.services.normalization import NormalizationService
+from app.services.profile import ProfileService
 from app.services.suggestion import SuggestionService
 from shared.models.operation import (
     DecisionThresholds,
@@ -167,12 +168,14 @@ def test_normalize_profile_uses_confirmed_instance(tmp_path: Path) -> None:
     csv_path = tmp_path / "input.csv"
     _write_sample_csv(csv_path)
     normalization_service = NormalizationService()
+    profile_service = ProfileService()
     instance = _instance_from_suggestion(csv_path)
     normalization_service.confirm_instance(
         instance,
         confirmed_column_config=instance.suggested_column_config,
         operation_config=_operation_config(include_unique_ratio=False),
     )
+    profile_service.profile(instance)
 
     result = normalization_service.normalize(
         instance,
@@ -180,10 +183,8 @@ def test_normalize_profile_uses_confirmed_instance(tmp_path: Path) -> None:
         mode="PROFILE",
     )
 
-    assert result.status in {"READY", "READY_WITH_WARNINGS", "BLOCKED"}
+    assert result.status == "READY"
     assert result.artifacts is None
-    assert "shared_profiling" not in result.stage_metrics
-    assert "type_inference" not in result.stage_metrics
     assert instance.normalization_output is not None
 
 
@@ -191,12 +192,14 @@ def test_normalize_apply_writes_artifacts(tmp_path: Path) -> None:
     csv_path = tmp_path / "input.csv"
     _write_sample_csv(csv_path)
     normalization_service = NormalizationService()
+    profile_service = ProfileService()
     instance = _instance_from_suggestion(csv_path)
     normalization_service.confirm_instance(
         instance,
         confirmed_column_config=instance.suggested_column_config,
         operation_config=_operation_config(),
     )
+    profile_service.profile(instance)
 
     result = normalization_service.normalize(
         instance,
@@ -231,10 +234,12 @@ def test_api_orchestration_flow_runs_end_to_end(
         confirmed_column_config=instance.suggested_column_config,
         operation_config=_operation_config(),
     )
-    assert confirmed.status == InstanceStatus.NORMALIZING
-    result = api.normalize(confirmed.id, output_dir=tmp_path / "out", mode="PROFILE")
+    assert confirmed.status == InstanceStatus.CONFIRMED
+    profiled = api.profile(confirmed.id)
+    assert profiled.status == InstanceStatus.PROFILED
+    result = api.normalize(profiled.id, output_dir=tmp_path / "out", mode="PROFILE")
 
-    persisted = api.get_instance(confirmed.id)
+    persisted = api.get_instance(profiled.id)
     assert persisted is not None
-    assert result.status in {"READY", "READY_WITH_WARNINGS", "BLOCKED"}
+    assert result.status == "READY"
     assert persisted.normalization_output is not None

@@ -46,6 +46,10 @@ python_version = "3.14"
 strict = true
 warn_unused_configs = true
 
+[[tool.mypy.overrides]]
+module = ["requests", "requests.*"]
+ignore_missing_imports = true
+
 [tool.ruff]
 line-length = 100
 target-version = "py314"
@@ -96,4 +100,7 @@ extend-ignore = [
 "tests/**/*.py" = [
     "S101",
     "PLR2004",
+]
+"src/profile/**/*.py" = [
+    "A005",
 ]

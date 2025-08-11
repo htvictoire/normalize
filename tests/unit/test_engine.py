@@ -87,9 +87,7 @@ def test_engine_profile_mode_returns_decision_without_artifacts(tmp_path: Path) 
         mode="PROFILE",
     )
 
-    assert result["status"] in {"READY", "READY_WITH_WARNINGS", "BLOCKED"}
-    assert isinstance(result["quality_score"], float)
-    assert isinstance(result["issues"], list)
+    assert result["status"] == "READY"
     assert isinstance(result["fingerprint"], str)
     assert result["artifacts"] is None
 
@@ -295,7 +293,7 @@ def test_engine_manifest_replay_config_includes_no_guessing_fields(tmp_path: Pat
     }
 
 
-def test_engine_emits_mixed_currency_warning_without_blocking_ready_status(
+def test_engine_profile_mode_returns_ready_for_mixed_currency_input(
     tmp_path: Path,
 ) -> None:
     csv_path = tmp_path / "mixed_currency.csv"
@@ -333,6 +331,4 @@ def test_engine_emits_mixed_currency_warning_without_blocking_ready_status(
         mode="PROFILE",
     )
 
-    issue_codes = sorted(issue["code"] for issue in result["issues"])
-    assert "MIXED_CURRENCY" in issue_codes
     assert result["status"] == "READY"

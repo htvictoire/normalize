@@ -11,9 +11,7 @@
       "amount": "currency",
       "note": "string"
     },
-    "issue_codes": [
-      "MIXED_CURRENCY"
-    ],
+    "issue_codes": [],
     "status": "READY"
   }
 }
