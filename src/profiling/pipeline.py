@@ -1,18 +1,12 @@
-"""Profile-phase pipeline over full dataset."""
+"""Profiling pipeline over the full dataset."""
 
 from __future__ import annotations
 
 from pathlib import Path
-from profile.issues import build_mixed_currency_issue, build_separator_mismatch_issue
-from profile.models import (
-    BooleanColumnProfile,
-    ColumnProfileStats,
-    CurrencyColumnProfile,
-    DateColumnProfile,
-    NumericColumnProfile,
-    ProfileOutput,
-)
-from profile.stats import (
+
+from conversion.stages.header_canonicalization import HeaderCanonicalizationStage
+from profiling.issues import build_mixed_currency_issue, build_separator_mismatch_issue
+from profiling.stats import (
     compute_boolean_column_profile,
     compute_currency_column_profile,
     compute_date_column_profile,
@@ -20,8 +14,6 @@ from profile.stats import (
     compute_null_stats,
     compute_numeric_column_profile,
 )
-
-from normalize.stages.header_canonicalization import HeaderCanonicalizationStage
 from shared.db.duckdb import DuckDBManager
 from shared.db.sql import read_columns
 from shared.ingestion import HeaderMode, IngestionRequest, run_ingestion
@@ -36,19 +28,27 @@ from shared.models.column import (
     column_config_type,
 )
 from shared.models.operation import OperationConfig, SourceFormatConfig
+from shared.models.profiling import (
+    BooleanColumnProfile,
+    ColumnProfileStats,
+    CurrencyColumnProfile,
+    DateColumnProfile,
+    NumericColumnProfile,
+    ProfilingOutput,
+)
 from shared.utils.column_positions import build_position_to_name
 
 NUMERIC_MISMATCH_THRESHOLD = 0.60
 
 
-def run_profile(
+def run_profiling(
     file_path: str | Path,
     *,
     source_format: SourceFormatConfig,
     column_config: dict[str, ColumnConfig],
     operation_config: OperationConfig,
-) -> ProfileOutput:
-    """Run full-dataset profile phase using confirmed config."""
+) -> ProfilingOutput:
+    """Run the full-dataset profiling phase using confirmed config."""
     source_file = Path(file_path)
     source_checksum = sha256_stream(source_file)
 
@@ -146,7 +146,17 @@ def run_profile(
                         )
                     )
 
-            elif isinstance(config, (DecimalColumnConfig, IntegerColumnConfig)):
+            elif isinstance(config, IntegerColumnConfig):
+                numeric_profile = compute_numeric_column_profile(
+                    conn,
+                    column_name=column_name,
+                    config=config,
+                    null_tokens=operation_config.null_tokens,
+                    non_null_count=non_null_count,
+                )
+                type_profile = numeric_profile
+
+            elif isinstance(config, DecimalColumnConfig):
                 numeric_profile = compute_numeric_column_profile(
                     conn,
                     column_name=column_name,
@@ -204,7 +214,7 @@ def run_profile(
             1.0 if not currency_ratios else (sum(currency_ratios) / len(currency_ratios))
         )
 
-    return ProfileOutput(
+    return ProfilingOutput(
         source_checksum=source_checksum,
         row_count=row_count,
         empty_row_count=empty_row_count,

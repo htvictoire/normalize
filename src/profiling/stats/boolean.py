@@ -1,12 +1,11 @@
-"""Boolean profile stats."""
+"""Boolean profiling stats."""
 
 from __future__ import annotations
-
-from profile.models import BooleanColumnProfile
 
 from duckdb import DuckDBPyConnection
 
 from shared.db.sql import quote_identifier, quote_string
+from shared.models.profiling import BooleanColumnProfile
 
 
 def compute_boolean_column_profile(

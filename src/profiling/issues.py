@@ -1,4 +1,4 @@
-"""Profile-phase issue builders."""
+"""Profiling-phase issue builders."""
 
 from __future__ import annotations
 

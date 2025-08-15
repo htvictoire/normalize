@@ -1,12 +1,11 @@
-"""Currency profile stats."""
+"""Currency profiling stats."""
 
 from __future__ import annotations
-
-from profile.models import CurrencyColumnProfile
 
 from duckdb import DuckDBPyConnection
 
 from shared.db.sql import quote_identifier, quote_string
+from shared.models.profiling import CurrencyColumnProfile
 from shared.utils.currency import build_currency_symbol_extract_expr
 
 

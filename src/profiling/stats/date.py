@@ -1,12 +1,11 @@
-"""Date profile stats."""
+"""Date profiling stats."""
 
 from __future__ import annotations
-
-from profile.models import DateColumnProfile
 
 from duckdb import DuckDBPyConnection
 
 from shared.db.sql import quote_identifier, quote_string
+from shared.models.profiling import DateColumnProfile
 
 
 def compute_date_column_profile(

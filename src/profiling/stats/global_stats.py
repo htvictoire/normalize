@@ -1,4 +1,4 @@
-"""Global profile stats."""
+"""Global profiling stats."""
 
 from __future__ import annotations
 

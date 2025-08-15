@@ -1,16 +1,16 @@
-"""Numeric profile stats."""
+"""Numeric profiling stats."""
 
 from __future__ import annotations
 
-from profile.models import NumericColumnProfile
-
 from duckdb import DuckDBPyConnection
 
-from normalize.stages.cell_normalization.transforms.numeric import (
+from conversion.stages.cell_normalization.transforms.numeric import (
     decimal_pattern_regex,
+    integer_pattern_regex,
 )
 from shared.db.sql import quote_identifier, quote_string
 from shared.models.column import CurrencyColumnConfig, DecimalColumnConfig, IntegerColumnConfig
+from shared.models.profiling import NumericColumnProfile
 
 
 def compute_numeric_column_profile(
@@ -21,10 +21,32 @@ def compute_numeric_column_profile(
     null_tokens: tuple[str, ...],
     non_null_count: int,
 ) -> NumericColumnProfile:
-    """Count matches for declared and swapped separators."""
+    """Count matches for the declared format; detect separator swaps where applicable."""
     quoted = quote_identifier(column_name)
     raw_value = f"TRIM(CAST({quoted} AS VARCHAR))"
     nullish = _nullish_predicate(quoted, null_tokens)
+
+    if isinstance(config, IntegerColumnConfig):
+        pattern = integer_pattern_regex(
+            thousand_separator=config.thousand_separator,
+            grouping_style=config.grouping_style,
+        )
+        row = conn.execute(
+            f"SELECT COUNT(*) FROM raw_input WHERE NOT ({nullish}) "
+            f"AND REGEXP_FULL_MATCH({raw_value}, {quote_string(pattern)})"
+        ).fetchone()
+        if row is None:
+            raise RuntimeError("integer pattern count query returned no rows")
+        parse_match_count = int(row[0])
+        parse_match_ratio = 1.0 if non_null_count <= 0 else (parse_match_count / non_null_count)
+        return NumericColumnProfile(
+            parse_match_count=parse_match_count,
+            non_nullish_count=non_null_count,
+            parse_match_ratio=parse_match_ratio,
+            swapped_match_count=0,
+            swapped_match_ratio=0.0,
+            separator_mismatch_detected=False,
+        )
 
     declared_pattern = decimal_pattern_regex(
         decimal_separator=config.decimal_separator,
