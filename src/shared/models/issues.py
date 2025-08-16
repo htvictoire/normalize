@@ -1,4 +1,4 @@
-"""Shared issue model used by profile and normalize phases."""
+"""Shared issue model used by profiling and conversion phases."""
 
 from __future__ import annotations
 
@@ -17,7 +17,7 @@ class IssueSeverity(StrEnum):
 
 @dataclass(frozen=True)
 class NormalizationIssue:
-    """Structured issue shape used in quality/decision/profile stages."""
+    """Structured issue shape used in quality/decision/profiling stages."""
 
     code: str
     severity: IssueSeverity

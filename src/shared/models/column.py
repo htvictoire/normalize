@@ -28,7 +28,6 @@ class BooleanColumnConfig(MainModel):
 class IntegerColumnConfig(MainModel):
     """Declared integer column configuration."""
 
-    decimal_separator: str
     thousand_separator: str
     grouping_style: GroupingStyle
     type: Literal["integer"] = "integer"
