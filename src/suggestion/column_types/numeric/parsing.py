@@ -3,13 +3,13 @@
 from __future__ import annotations
 
 from shared.models.column import GroupingStyle
-from suggest.constants import (
+from suggestion.constants import (
     GROUP_FIRST_MAX_DIGITS,
     GROUP_INDIAN_MIDDLE_SIZE,
     GROUP_INDIAN_TWO_GROUP_CASE,
     GROUP_WESTERN_SIZE,
 )
-from suggest.models import NumericCandidate, NumericParseResult
+from suggestion.column_types.models import NumericCandidate, NumericParseResult
 
 
 def parse_numeric_token(

@@ -13,7 +13,7 @@ from shared.models.column import (
     IntegerColumnConfig,
     StringColumnConfig,
 )
-from suggest.models import NumericSuggestion
+from suggestion.column_types.models import NumericSuggestion
 
 
 def build_suggested_column_config(
@@ -50,7 +50,6 @@ def column_config_for_inferred_type(
         if numeric is None:
             raise ValueError("integer inference requires numeric format inference")
         return IntegerColumnConfig(
-            decimal_separator=numeric.decimal_separator,
             thousand_separator=numeric.thousand_separator,
             grouping_style=numeric.grouping_style,
         )

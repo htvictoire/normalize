@@ -6,16 +6,15 @@ from collections.abc import Sequence
 
 from duckdb import DuckDBPyConnection
 
-from suggest.constants import (
+from suggestion.column_types.types import infer_column_type
+from suggestion.constants import (
     CROSS_COLUMN_MAJORITY_MIN_EVIDENCED,
-    DEFAULT_SAMPLE_ROWS,
-    DEFAULT_SAMPLES_PER_COLUMN,
+    INFERENCE_RESERVOIR_ROWS,
+    INFERENCE_SAMPLE_SEED,
+    INFERENCE_SAMPLES_PER_COLUMN,
+    NUMERIC_TYPES,
 )
-from suggest.inference.types import infer_column_type
-from suggest.models import NumericSuggestion
-
-_NUMERIC_TYPES = {"integer", "decimal", "currency"}
-_SAMPLE_SEED = 42
+from suggestion.column_types.models import NumericSuggestion
 
 
 def infer_types_from_sample(
@@ -23,8 +22,8 @@ def infer_types_from_sample(
     *,
     table_name: str,
     columns: Sequence[str],
-    sample_rows: int = DEFAULT_SAMPLE_ROWS,
-    samples_per_column: int = DEFAULT_SAMPLES_PER_COLUMN,
+    sample_rows: int = INFERENCE_RESERVOIR_ROWS,
+    samples_per_column: int = INFERENCE_SAMPLES_PER_COLUMN,
 ) -> tuple[dict[str, str], dict[str, str], dict[str, NumericSuggestion]]:
     """Sample rows and infer column types/date formats/numeric settings."""
     if sample_rows <= 0:
@@ -34,7 +33,7 @@ def infer_types_from_sample(
 
     sampled_rows = conn.execute(
         f"SELECT * FROM {table_name} "
-        f"USING SAMPLE reservoir({int(sample_rows)} ROWS) REPEATABLE ({_SAMPLE_SEED})"
+        f"USING SAMPLE reservoir({int(sample_rows)} ROWS) REPEATABLE ({INFERENCE_SAMPLE_SEED})"
     ).fetchall()
     sampled_values: dict[str, list[str]] = {column_name: [] for column_name in columns}
     for row in sampled_rows:
@@ -69,7 +68,7 @@ def _apply_separator_consistency(
     evidenced = [
         s.decimal_separator
         for col, s in inferred_numeric_suggestions.items()
-        if inferred_types.get(col) in _NUMERIC_TYPES and s.separator_evidence > 0
+        if inferred_types.get(col) in NUMERIC_TYPES and s.separator_evidence > 0
     ]
     if len(evidenced) < CROSS_COLUMN_MAJORITY_MIN_EVIDENCED:
         return
@@ -84,7 +83,7 @@ def _apply_separator_consistency(
         return
 
     for col in list(inferred_numeric_suggestions):
-        if inferred_types.get(col) not in _NUMERIC_TYPES:
+        if inferred_types.get(col) not in NUMERIC_TYPES:
             continue
         s = inferred_numeric_suggestions[col]
         if s.separator_evidence > 0 or s.decimal_separator == file_decimal:

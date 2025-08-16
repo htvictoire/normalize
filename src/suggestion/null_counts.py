@@ -1,4 +1,4 @@
-"""Profiling helpers for suggestion output."""
+"""Null/non-null count computation for suggestion output."""
 
 from __future__ import annotations
 
@@ -7,20 +7,18 @@ from collections.abc import Mapping
 from duckdb import DuckDBPyConnection
 
 from shared.db.sql import quote_identifier
-from shared.models.profiling import ProfilingColumnStats, ProfilingStats
 
 
-def compute_profiling_stats(
+def compute_null_counts(
     conn: DuckDBPyConnection,
     *,
     table_name: str,
     position_to_name: Mapping[str, str],
-) -> ProfilingStats:
-    """Compute row_count and per-position null/non-null stats."""
+) -> tuple[int, dict[str, tuple[int, int]]]:
+    """Return (row_count, {position_key: (null_count, non_null_count)})."""
     if not position_to_name:
         row = conn.execute(f"SELECT COUNT(*) FROM {table_name}").fetchone()
-        row_count = 0 if row is None else int(row[0])
-        return ProfilingStats(row_count=row_count, columns={})
+        return (0 if row is None else int(row[0])), {}
 
     nullish_exprs: list[str] = []
     for index, column_name in enumerate(position_to_name.values()):
@@ -32,14 +30,12 @@ def compute_profiling_stats(
     query = f"SELECT COUNT(*) AS row_count, {', '.join(nullish_exprs)} FROM {table_name}"
     row = conn.execute(query).fetchone()
     if row is None:
-        return ProfilingStats(row_count=0, columns={})
+        return 0, {}
 
     row_count = int(row[0])
-    columns: dict[str, ProfilingColumnStats] = {}
+    counts: dict[str, tuple[int, int]] = {}
     for index, position_key in enumerate(position_to_name.keys()):
-        nullish_count = int(row[index + 1])
-        columns[position_key] = ProfilingColumnStats(
-            nullish_count=nullish_count,
-            non_null_count=max(row_count - nullish_count, 0),
-        )
-    return ProfilingStats(row_count=row_count, columns=columns)
+        null_count = int(row[index + 1])
+        non_null_count = max(row_count - null_count, 0)
+        counts[position_key] = (null_count, non_null_count)
+    return row_count, counts

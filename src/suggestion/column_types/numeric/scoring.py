@@ -4,13 +4,13 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
-from suggest.constants import (
+from suggestion.column_types.numeric.parsing import parse_numeric_token
+from suggestion.constants import (
     CURRENCY_RE,
     LEADING_DECIMAL_MIN_RATIO,
     NUMERIC_CANDIDATES,
 )
-from suggest.inference.numeric.parsing import parse_numeric_token
-from suggest.models import (
+from suggestion.column_types.models import (
     NumericCandidate,
     NumericCandidateStats,
     NumericSuggestion,

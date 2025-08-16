@@ -1,23 +1,10 @@
-"""Suggestion-domain models."""
+"""Suggestion-domain internal inference models."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 
-from shared.models.column import ColumnConfig, GroupingStyle
-from shared.models.operation import SourceFormatConfig
-from shared.models.profiling import ProfilingStats
-
-
-@dataclass(frozen=True)
-class SuggestionOutput:
-    """Suggestion-phase processing output, without persistence lifecycle state."""
-
-    source_format: SourceFormatConfig
-    source_checksum: str
-    column_labels: dict[str, str]
-    suggested_column_config: dict[str, ColumnConfig]
-    profiling_stats: ProfilingStats
+from shared.models.column import GroupingStyle
 
 
 @dataclass(frozen=True)
