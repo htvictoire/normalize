@@ -2,18 +2,15 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
 from enum import StrEnum
 from pathlib import Path
-from profile.models import ProfileOutput
 from uuid import UUID, uuid4
 
-from pydantic import Field
-
 from shared.models.base import MainModel
-from shared.models.column import ColumnConfig
-from shared.models.operation import OperationConfig, SourceFormatConfig
-from shared.models.profiling import ProfilingStats
+from shared.models.confirmation import ConfirmedConfig
+from shared.models.normalization import NormalizationOutput
+from shared.models.profiling import ProfilingOutput
+from shared.models.suggestion import SuggestionOutput
 
 
 class InstanceStatus(StrEnum):
@@ -31,13 +28,6 @@ class InstanceStatus(StrEnum):
     FAILED = "FAILED"
 
 
-class NormalizationOutput(MainModel):
-    """Normalization-phase terminal output."""
-
-    fingerprint: str
-    artifacts: dict[str, str] | None
-
-
 class InstanceModel(MainModel):
     """Single run instance used as suggest -> normalize handoff."""
 
@@ -47,13 +37,9 @@ class InstanceModel(MainModel):
     source_file_name: str
     source_r2_url: str
     source_checksum: str | None
-    source_format: SourceFormatConfig
-    column_labels: dict[str, str] = Field(default_factory=dict)
-    suggested_column_config: dict[str, ColumnConfig] = Field(default_factory=dict)
-    profiling_stats: ProfilingStats | None = None
-    confirmed_column_config: dict[str, ColumnConfig] | None = None
-    operation_config: OperationConfig | None = None
-    profile_output: ProfileOutput | None = None
+    suggested_config: SuggestionOutput | None = None
+    confirmed_config: ConfirmedConfig | None = None
+    profiling_output: ProfilingOutput | None = None
     normalization_output: NormalizationOutput | None = None
 
     @classmethod
@@ -62,7 +48,6 @@ class InstanceModel(MainModel):
         *,
         source_path: str | Path,
         source_file_name: str | None = None,
-        source_format: SourceFormatConfig,
         tenant_id: str = "default",
         instance_id: UUID | None = None,
     ) -> InstanceModel:
@@ -75,34 +60,24 @@ class InstanceModel(MainModel):
             source_file_name=path.name if source_file_name is None else source_file_name,
             source_r2_url=str(path),
             source_checksum=None,
-            source_format=source_format,
         )
 
-    def set_suggestion_output(
-        self,
-        *,
-        column_labels: Mapping[str, str],
-        suggested_column_config: dict[str, ColumnConfig],
-        profiling_stats: ProfilingStats,
-    ) -> None:
+    def set_suggestion_output(self, suggestion: SuggestionOutput) -> None:
         """Write suggestion output and move status to awaiting confirmation."""
-        self.column_labels = {str(key): str(value) for key, value in column_labels.items()}
-        self.suggested_column_config = suggested_column_config
-        self.profiling_stats = profiling_stats
+        self.suggested_config = suggestion
         self.status = InstanceStatus.AWAITING_CONFIRMATION
 
-    def confirm(
-        self,
-        *,
-        confirmed_column_config: dict[str, ColumnConfig],
-        operation_config: OperationConfig,
-    ) -> None:
-        """Persist caller-confirmed config and mark instance ready to profile."""
-        self.confirmed_column_config = dict(confirmed_column_config)
-        self.operation_config = operation_config
+    def confirm(self, confirmed_config: ConfirmedConfig) -> None:
+        """Persist confirmed config and mark instance ready to profile."""
+        self.confirmed_config = confirmed_config
         self.status = InstanceStatus.CONFIRMED
 
-    def set_profile_output(self, *, profile_output: ProfileOutput) -> None:
-        """Store full-dataset profile output and advance status to PROFILED."""
-        self.profile_output = profile_output
+    def set_profiling_output(self, *, profiling_output: ProfilingOutput) -> None:
+        """Store full-dataset profiling output and advance status to PROFILED."""
+        self.profiling_output = profiling_output
         self.status = InstanceStatus.PROFILED
+
+    def set_normalization_output(self, *, normalization_output: NormalizationOutput) -> None:
+        """Store normalization output and advance status to terminal state."""
+        self.normalization_output = normalization_output
+        self.status = InstanceStatus.READY

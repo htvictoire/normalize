@@ -11,9 +11,11 @@ from pathlib import Path
 import requests
 from requests import Response
 
+from shared.settings import get_settings
+
 
 def main() -> None:
-    defaults = ["suggestion.json", "APPLY", "normalization.json"]
+    defaults = ["data/suggestion.json", "APPLY", "data/normalization.json"]
     suggestion_json, mode, out_json = (sys.argv[1:] + defaults)[: len(defaults)]
     suggestion_path = Path(suggestion_json)
     instance_payload = json.loads(suggestion_path.read_text(encoding="utf-8"))
@@ -27,15 +29,20 @@ def main() -> None:
         "rules_version": "v1",
     }
 
-    base_url = os.getenv("NORMALIZE_API_BASE_URL", "http://localhost:8000")
+    settings = get_settings()
+    base_url = settings.api_base_url.rstrip("/")
     timeout_seconds = _request_timeout_seconds()
     _ensure_api_ready(base_url)
-    normalize_url = f"{base_url.rstrip('/')}/normalize/instances/{instance_id}/normalize"
+    normalize_url = f"{base_url}/normalize/instances/{instance_id}/normalize"
     print(
         f"Submitting normalize request to {normalize_url} "
         f"(mode={mode}, timeout={timeout_seconds}s)..."
     )
-    response = requests.post(normalize_url, json=normalize_payload, timeout=(5, timeout_seconds))
+    response = requests.post(
+        normalize_url,
+        json=normalize_payload,
+        timeout=(5, timeout_seconds),
+    )
     _raise_for_status_with_body(response)
     result = response.json()
 
