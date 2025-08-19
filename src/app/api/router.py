@@ -1,23 +1,26 @@
-"""HTTP route registration for normalization API."""
+"""HTTP route registration for the normalization API."""
 
 from __future__ import annotations
 
-from pathlib import Path
+from typing import TYPE_CHECKING
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException
 
-from app.api.controllers import MainController
 from app.api.models import (
     ConfirmRequest,
     NormalizeRequest,
     SuggestRequest,
 )
+from app.api.paths import resolve_data_file
 from app.models.instance import InstanceModel
 
+if TYPE_CHECKING:
+    from app.bootstrap import MainOrchestrator
 
-def create_router(api: MainController) -> APIRouter:
-    """Create API router with all health/suggest/confirm/normalize routes."""
+
+def create_router(api: MainOrchestrator) -> APIRouter:
+    """Create API router with health/suggest/confirm/profile/normalize routes."""
     router = APIRouter()
 
     @router.get("/health")
@@ -27,7 +30,7 @@ def create_router(api: MainController) -> APIRouter:
     @router.post("/normalize/suggest", response_model=InstanceModel)
     def suggest_endpoint(payload: SuggestRequest) -> InstanceModel:
         try:
-            data_file = _resolve_data_file(payload.file)
+            data_file = resolve_data_file(payload.file)
             instance = api.suggest(
                 file_path=data_file,
                 source_file_name=payload.name,
@@ -41,14 +44,7 @@ def create_router(api: MainController) -> APIRouter:
     @router.put("/normalize/instances/{instance_id}/confirm", response_model=InstanceModel)
     def confirm_endpoint(instance_id: UUID, payload: ConfirmRequest) -> InstanceModel:
         try:
-            instance = api.confirm(
-                instance_id,
-                confirmed_column_config={
-                    str(position_key): config
-                    for position_key, config in payload.confirmed_column_config.items()
-                },
-                operation_config=payload.operation_config,
-            )
+            instance = api.confirm(instance_id, payload)
         except KeyError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
         except (TypeError, ValueError) as exc:
@@ -80,7 +76,7 @@ def create_router(api: MainController) -> APIRouter:
         payload: NormalizeRequest,
     ) -> InstanceModel:
         try:
-            result = api.normalize(
+            instance = api.normalize(
                 instance_id,
                 output_dir=payload.output_dir,
                 mode=payload.mode,
@@ -93,15 +89,6 @@ def create_router(api: MainController) -> APIRouter:
         except (TypeError, ValueError) as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-        return result.instance
+        return instance
 
     return router
-
-
-def _resolve_data_file(file_name: str) -> Path:
-    candidate = Path(file_name)
-    if candidate.is_absolute():
-        return candidate
-    if candidate.exists():
-        return candidate
-    return Path("data") / candidate

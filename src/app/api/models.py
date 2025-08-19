@@ -1,4 +1,4 @@
-"""HTTP request models for normalization API endpoints."""
+"""HTTP request models for the normalization API endpoints."""
 
 from __future__ import annotations
 
@@ -7,22 +7,19 @@ from pathlib import Path
 from pydantic import Field
 
 from shared.models.base import MainModel
-from shared.models.column import ColumnConfig
-from shared.models.operation import OperationConfig, RunMode
+from shared.models.confirmation import ConfirmedConfig
+from shared.models.operation import RunMode
 
 
 class SuggestRequest(MainModel):
-    """Request payload for suggest endpoint."""
+    """Request payload for the suggest endpoint."""
 
     name: str = Field(min_length=1)
     file: str = Field(min_length=1)
 
 
-class ConfirmRequest(MainModel):
+class ConfirmRequest(ConfirmedConfig):
     """Request payload for instance confirmation."""
-
-    confirmed_column_config: dict[str, ColumnConfig]
-    operation_config: OperationConfig
 
 
 class NormalizeRequest(MainModel):
