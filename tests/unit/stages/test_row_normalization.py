@@ -1,4 +1,4 @@
-from normalize.stages.row_normalization import RowNormalizationStage
+from conversion.stages.row_normalization import RowNormalizationStage
 from shared.db.duckdb import DuckDBManager
 
 

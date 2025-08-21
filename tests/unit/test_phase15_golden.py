@@ -4,8 +4,8 @@ from typing import Any
 
 import pytest
 
-from normalize.core.engine.config import EngineConfig
-from normalize.core.engine.service import NormalizationEngine
+from conversion.core.engine.config import EngineConfig
+from conversion.core.engine.service import ConversionEngine
 from shared.ingestion.contracts import HeaderMode
 from shared.models.column import (
     BooleanColumnConfig,
@@ -16,6 +16,7 @@ from shared.models.column import (
     IntegerColumnConfig,
     StringColumnConfig,
 )
+from shared.models.normalization import NormalizationOutput
 from shared.utils.column_positions import index_to_position_key
 
 _GOLDEN_ROOT = Path(__file__).resolve().parents[1] / "golden_datasets"
@@ -37,16 +38,16 @@ def test_phase15_golden_datasets(case_name: str, tmp_path: Path) -> None:
         config_overrides=config_overrides,
         inferred_types=expected_payload["expected"]["inferred_types"],
     )
-    result = NormalizationEngine().run(
+    result = ConversionEngine().run(
         csv_path=input_csv,
         output_dir=tmp_path / f"{case_name}_out",
         config=config,
         mode="PROFILE",
     )
 
-    assert result["status"] == "READY"
-    assert result["artifacts"] is None
-    assert isinstance(result["fingerprint"], str)
+    assert isinstance(result, NormalizationOutput)
+    assert result.artifacts is None
+    assert isinstance(result.fingerprint, str)
 
 
 def _build_engine_config(
@@ -101,7 +102,6 @@ def _build_column_config(
             column_config[position_key] = BooleanColumnConfig()
         elif inferred_type == "integer":
             column_config[position_key] = IntegerColumnConfig(
-                decimal_separator=decimal_separator,
                 thousand_separator=thousand_separator,
                 grouping_style="western",
             )

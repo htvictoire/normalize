@@ -1,8 +1,8 @@
 import json
 from pathlib import Path
 
-from normalize.core.engine.config import EngineConfig
-from normalize.core.engine.service import NormalizationEngine
+from conversion.core.engine.config import EngineConfig
+from conversion.core.engine.service import ConversionEngine
 from shared.ingestion.contracts import HeaderMode
 from shared.models.column import (
     BooleanColumnConfig,
@@ -12,12 +12,12 @@ from shared.models.column import (
     DecimalColumnConfig,
     IntegerColumnConfig,
 )
+from shared.models.normalization import NormalizationOutput
 
 
 def _sample_column_config() -> dict[str, ColumnConfig]:
     return {
         "A": IntegerColumnConfig(
-            decimal_separator=".",
             thousand_separator=",",
             grouping_style="western",
         ),
@@ -80,16 +80,16 @@ def test_engine_profile_mode_returns_decision_without_artifacts(tmp_path: Path) 
     _write_sample_csv(csv_path)
 
     config = _engine_config(str(tmp_path / "profile.duckdb"))
-    result = NormalizationEngine().run(
+    result = ConversionEngine().run(
         csv_path=csv_path,
         output_dir=tmp_path / "out",
         config=config,
         mode="PROFILE",
     )
 
-    assert result["status"] == "READY"
-    assert isinstance(result["fingerprint"], str)
-    assert result["artifacts"] is None
+    assert isinstance(result, NormalizationOutput)
+    assert isinstance(result.fingerprint, str)
+    assert result.artifacts is None
 
 
 def test_engine_apply_mode_writes_artifacts(tmp_path: Path) -> None:
@@ -97,18 +97,18 @@ def test_engine_apply_mode_writes_artifacts(tmp_path: Path) -> None:
     _write_sample_csv(csv_path)
 
     config = _engine_config(str(tmp_path / "apply.duckdb"))
-    result = NormalizationEngine().run(
+    result = ConversionEngine().run(
         csv_path=csv_path,
         output_dir=tmp_path / "out",
         config=config,
         mode="APPLY",
     )
 
-    artifacts = result["artifacts"]
-    assert isinstance(artifacts, dict)
-    assert Path(artifacts["normalized_parquet"]).exists()
-    assert Path(artifacts["trace_parquet"]).exists()
-    assert Path(artifacts["manifest_json"]).exists()
+    artifacts = result.artifacts
+    assert result.artifacts is not None
+    assert Path(artifacts.normalized_parquet).exists()
+    assert Path(artifacts.trace_parquet).exists()
+    assert Path(artifacts.manifest_json).exists()
 
 
 def test_engine_fingerprint_is_stable_for_same_inputs(tmp_path: Path) -> None:
@@ -127,7 +127,7 @@ def test_engine_fingerprint_is_stable_for_same_inputs(tmp_path: Path) -> None:
         }
     )
 
-    run1 = NormalizationEngine().run(
+    run1 = ConversionEngine().run(
         csv_path=csv_path,
         output_dir=tmp_path / "out1",
         config=EngineConfig(
@@ -135,7 +135,7 @@ def test_engine_fingerprint_is_stable_for_same_inputs(tmp_path: Path) -> None:
         ),
         mode="PROFILE",
     )
-    run2 = NormalizationEngine().run(
+    run2 = ConversionEngine().run(
         csv_path=csv_path,
         output_dir=tmp_path / "out2",
         config=EngineConfig(
@@ -144,7 +144,7 @@ def test_engine_fingerprint_is_stable_for_same_inputs(tmp_path: Path) -> None:
         mode="PROFILE",
     )
 
-    assert run1["fingerprint"] == run2["fingerprint"]
+    assert run1.fingerprint == run2.fingerprint
 
 
 def test_engine_fingerprint_changes_when_trace_mode_changes(tmp_path: Path) -> None:
@@ -152,7 +152,7 @@ def test_engine_fingerprint_changes_when_trace_mode_changes(tmp_path: Path) -> N
     _write_sample_csv(csv_path)
     base_config = _engine_config("placeholder.duckdb")
 
-    run_full = NormalizationEngine().run(
+    run_full = ConversionEngine().run(
         csv_path=csv_path,
         output_dir=tmp_path / "out_full",
         config=EngineConfig(
@@ -164,7 +164,7 @@ def test_engine_fingerprint_changes_when_trace_mode_changes(tmp_path: Path) -> N
         ),
         mode="PROFILE",
     )
-    run_sparse = NormalizationEngine().run(
+    run_sparse = ConversionEngine().run(
         csv_path=csv_path,
         output_dir=tmp_path / "out_sparse",
         config=EngineConfig(
@@ -177,7 +177,7 @@ def test_engine_fingerprint_changes_when_trace_mode_changes(tmp_path: Path) -> N
         mode="PROFILE",
     )
 
-    assert run_full["fingerprint"] != run_sparse["fingerprint"]
+    assert run_full.fingerprint != run_sparse.fingerprint
 
 
 def test_engine_fingerprint_changes_when_decimal_separator_changes(tmp_path: Path) -> None:
@@ -185,7 +185,7 @@ def test_engine_fingerprint_changes_when_decimal_separator_changes(tmp_path: Pat
     _write_sample_csv(csv_path)
     base_config = _engine_config("placeholder.duckdb")
 
-    run_dot = NormalizationEngine().run(
+    run_dot = ConversionEngine().run(
         csv_path=csv_path,
         output_dir=tmp_path / "out_dot",
         config=EngineConfig(
@@ -198,7 +198,7 @@ def test_engine_fingerprint_changes_when_decimal_separator_changes(tmp_path: Pat
         ),
         mode="PROFILE",
     )
-    run_comma = NormalizationEngine().run(
+    run_comma = ConversionEngine().run(
         csv_path=csv_path,
         output_dir=tmp_path / "out_comma",
         config=EngineConfig(
@@ -212,7 +212,7 @@ def test_engine_fingerprint_changes_when_decimal_separator_changes(tmp_path: Pat
         mode="PROFILE",
     )
 
-    assert run_dot["fingerprint"] != run_comma["fingerprint"]
+    assert run_dot.fingerprint != run_comma.fingerprint
 
 
 def test_engine_fingerprint_changes_when_column_config_changes(tmp_path: Path) -> None:
@@ -220,7 +220,7 @@ def test_engine_fingerprint_changes_when_column_config_changes(tmp_path: Path) -
     _write_sample_csv(csv_path)
     base_config = _engine_config("placeholder.duckdb")
 
-    run_a = NormalizationEngine().run(
+    run_a = ConversionEngine().run(
         csv_path=csv_path,
         output_dir=tmp_path / "out_a",
         config=EngineConfig(
@@ -239,7 +239,7 @@ def test_engine_fingerprint_changes_when_column_config_changes(tmp_path: Path) -
         grouping_style="western",
         allow_leading_decimal_point=True,
     )
-    run_b = NormalizationEngine().run(
+    run_b = ConversionEngine().run(
         csv_path=csv_path,
         output_dir=tmp_path / "out_b",
         config=EngineConfig(
@@ -252,7 +252,7 @@ def test_engine_fingerprint_changes_when_column_config_changes(tmp_path: Path) -
         mode="PROFILE",
     )
 
-    assert run_a["fingerprint"] != run_b["fingerprint"]
+    assert run_a.fingerprint != run_b.fingerprint
 
 
 def test_engine_manifest_replay_config_includes_no_guessing_fields(tmp_path: Path) -> None:
@@ -275,13 +275,13 @@ def test_engine_manifest_replay_config_includes_no_guessing_fields(tmp_path: Pat
             },
         }
     )
-    result = NormalizationEngine().run(
+    result = ConversionEngine().run(
         csv_path=csv_path,
         output_dir=tmp_path / "out_manifest",
         config=config,
         mode="APPLY",
     )
-    manifest_path = Path(result["artifacts"]["manifest_json"])
+    manifest_path = Path(result.artifacts.manifest_json)
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     effective_config = manifest["replay_instructions"]["effective_config"]
     assert effective_config["decimal_separator"] == ","
@@ -324,11 +324,11 @@ def test_engine_profile_mode_returns_ready_for_mixed_currency_input(
             },
         }
     )
-    result = NormalizationEngine().run(
+    result = ConversionEngine().run(
         csv_path=csv_path,
         output_dir=tmp_path / "out_mixed",
         config=config,
         mode="PROFILE",
     )
 
-    assert result["status"] == "READY"
+    assert isinstance(result, NormalizationOutput)

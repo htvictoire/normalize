@@ -24,13 +24,31 @@ def _operation_payload() -> dict[str, object]:
     }
 
 
+def _source_format_payload() -> dict[str, object]:
+    return {
+        "encoding": "utf-8",
+        "delimiter": ",",
+        "header_mode": "present",
+        "header_row_index": 1,
+    }
+
+
 def _column_config_payload() -> dict[str, dict[str, str]]:
     return {"A": {"type": "string"}}
 
 
-def test_confirm_request_requires_confirmed_column_config() -> None:
+def test_confirm_request_requires_source_format() -> None:
     with pytest.raises(ValidationError):
         ConfirmRequest(
+            column_config=_column_config_payload(),
+            operation_config=_operation_payload(),
+        )
+
+
+def test_confirm_request_requires_column_config() -> None:
+    with pytest.raises(ValidationError):
+        ConfirmRequest(
+            source_format=_source_format_payload(),
             operation_config=_operation_payload(),
         )
 
@@ -38,7 +56,8 @@ def test_confirm_request_requires_confirmed_column_config() -> None:
 def test_confirm_request_requires_operation_config() -> None:
     with pytest.raises(ValidationError):
         ConfirmRequest(
-            confirmed_column_config=_column_config_payload(),
+            source_format=_source_format_payload(),
+            column_config=_column_config_payload(),
         )
 
 
@@ -48,6 +67,6 @@ def test_normalize_request_rejects_config_overrides() -> None:
             output_dir=Path("data/manual_runs"),
             mode="APPLY",
             rules_version="v1",
-            confirmed_column_config=_column_config_payload(),
+            column_config=_column_config_payload(),
             operation_config=_operation_payload(),
         )

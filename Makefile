@@ -4,10 +4,10 @@ VENV_BIN := $(VENV)/bin
 VENV_PYTHON := $(VENV_BIN)/python
 PIP := $(VENV_PYTHON) -m pip
 DEPS_STAMP := $(VENV)/.deps-installed
-CSV ?= data/prod_like_100k.csv
-SUGGESTION_JSON ?= suggestion.json
+CSV ?= data/prod_like_10m.csv
+SUGGESTION_JSON ?= data/suggestion.json
 NORMALIZE_MODE ?= APPLY
-NORMALIZATION_JSON ?= normalization.json
+NORMALIZATION_JSON ?= data/normalization.json
 
 .PHONY: first bootstrap install test type lint format check db-up db-down api upload normalize clean-venv
 
@@ -49,7 +49,7 @@ db-down:
 	docker compose down
 
 api: | $(VENV_PYTHON)
-	$(VENV_BIN)/uvicorn app.api.app:app --host 0.0.0.0 --port 8000
+	$(VENV_BIN)/uvicorn app.api.server:app --host 0.0.0.0 --port 8000
 
 upload: | $(VENV_PYTHON)
 	$(VENV_PYTHON) upload.py $(CSV) $(SUGGESTION_JSON)

@@ -1,4 +1,4 @@
-from normalize.stages.header_canonicalization import (
+from conversion.stages.header_canonicalization import (
     HeaderCanonicalizationStage,
     canonicalize_header_sequence,
     canonicalize_headers,

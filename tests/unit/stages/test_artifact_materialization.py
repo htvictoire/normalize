@@ -3,14 +3,31 @@ from pathlib import Path
 
 import pyarrow.parquet as pq
 
-from normalize.stages.artifact_materialization import ArtifactMaterializationStage
-from normalize.utils.checksums import sha256_file
+from conversion.stages.artifact_materialization import ArtifactMaterializationStage
+from conversion.utils.checksums import sha256_file
 from shared.db.duckdb import DuckDBManager
+from shared.models.issues import IssueSeverity, NormalizationIssue
+from shared.models.normalization import ArtifactPaths, QualityOutput, SourceChecksums
 
 
 def test_artifact_materialization_writes_expected_outputs(tmp_path: Path) -> None:
     stage = ArtifactMaterializationStage()
     fingerprint = "abc123fingerprint"
+
+    quality_output = QualityOutput(
+        row_count=2,
+        total_cells=4,
+        total_nullish_cells=1,
+        total_parse_error_cells=1,
+        parse_success_ratio=0.75,
+        completeness_ratio=0.75,
+        quality_score="75.00",
+        column_null_counts={"int_col": 1, "text_col": 0},
+    )
+    issues = [
+        NormalizationIssue(code="WARN_001", severity=IssueSeverity.WARNING, message="warning"),
+        NormalizationIssue(code="ERR_001", severity=IssueSeverity.ERROR, message="error"),
+    ]
 
     with DuckDBManager() as conn:
         conn.execute(
@@ -40,17 +57,18 @@ def test_artifact_materialization_writes_expected_outputs(tmp_path: Path) -> Non
             conn,
             output_dir=tmp_path,
             fingerprint=fingerprint,
-            source_checksums={"source_file": "source-checksum"},
+            source_checksums=SourceChecksums(source_file="source-checksum"),
             stage_metrics={"ingestion": {"duration_seconds": 1.2}},
-            quality_summary={"parse_success_ratio": 0.75},
-            issues=[{"severity": "warning"}, {"severity": "error"}],
+            quality_output=quality_output,
+            issues=issues,
             effective_config={"delimiter": ","},
             rules_version="v-test",
         )
 
-    normalized_path = Path(outputs["normalized_parquet"])
-    manifest_path = Path(outputs["manifest_json"])
-    trace_path = Path(outputs["trace_parquet"])
+    assert isinstance(outputs, ArtifactPaths)
+    normalized_path = Path(outputs.normalized_parquet)
+    manifest_path = Path(outputs.manifest_json)
+    trace_path = Path(outputs.trace_parquet)
 
     assert normalized_path.name == f"{fingerprint}.parquet"
     assert manifest_path.name == f"{fingerprint}.manifest.json"

@@ -1,6 +1,6 @@
 import pytest
 
-from normalize.core.token_policy import TokenPolicy
+from conversion.core.token_policy import TokenPolicy
 
 
 def test_token_policy_requires_explicit_arrays() -> None:

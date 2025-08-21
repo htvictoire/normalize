@@ -101,6 +101,3 @@ extend-ignore = [
     "S101",
     "PLR2004",
 ]
-"src/profile/**/*.py" = [
-    "A005",
-]

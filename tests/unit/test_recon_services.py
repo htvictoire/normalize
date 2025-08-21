@@ -2,12 +2,14 @@ from pathlib import Path
 
 import pytest
 
-from app.api.controllers import MainController
+from app.bootstrap import MainOrchestrator
+from app.bootstrap.conversion import ConversionService
+from app.bootstrap.profiling import ProfilingService
+from app.bootstrap.suggestion import SuggestionService
 from app.models.instance import InstanceModel, InstanceStatus
 from app.persistence.repository import InMemoryNormalizationInstanceRepository
-from app.services.normalization import NormalizationService
-from app.services.profile import ProfileService
-from app.services.suggestion import SuggestionService
+from shared.ingestion.checksum import sha256_stream
+from shared.models.confirmation import ConfirmedConfig
 from shared.models.operation import (
     DecisionThresholds,
     OperationConfig,
@@ -79,138 +81,137 @@ def _instance_from_suggestion(csv_path: Path) -> InstanceModel:
     instance = InstanceModel.create(
         source_path=csv_path,
         source_file_name=csv_path.name,
-        source_format=suggestion.source_format,
     )
-    instance.source_checksum = suggestion.source_checksum
-    instance.set_suggestion_output(
-        column_labels=suggestion.column_labels,
-        suggested_column_config=suggestion.suggested_column_config,
-        profiling_stats=suggestion.profiling_stats,
-    )
+    instance.source_checksum = sha256_stream(csv_path)
+    instance.set_suggestion_output(suggestion)
     return instance
 
 
-def test_suggest_populates_instance_handoff_payload(tmp_path: Path) -> None:
+def _confirmed_config_from_instance(
+    instance: InstanceModel,
+    *,
+    include_unique_ratio: bool = True,
+) -> ConfirmedConfig:
+    assert instance.suggested_config is not None
+    return ConfirmedConfig(
+        source_format=instance.suggested_config.source_format,
+        column_config={pos: col.config for pos, col in instance.suggested_config.columns.items()},
+        operation_config=_operation_config(include_unique_ratio=include_unique_ratio),
+    )
+
+
+def test_suggestion_populates_instance_handoff_payload(tmp_path: Path) -> None:
     csv_path = tmp_path / "input.csv"
     _write_sample_csv(csv_path)
     suggestion_service = SuggestionService()
 
     result = suggestion_service.suggest(csv_path)
 
-    assert result.source_checksum
-    assert result.profiling_stats.row_count == 3
-    assert result.column_labels == {"A": "id", "B": "amount", "C": "flag"}
-    assert set(result.suggested_column_config.keys()) == {"A", "B", "C"}
+    assert result.row_count == 3
+    assert set(result.columns.keys()) == {"A", "B", "C"}
+    assert result.columns["A"].label == "id"
+    assert result.columns["B"].label == "amount"
+    assert result.columns["C"].label == "flag"
 
 
-def test_suggest_includes_all_15_input_columns(tmp_path: Path) -> None:
+def test_suggestion_includes_all_15_input_columns(tmp_path: Path) -> None:
     csv_path = tmp_path / "input_15.csv"
     _write_15_column_csv(csv_path)
     suggestion_service = SuggestionService()
 
     result = suggestion_service.suggest(csv_path)
 
-    assert len(result.suggested_column_config) == 15
-    assert set(result.suggested_column_config.keys()) == {
-        "A",
-        "B",
-        "C",
-        "D",
-        "E",
-        "F",
-        "G",
-        "H",
-        "I",
-        "J",
-        "K",
-        "L",
-        "M",
-        "N",
-        "O",
+    assert len(result.columns) == 15
+    assert set(result.columns.keys()) == {
+        "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O",
     }
-    assert set(result.profiling_stats.columns) == {
-        "A",
-        "B",
-        "C",
-        "D",
-        "E",
-        "F",
-        "G",
-        "H",
-        "I",
-        "J",
-        "K",
-        "L",
-        "M",
-        "N",
-        "O",
-    }
-    assert result.column_labels["A"] == "c1"
-    assert result.column_labels["O"] == "c15"
+    assert result.columns["A"].label == "c1"
+    assert result.columns["O"].label == "c15"
 
 
-def test_suggest_handles_non_canonical_headers_without_header_stage(tmp_path: Path) -> None:
+def test_suggestion_handles_non_canonical_headers_without_header_stage(tmp_path: Path) -> None:
     csv_path = tmp_path / "messy_headers.csv"
     _write_messy_header_csv(csv_path)
     suggestion_service = SuggestionService()
 
     result = suggestion_service.suggest(csv_path)
 
-    assert result.column_labels == {
-        "A": "Order ID",
-        "B": "Gross Amount ($)",
-        "C": "Customer Name",
-    }
-    assert set(result.profiling_stats.columns) == {"A", "B", "C"}
+    assert result.columns["A"].label == "Order ID"
+    assert result.columns["B"].label == "Gross Amount ($)"
+    assert result.columns["C"].label == "Customer Name"
+    assert set(result.columns.keys()) == {"A", "B", "C"}
 
 
-def test_normalize_profile_uses_confirmed_instance(tmp_path: Path) -> None:
+def test_conversion_profile_mode_uses_confirmed_instance(tmp_path: Path) -> None:
     csv_path = tmp_path / "input.csv"
     _write_sample_csv(csv_path)
-    normalization_service = NormalizationService()
-    profile_service = ProfileService()
+    conversion_service = ConversionService()
+    profiling_service = ProfilingService()
     instance = _instance_from_suggestion(csv_path)
-    normalization_service.confirm_instance(
-        instance,
-        confirmed_column_config=instance.suggested_column_config,
-        operation_config=_operation_config(include_unique_ratio=False),
-    )
-    profile_service.profile(instance)
+    confirmed = _confirmed_config_from_instance(instance, include_unique_ratio=False)
+    instance.confirm(confirmed)
+    assert instance.confirmed_config is not None
 
-    result = normalization_service.normalize(
-        instance,
+    profiling_output = profiling_service.profile(
+        file_path=instance.source_r2_url,
+        source_format=instance.confirmed_config.source_format,
+        confirmed_column_config=instance.confirmed_config.column_config,
+        operation_config=instance.confirmed_config.operation_config,
+    )
+    instance.set_profiling_output(profiling_output=profiling_output)
+    assert instance.source_checksum is not None
+    assert instance.profiling_output is not None
+
+    result = conversion_service.convert(
+        file_path=instance.source_r2_url,
+        source_format=instance.confirmed_config.source_format,
+        source_checksum=instance.source_checksum,
+        confirmed_column_config=instance.confirmed_config.column_config,
+        operation_config=instance.confirmed_config.operation_config,
+        profiling_issues=instance.profiling_output.issues,
         output_dir=tmp_path / "out",
         mode="PROFILE",
     )
 
     assert result.status == "READY"
     assert result.artifacts is None
-    assert instance.normalization_output is not None
 
 
-def test_normalize_apply_writes_artifacts(tmp_path: Path) -> None:
+def test_conversion_apply_writes_artifacts(tmp_path: Path) -> None:
     csv_path = tmp_path / "input.csv"
     _write_sample_csv(csv_path)
-    normalization_service = NormalizationService()
-    profile_service = ProfileService()
+    conversion_service = ConversionService()
+    profiling_service = ProfilingService()
     instance = _instance_from_suggestion(csv_path)
-    normalization_service.confirm_instance(
-        instance,
-        confirmed_column_config=instance.suggested_column_config,
-        operation_config=_operation_config(),
-    )
-    profile_service.profile(instance)
+    confirmed = _confirmed_config_from_instance(instance)
+    instance.confirm(confirmed)
+    assert instance.confirmed_config is not None
 
-    result = normalization_service.normalize(
-        instance,
+    profiling_output = profiling_service.profile(
+        file_path=instance.source_r2_url,
+        source_format=instance.confirmed_config.source_format,
+        confirmed_column_config=instance.confirmed_config.column_config,
+        operation_config=instance.confirmed_config.operation_config,
+    )
+    instance.set_profiling_output(profiling_output=profiling_output)
+    assert instance.source_checksum is not None
+    assert instance.profiling_output is not None
+
+    result = conversion_service.convert(
+        file_path=instance.source_r2_url,
+        source_format=instance.confirmed_config.source_format,
+        source_checksum=instance.source_checksum,
+        confirmed_column_config=instance.confirmed_config.column_config,
+        operation_config=instance.confirmed_config.operation_config,
+        profiling_issues=instance.profiling_output.issues,
         output_dir=tmp_path / "out_apply",
         mode="APPLY",
     )
 
     assert result.artifacts is not None
-    assert Path(result.artifacts["normalized_parquet"]).exists()
-    assert Path(result.artifacts["trace_parquet"]).exists()
-    assert Path(result.artifacts["manifest_json"]).exists()
+    assert Path(result.artifacts.normalized_parquet).exists()
+    assert Path(result.artifacts.trace_parquet).exists()
+    assert Path(result.artifacts.manifest_json).exists()
 
 
 def test_api_orchestration_flow_runs_end_to_end(
@@ -220,26 +221,32 @@ def test_api_orchestration_flow_runs_end_to_end(
     csv_path = tmp_path / "input.csv"
     _write_sample_csv(csv_path)
     monkeypatch.setattr(
-        "app.api.controllers.PostgresRunRepository",
+        "app.bootstrap.orchestrator.PostgresRunRepository",
         _build_in_memory_repository,
     )
-    api = MainController()
+    api = MainOrchestrator()
 
     instance = api.suggest(
         file_path=csv_path,
         source_file_name=csv_path.name,
     )
+    assert instance.suggested_config is not None
     confirmed = api.confirm(
         instance.id,
-        confirmed_column_config=instance.suggested_column_config,
-        operation_config=_operation_config(),
+        ConfirmedConfig(
+            source_format=instance.suggested_config.source_format,
+            column_config={
+                pos: col.config for pos, col in instance.suggested_config.columns.items()
+            },
+            operation_config=_operation_config(),
+        ),
     )
     assert confirmed.status == InstanceStatus.CONFIRMED
     profiled = api.profile(confirmed.id)
     assert profiled.status == InstanceStatus.PROFILED
-    result = api.normalize(profiled.id, output_dir=tmp_path / "out", mode="PROFILE")
+    normalized = api.normalize(profiled.id, output_dir=tmp_path / "out", mode="PROFILE")
 
     persisted = api.get_instance(profiled.id)
     assert persisted is not None
-    assert result.status == "READY"
+    assert normalized.status == InstanceStatus.READY
     assert persisted.normalization_output is not None

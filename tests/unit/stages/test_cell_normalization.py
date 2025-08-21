@@ -1,6 +1,6 @@
 import json
 
-from normalize.stages.cell_normalization import CellNormalizationStage
+from conversion.stages.cell_normalization import CellNormalizationStage
 from shared.db.duckdb import DuckDBManager
 from shared.models.column import (
     BooleanColumnConfig,
@@ -20,12 +20,10 @@ COMMON_ARGS = {
 
 def _integer_config(
     *,
-    decimal_separator: str = ".",
     thousand_separator: str = ",",
     grouping_style: str = "western",
 ) -> IntegerColumnConfig:
     return IntegerColumnConfig(
-        decimal_separator=decimal_separator,
         thousand_separator=thousand_separator,
         grouping_style=grouping_style,
     )

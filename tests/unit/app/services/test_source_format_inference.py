@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from shared.utils.source_format import infer_source_format
+from suggestion.source_format import infer_source_format
 
 
 def test_infer_source_format_comma_decimal_dot(tmp_path: Path) -> None:

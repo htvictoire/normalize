@@ -1,5 +1,5 @@
-import normalize
+import conversion
 
 
 def test_package_imports() -> None:
-    assert normalize is not None
+    assert conversion is not None

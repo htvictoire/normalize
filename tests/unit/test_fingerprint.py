@@ -1,4 +1,4 @@
-from normalize.core.fingerprint import compute_fingerprint
+from conversion.core.fingerprint import compute_fingerprint
 
 
 def test_fingerprint_is_stable_for_same_inputs() -> None:
