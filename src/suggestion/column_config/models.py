@@ -17,21 +17,11 @@ class NumericCandidate:
 
 
 @dataclass(frozen=True)
-class NumericSuggestion:
-    """Inferred numeric settings for one column."""
-
-    decimal_separator: str
-    thousand_separator: str
-    grouping_style: GroupingStyle
-    allow_leading_decimal_point: bool
-    separator_evidence: int = 0
-
-
-@dataclass(frozen=True)
 class NumericParseResult:
     """Parsed numeric token and parsing evidence."""
 
     normalized: str
+    has_currency: bool
     used_decimal_separator: bool
     used_thousand_separator: bool
     leading_decimal_point: bool
@@ -57,4 +47,5 @@ class NumericTypeFit:
     separator_evidence: int
     grouping_evidence: int
     rank: int
-    suggestion: NumericSuggestion
+    candidate: NumericCandidate
+    allow_leading_decimal_point: bool
