@@ -7,15 +7,15 @@ from pydantic import Field
 from shared.models.base import MainModel
 from shared.models.column import ColumnConfig
 from shared.models.operation import SourceFormatConfig
+from shared.models.profiling import ColumnCounts
 
 
 class SuggestedColumn(MainModel):
-    """Per-column suggestion: label, inferred config, lightweight stats, and sample values."""
+    """Per-column suggestion: label, inferred config, counts, and sample values."""
 
     label: str
     config: ColumnConfig
-    null_count: int
-    non_null_count: int
+    counts: ColumnCounts
     sample_values: list[str] = Field(default_factory=list)
 
 
@@ -23,6 +23,7 @@ class SuggestionOutput(MainModel):
     """Suggestion-phase output. Provisional — all fields depend on inferred source format."""
 
     source_format: SourceFormatConfig
+    null_tokens: tuple[str, ...]
     row_count: int
     columns: dict[str, SuggestedColumn]
     sample_rows: list[list[str]] = Field(default_factory=list)

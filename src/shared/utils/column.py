@@ -16,15 +16,6 @@ def normalize_position_key(position_key: str) -> str:
     return normalized
 
 
-def position_key_to_index(position_key: str) -> int:
-    """Convert spreadsheet position key to zero-based index."""
-    normalized = normalize_position_key(position_key)
-    value = 0
-    for char in normalized:
-        value = value * 26 + (ord(char) - ord("A") + 1)
-    return value - 1
-
-
 def index_to_position_key(index: int) -> str:
     """Convert zero-based index to spreadsheet position key."""
     if index < 0:

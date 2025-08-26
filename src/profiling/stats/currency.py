@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from duckdb import DuckDBPyConnection
 
-from shared.db.sql import quote_identifier, quote_string
-from shared.models.profiling import CurrencyColumnProfile
+from shared.db.sql import nullish_predicate, quote_identifier
+from shared.models.profiling import ColumnCounts, CurrencyColumnProfile
 from shared.utils.currency import build_currency_symbol_extract_expr
 
 
@@ -14,12 +14,12 @@ def compute_currency_column_profile(
     *,
     column_name: str,
     null_tokens: tuple[str, ...],
-    non_null_count: int,
+    counts: ColumnCounts,
 ) -> CurrencyColumnProfile:
     """Compute symbol distribution and dominant symbol metrics."""
     quoted = quote_identifier(column_name)
     symbol_expr = build_currency_symbol_extract_expr(quoted)
-    nullish = _nullish_predicate(quoted, null_tokens)
+    nullish = nullish_predicate(quoted, null_tokens)
 
     rows = conn.execute(
         "SELECT symbol, COUNT(*) AS c FROM ("
@@ -33,22 +33,12 @@ def compute_currency_column_profile(
     if distribution:
         dominant_symbol, dominant_count = max(distribution.items(), key=lambda item: item[1])
 
-    dominant_symbol_ratio = 1.0 if non_null_count <= 0 else (dominant_count / non_null_count)
-    has_mixed = len(distribution) > 1
+    non_nullish = counts.non_nullish_count
+    dominant_symbol_ratio = 1.0 if non_nullish <= 0 else (dominant_count / non_nullish)
 
     return CurrencyColumnProfile(
         symbol_distribution=distribution,
         dominant_symbol=dominant_symbol,
         dominant_symbol_ratio=dominant_symbol_ratio,
-        non_nullish_count=non_null_count,
-        has_mixed_symbols=has_mixed,
+        has_mixed_symbols=len(distribution) > 1,
     )
-
-
-def _nullish_predicate(value_expr: str, null_tokens: tuple[str, ...]) -> str:
-    base = f"NULLIF(TRIM(CAST({value_expr} AS VARCHAR)), '')"
-    normalized_tokens = sorted({token.strip().lower() for token in null_tokens if token.strip()})
-    if not normalized_tokens:
-        return f"{base} IS NULL"
-    in_clause = ", ".join(quote_string(token) for token in normalized_tokens)
-    return f"{base} IS NULL OR LOWER(TRIM(CAST({value_expr} AS VARCHAR))) IN ({in_clause})"

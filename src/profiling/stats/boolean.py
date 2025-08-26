@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from duckdb import DuckDBPyConnection
 
-from shared.db.sql import quote_identifier, quote_string
-from shared.models.profiling import BooleanColumnProfile
+from shared.db.sql import nullish_predicate, quote_identifier, quote_string
+from shared.models.profiling import BooleanColumnProfile, ColumnCounts
 
 
 def compute_boolean_column_profile(
@@ -15,12 +15,12 @@ def compute_boolean_column_profile(
     true_tokens: tuple[str, ...],
     false_tokens: tuple[str, ...],
     null_tokens: tuple[str, ...],
-    non_null_count: int,
+    counts: ColumnCounts,
 ) -> BooleanColumnProfile:
     """Count true/false/unrecognized values for a boolean column."""
     quoted = quote_identifier(column_name)
     normalized = f"LOWER(TRIM(CAST({quoted} AS VARCHAR)))"
-    nullish = _nullish_predicate(quoted, null_tokens)
+    nullish = nullish_predicate(quoted, null_tokens)
 
     true_in = _in_clause(true_tokens)
     false_in = _in_clause(false_tokens)
@@ -38,16 +38,17 @@ def compute_boolean_column_profile(
     if false_row is None:
         raise RuntimeError("false token count query returned no rows")
     false_token_count = int(false_row[0])
-    unrecognized_count = max(non_null_count - true_token_count - false_token_count, 0)
-    recognized_ratio = 1.0 if non_null_count <= 0 else (
-        (true_token_count + false_token_count) / non_null_count
+
+    non_nullish = counts.non_nullish_count
+    unrecognized_count = max(non_nullish - true_token_count - false_token_count, 0)
+    recognized_ratio = 1.0 if non_nullish <= 0 else (
+        (true_token_count + false_token_count) / non_nullish
     )
 
     return BooleanColumnProfile(
         true_token_count=true_token_count,
         false_token_count=false_token_count,
         unrecognized_count=unrecognized_count,
-        non_nullish_count=non_null_count,
         recognized_ratio=recognized_ratio,
     )
 
@@ -57,12 +58,3 @@ def _in_clause(tokens: tuple[str, ...]) -> str:
     if not normalized:
         return "''"
     return ", ".join(quote_string(token) for token in normalized)
-
-
-def _nullish_predicate(value_expr: str, null_tokens: tuple[str, ...]) -> str:
-    base = f"NULLIF(TRIM(CAST({value_expr} AS VARCHAR)), '')"
-    normalized_tokens = sorted({token.strip().lower() for token in null_tokens if token.strip()})
-    if not normalized_tokens:
-        return f"{base} IS NULL"
-    in_clause = ", ".join(quote_string(token) for token in normalized_tokens)
-    return f"{base} IS NULL OR LOWER(TRIM(CAST({value_expr} AS VARCHAR))) IN ({in_clause})"

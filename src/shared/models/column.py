@@ -22,6 +22,8 @@ class StringColumnConfig(MainModel):
 class BooleanColumnConfig(MainModel):
     """Declared boolean column configuration."""
 
+    true_tokens: tuple[str, ...]
+    false_tokens: tuple[str, ...]
     type: Literal["boolean"] = "boolean"
 
 

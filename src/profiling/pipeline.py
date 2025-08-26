@@ -36,7 +36,7 @@ from shared.models.profiling import (
     NumericColumnProfile,
     ProfilingOutput,
 )
-from shared.utils.column_positions import build_position_to_name
+from shared.utils.column import build_position_to_name
 
 NUMERIC_MISMATCH_THRESHOLD = 0.60
 
@@ -68,35 +68,34 @@ def run_profiling(
         HeaderCanonicalizationStage().execute(conn)
         canonical_columns = read_columns(conn, "raw_input")
         position_to_name = build_position_to_name(canonical_columns)
-        resolved_column_config = {
-            position_to_name[position_key]: spec for position_key, spec in column_config.items()
-        }
 
         row_count, empty_row_count = compute_global_stats(
             conn,
             table_name="raw_input",
             null_tokens=operation_config.null_tokens,
         )
-        null_stats = compute_null_stats(
+        _, null_stats = compute_null_stats(
             conn,
             table_name="raw_input",
-            column_names=canonical_columns,
+            position_to_name=position_to_name,
             null_tokens=operation_config.null_tokens,
         )
 
         issues = []
         column_stats: dict[str, ColumnProfileStats] = {}
         currency_ratios: list[float] = []
-        total_non_null_cells = 0
+        total_non_nullish_cells = 0
 
-        for column_name in canonical_columns:
-            config = resolved_column_config.get(column_name)
+        for pos, column_name in position_to_name.items():
+            config = column_config.get(pos)
             if config is None:
                 continue
 
-            null_count, non_null_count = null_stats[column_name]
-            total_non_null_cells += non_null_count
-            null_ratio = 0.0 if row_count <= 0 else (null_count / row_count)
+            counts = null_stats[pos]
+            total_non_nullish_cells += counts.non_nullish_count
+            null_ratio = 0.0 if row_count <= 0 else (counts.null_count / row_count)
+            nullish_ratio = 0.0 if row_count <= 0 else (counts.nullish_count / row_count)
+
             type_profile: (
                 CurrencyColumnProfile
                 | NumericColumnProfile
@@ -110,7 +109,7 @@ def run_profiling(
                     conn,
                     column_name=column_name,
                     null_tokens=operation_config.null_tokens,
-                    non_null_count=non_null_count,
+                    counts=counts,
                 )
                 type_profile = currency_profile
                 currency_ratios.append(currency_profile.dominant_symbol_ratio)
@@ -129,7 +128,7 @@ def run_profiling(
                     column_name=column_name,
                     config=config,
                     null_tokens=operation_config.null_tokens,
-                    non_null_count=non_null_count,
+                    counts=counts,
                 )
                 if (
                     numeric_profile.separator_mismatch_detected
@@ -147,14 +146,13 @@ def run_profiling(
                     )
 
             elif isinstance(config, IntegerColumnConfig):
-                numeric_profile = compute_numeric_column_profile(
+                type_profile = compute_numeric_column_profile(
                     conn,
                     column_name=column_name,
                     config=config,
                     null_tokens=operation_config.null_tokens,
-                    non_null_count=non_null_count,
+                    counts=counts,
                 )
-                type_profile = numeric_profile
 
             elif isinstance(config, DecimalColumnConfig):
                 numeric_profile = compute_numeric_column_profile(
@@ -162,7 +160,7 @@ def run_profiling(
                     column_name=column_name,
                     config=config,
                     null_tokens=operation_config.null_tokens,
-                    non_null_count=non_null_count,
+                    counts=counts,
                 )
                 type_profile = numeric_profile
                 if (
@@ -186,30 +184,31 @@ def run_profiling(
                     column_name=column_name,
                     date_format=config.date_format,
                     null_tokens=operation_config.null_tokens,
-                    non_null_count=non_null_count,
+                    counts=counts,
                 )
 
             elif isinstance(config, BooleanColumnConfig):
                 type_profile = compute_boolean_column_profile(
                     conn,
                     column_name=column_name,
-                    true_tokens=operation_config.boolean_true_tokens,
-                    false_tokens=operation_config.boolean_false_tokens,
+                    true_tokens=config.true_tokens,
+                    false_tokens=config.false_tokens,
                     null_tokens=operation_config.null_tokens,
-                    non_null_count=non_null_count,
+                    counts=counts,
                 )
 
-            column_stats[column_name] = ColumnProfileStats(
+            column_stats[pos] = ColumnProfileStats(
+                label=column_name,
                 column_type=column_config_type(config),
-                null_count=null_count,
-                non_null_count=non_null_count,
+                counts=counts,
                 null_ratio=null_ratio,
+                nullish_ratio=nullish_ratio,
                 type_profile=type_profile,
             )
 
         column_count = len(canonical_columns)
         total_cells = row_count * column_count
-        completeness_ratio = 1.0 if total_cells <= 0 else (total_non_null_cells / total_cells)
+        completeness_ratio = 1.0 if total_cells <= 0 else (total_non_nullish_cells / total_cells)
         pattern_consistency_ratio = (
             1.0 if not currency_ratios else (sum(currency_ratios) / len(currency_ratios))
         )

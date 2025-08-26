@@ -91,3 +91,4 @@ def _canonical_currency_tokens() -> tuple[str, ...]:
 
 
 CURRENCY_TOKEN_PATTERN_LOWER = _currency_token_pattern_lower()
+CURRENCY_DETECTION_RE = re.compile(CURRENCY_TOKEN_PATTERN_LOWER, re.IGNORECASE)

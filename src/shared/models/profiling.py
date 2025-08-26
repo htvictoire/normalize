@@ -7,17 +7,22 @@ from shared.models.column import ColumnType
 from shared.models.issues import NormalizationIssue
 
 
+class ColumnCounts(MainModel):
+    null_count: int           # structural: SQL NULL + empty/whitespace
+    nullish_count: int        # semantic: structural + null token matches
+    non_null_count: int       # row_count - null_count
+    non_nullish_count: int    # row_count - nullish_count
+
+
 class CurrencyColumnProfile(MainModel):
     symbol_distribution: dict[str, int]
     dominant_symbol: str | None
     dominant_symbol_ratio: float
-    non_nullish_count: int
     has_mixed_symbols: bool
 
 
 class NumericColumnProfile(MainModel):
     parse_match_count: int
-    non_nullish_count: int
     parse_match_ratio: float
     swapped_match_count: int
     swapped_match_ratio: float
@@ -26,7 +31,6 @@ class NumericColumnProfile(MainModel):
 
 class DateColumnProfile(MainModel):
     format_match_count: int
-    non_nullish_count: int
     format_match_ratio: float
 
 
@@ -34,15 +38,15 @@ class BooleanColumnProfile(MainModel):
     true_token_count: int
     false_token_count: int
     unrecognized_count: int
-    non_nullish_count: int
     recognized_ratio: float
 
 
 class ColumnProfileStats(MainModel):
+    label: str
     column_type: ColumnType
-    null_count: int
-    non_null_count: int
+    counts: ColumnCounts
     null_ratio: float
+    nullish_ratio: float
     type_profile: (
         CurrencyColumnProfile
         | NumericColumnProfile

@@ -31,8 +31,6 @@ class OperationConfig(MainModel):
     """Confirmed operation flags and token policy."""
 
     null_tokens: tuple[str, ...]
-    boolean_true_tokens: tuple[str, ...]
-    boolean_false_tokens: tuple[str, ...]
     assign_indices: bool
     drop_empty_rows: bool
     emit_raw_row: bool
