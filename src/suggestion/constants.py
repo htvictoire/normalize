@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-import re
-
-from suggestion.column_types.models import NumericCandidate
+from suggestion.column_config.models import NumericCandidate
 
 # ---------------------------------------------------------------------------
 # Source format inference
@@ -16,18 +14,19 @@ FILE_SAMPLE_BYTES = 4 * 1024 * 1024
 # Delimiter candidates, in order of prevalence.
 DELIMITER_CANDIDATES = [",", ";", "\t", "|"]
 
-# Maximum rows scanned from the top of the file when searching for the header row.
+# Total rows read from the top of the file when scanning for the header row.
 HEADER_SCAN_ROWS = 15
 
-# Width-eligible rows inspected after each header candidate to compute
-# the numeric density of the data block that follows it.
+# Subsequent rows inspected after each header candidate to measure data
+# numeric density. The header scores highest because it has near-zero
+# numeric density compared to the data rows that follow it.
 HEADER_SCORE_LOOKAHEAD = 5
 
 # ---------------------------------------------------------------------------
 # Sample data display
 # ---------------------------------------------------------------------------
 
-# Maximum raw rows returned for header validation and display.
+# Maximum raw rows returned for display.
 DISPLAY_RAW_ROWS = 30
 
 # Maximum non-null values collected per column for type preview display.
@@ -58,13 +57,6 @@ BOOLEAN_TRUE_TOKENS = {"1", "true", "yes"}
 BOOLEAN_FALSE_TOKENS = {"0", "false", "no"}
 
 # ---------------------------------------------------------------------------
-# Currency
-# ---------------------------------------------------------------------------
-
-CURRENCY_SYMBOLS = "$€£¥₹₩₪₿₺₽₴₫₦₱₭₲₡"
-CURRENCY_RE = re.compile(f"[{re.escape(CURRENCY_SYMBOLS)}]")
-
-# ---------------------------------------------------------------------------
 # Date formats
 # ---------------------------------------------------------------------------
 
@@ -86,19 +78,26 @@ GROUP_WESTERN_SIZE = 3
 GROUP_INDIAN_MIDDLE_SIZE = 2
 GROUP_INDIAN_TWO_GROUP_CASE = 2
 
-# Minimum fraction of sampled values that must show a leading decimal point
-# (e.g. ".5") before allow_leading_decimal_point is enabled for a column.
+# Minimum fraction of sampled values with a leading decimal point (e.g. ".5")
+# for the pattern to be recorded as intentional in the suggested config
+# (allow_leading_decimal_point).
 LEADING_DECIMAL_MIN_RATIO = 0.05
 
-# Minimum number of evidenced numeric columns required to establish a
-# file-level decimal separator for cross-column consistency correction.
-CROSS_COLUMN_MAJORITY_MIN_EVIDENCED = 2
+# ---------------------------------------------------------------------------
+# Null tokens
+# ---------------------------------------------------------------------------
 
-# Numeric type labels that carry separator settings.
-NUMERIC_TYPES = {"integer", "decimal", "currency"}
+# Known sentinel strings commonly used to represent missing values.
+NULL_TOKEN_CANDIDATES = frozenset({
+    "n/a", "na", "null", "none", "nan", "nil", "-", "--", "---", "?", "missing",
+})
 
-# All candidate numeric formats, ranked by prevalence (tried in order).
-NUMERIC_CANDIDATES = (
+# ---------------------------------------------------------------------------
+# Numeric candidates
+# ---------------------------------------------------------------------------
+
+# All candidate numeric formatting layouts scored during type inference.
+NUMERIC_CANDIDATES: tuple[NumericCandidate, ...] = (
     NumericCandidate(decimal_separator=".", thousand_separator="", grouping_style="western"),
     NumericCandidate(decimal_separator=",", thousand_separator="", grouping_style="western"),
     NumericCandidate(decimal_separator=".", thousand_separator=",", grouping_style="western"),

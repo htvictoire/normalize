@@ -13,7 +13,7 @@ from shared.db.sql import (
     validate_identifier,
 )
 from shared.stages.base import Stage
-from shared.utils.column_positions import build_position_to_name
+from shared.utils.column import build_position_to_name
 
 
 class HeaderCanonicalizationStage(Stage):

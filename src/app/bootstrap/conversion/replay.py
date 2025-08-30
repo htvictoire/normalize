@@ -25,8 +25,6 @@ def build_replay_config(
         "confirmed_column_config": serialize_column_config_map(confirmed_column_config),
         "operation_config": {
             "null_tokens": list(operation_config.null_tokens),
-            "boolean_true_tokens": list(operation_config.boolean_true_tokens),
-            "boolean_false_tokens": list(operation_config.boolean_false_tokens),
             "assign_indices": operation_config.assign_indices,
             "drop_empty_rows": operation_config.drop_empty_rows,
             "emit_raw_row": operation_config.emit_raw_row,

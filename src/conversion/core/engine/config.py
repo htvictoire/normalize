@@ -23,8 +23,6 @@ class EngineConfig:
     thousand_separator: str
     column_config: Mapping[str, ColumnConfig]
     null_tokens: tuple[str, ...]
-    boolean_true_tokens: tuple[str, ...]
-    boolean_false_tokens: tuple[str, ...]
     assign_indices: bool
     drop_empty_rows: bool
     full_raw_row: bool

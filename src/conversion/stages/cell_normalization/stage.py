@@ -25,26 +25,13 @@ from shared.stages.base import Stage
 
 class CellNormalizationStage(Stage):
     """
-    Normalize cell values using inferred types and null-token policy.
+    Rewrite the raw_input table with typed, normalized values.
 
-    Stage effects:
-    - replace null tokens with SQL NULL
-    - cast columns according to inferred types
-    - optionally add `_raw_row` JSON payload with original row values
-    - optionally add `_parse_issues` JSON payload with per-column issue codes
-
-    Token policy is explicit and mandatory:
-    - `null_tokens`
-    - `boolean_true_tokens`
-    - `boolean_false_tokens`
-
-    Boolean normalization uses token mapping only; no regex or implicit values.
-
-    Performance note:
-    - By default `_raw_row` is materialized only for rows with parse issues
-      (`full_raw_row=False`) to reduce large-dataset JSON cost.
-    - `_raw_row` and `_parse_issues` can be disabled for throughput-focused
-      runs while preserving `_parse_error_count`.
+    - Null tokens and empty/whitespace cells are replaced with SQL NULL.
+    - Each column is cast to its declared type.
+    - Boolean tokens are read from each column's BooleanColumnConfig.
+    - `_raw_row` is written only for rows with parse issues unless full_raw_row is set.
+    - `_raw_row` and `_parse_issues` can be disabled independently.
     """
 
     def plan(
@@ -54,19 +41,13 @@ class CellNormalizationStage(Stage):
         column_config: Mapping[str, ColumnConfig],
         table_name: str = "raw_input",
         null_tokens: Sequence[str] | None,
-        boolean_true_tokens: Sequence[str] | None,
-        boolean_false_tokens: Sequence[str] | None,
         full_raw_row: bool = False,
         emit_raw_row: bool = True,
         emit_parse_issues: bool = True,
     ) -> CellPlan:
         """Build a CellPlan with SQL fragments, without executing anything."""
         validate_identifier(table_name)
-        token_policy = TokenPolicy.from_user_inputs(
-            null_tokens=null_tokens,
-            boolean_true_tokens=boolean_true_tokens,
-            boolean_false_tokens=boolean_false_tokens,
-        )
+        token_policy = TokenPolicy.from_user_inputs(null_tokens=null_tokens)
 
         columns = read_columns(conn, table_name)
         data_columns = [column for column in columns if column not in AUDIT_COLUMNS]
@@ -93,19 +74,13 @@ class CellNormalizationStage(Stage):
         column_config: Mapping[str, ColumnConfig],
         table_name: str = "raw_input",
         null_tokens: Sequence[str] | None,
-        boolean_true_tokens: Sequence[str] | None,
-        boolean_false_tokens: Sequence[str] | None,
         full_raw_row: bool = False,
         emit_raw_row: bool = True,
         emit_parse_issues: bool = True,
     ) -> dict[str, int]:
         start_time = perf_counter()
         validate_identifier(table_name)
-        token_policy = TokenPolicy.from_user_inputs(
-            null_tokens=null_tokens,
-            boolean_true_tokens=boolean_true_tokens,
-            boolean_false_tokens=boolean_false_tokens,
-        )
+        token_policy = TokenPolicy.from_user_inputs(null_tokens=null_tokens)
 
         columns = read_columns(conn, table_name)
         data_columns = [column for column in columns if column not in AUDIT_COLUMNS]

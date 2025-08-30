@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any
 
 from conversion.core.engine.config import EngineConfig
 from conversion.core.engine.pipeline.replay import build_replay_config
@@ -33,11 +32,7 @@ def run_pipeline(
     duckdb_memory_limit: str,
 ) -> NormalizationOutput:
     """Execute deterministic conversion stages and optionally materialize artifacts."""
-    token_kwargs: dict[str, Any] = {
-        "null_tokens": list(effective.null_tokens),
-        "boolean_true_tokens": list(effective.boolean_true_tokens),
-        "boolean_false_tokens": list(effective.boolean_false_tokens),
-    }
+    null_tokens = list(effective.null_tokens)
 
     db_path = resolve_db_path(effective.duckdb_path)
 
@@ -74,9 +69,7 @@ def run_pipeline(
             full_raw_row=effective.full_raw_row,
             emit_raw_row=effective.emit_raw_row,
             emit_parse_issues=effective.emit_parse_issues,
-            null_tokens=token_kwargs["null_tokens"],
-            boolean_true_tokens=token_kwargs["boolean_true_tokens"],
-            boolean_false_tokens=token_kwargs["boolean_false_tokens"],
+            null_tokens=null_tokens,
         )
 
         execute_combined_transform(conn, row_plan, cell_plan)

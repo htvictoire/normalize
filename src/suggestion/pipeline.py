@@ -5,15 +5,14 @@ from __future__ import annotations
 from pathlib import Path
 
 from shared.db.duckdb import DuckDBManager
-from shared.db.sql import read_columns
+from shared.db.sql import compute_column_counts, read_columns
 from shared.ingestion import HeaderMode, IngestionRequest, run_ingestion
 from shared.models.suggestion import SuggestedColumn, SuggestionOutput
-from shared.utils.column_positions import build_position_to_name
-from suggestion.column_types.builder import build_suggested_column_config
-from suggestion.column_types.sampler import infer_types_from_sample
-from suggestion.null_counts import compute_null_counts
-from suggestion.sample_data import read_sample_rows, read_sample_values
+from shared.utils.column import build_position_to_name
+from suggestion.column_config import infer_column_type, sample_column_values
 from suggestion.constants import FILE_SAMPLE_BYTES
+from suggestion.null_tokens import infer_null_tokens
+from suggestion.sample_data import read_sample_rows, read_sample_values
 from suggestion.source_format import infer_source_format_from_bytes
 
 
@@ -45,29 +44,29 @@ def run_suggestion(file_path: str | Path) -> SuggestionOutput:
             )
         )
 
-        # Stage 4 — derive column labels
+        # Stage 4 — derive column labels and position keys
         columns = read_columns(conn, "raw_input")
         position_to_name = build_position_to_name(columns)
 
-        # Stage 5 — infer column types from sampled rows
-        inferred_types, inferred_date_formats, inferred_numeric_suggestions = (
-            infer_types_from_sample(conn, table_name="raw_input", columns=columns)
-        )
-        suggested_column_config = build_suggested_column_config(
-            inferred_types=inferred_types,
-            inferred_date_formats=inferred_date_formats,
-            inferred_numeric_suggestions=inferred_numeric_suggestions,
-            position_to_name=position_to_name,
-        )
+        # Stage 5 — infer column types
+        sampled_values = sample_column_values(conn, table_name="raw_input", columns=columns)
+        column_configs = {
+            pos: infer_column_type(sampled_values[name])
+            for pos, name in position_to_name.items()
+        }
 
-        # Stage 6 — compute null counts over full table
-        row_count, null_counts = compute_null_counts(
+        # Stage 6 — infer null tokens from data
+        null_tokens = infer_null_tokens(conn, table_name="raw_input", columns=columns)
+
+        # Stage 7 — compute null/non-null counts using inferred null tokens
+        row_count, column_counts = compute_column_counts(
             conn,
             table_name="raw_input",
             position_to_name=position_to_name,
+            null_tokens=null_tokens,
         )
 
-        # Stage 7 — collect per-column sample values for display
+        # Stage 8 — collect per-column sample values for display
         sample_values_by_position = read_sample_values(
             conn,
             table_name="raw_input",
@@ -76,14 +75,14 @@ def run_suggestion(file_path: str | Path) -> SuggestionOutput:
 
     return SuggestionOutput(
         source_format=source,
+        null_tokens=null_tokens,
         row_count=row_count,
         columns={
             pos: SuggestedColumn(
                 label=position_to_name[pos],
-                config=suggested_column_config[pos],
-                null_count=null_counts.get(pos, (0, 0))[0],
-                non_null_count=null_counts.get(pos, (0, 0))[1],
-                sample_values=sample_values_by_position.get(pos, []),
+                config=column_configs[pos],
+                counts=column_counts[pos],
+                sample_values=sample_values_by_position[pos],
             )
             for pos in position_to_name
         },

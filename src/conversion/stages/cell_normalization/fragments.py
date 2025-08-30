@@ -16,6 +16,7 @@ from conversion.stages.cell_normalization.sql_helpers import quote_identifier
 from conversion.stages.cell_normalization.transforms.dispatcher import build_column_exprs
 from conversion.stages.cell_normalization.transforms.nullish import build_nullish_predicate
 from shared.models.column import (
+    BooleanColumnConfig,
     ColumnConfig,
     CurrencyColumnConfig,
     DateColumnConfig,
@@ -85,14 +86,20 @@ def build_cell_expression_fragments(
             column_grouping_style = ""
             allow_leading_decimal_point = False
         date_format = spec.date_format if isinstance(spec, DateColumnConfig) else None
+        true_tokens: tuple[str, ...] = (
+            spec.true_tokens if isinstance(spec, BooleanColumnConfig) else ()
+        )
+        false_tokens: tuple[str, ...] = (
+            spec.false_tokens if isinstance(spec, BooleanColumnConfig) else ()
+        )
         col_parse_entries, normalized_expr, issue_expr = build_column_exprs(
             column_name,
             inferred_type,
             nullish_alias,
             raw_value=raw_alias,
             normalized_raw_value=lower_alias,
-            true_tokens=token_policy.boolean_true_tokens,
-            false_tokens=token_policy.boolean_false_tokens,
+            true_tokens=true_tokens,
+            false_tokens=false_tokens,
             decimal_separator=column_decimal_separator,
             thousand_separator=column_thousand_separator,
             grouping_style=column_grouping_style,

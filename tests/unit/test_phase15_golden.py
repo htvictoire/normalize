@@ -17,7 +17,7 @@ from shared.models.column import (
     StringColumnConfig,
 )
 from shared.models.normalization import NormalizationOutput
-from shared.utils.column_positions import index_to_position_key
+from shared.utils.column import index_to_position_key
 
 _GOLDEN_ROOT = Path(__file__).resolve().parents[1] / "golden_datasets"
 
@@ -68,8 +68,6 @@ def _build_engine_config(
         thousand_separator=config_overrides["thousand_separator"],
         column_config=_build_column_config(config_overrides, inferred_types),
         null_tokens=("", "null", "none", "n/a", "-"),
-        boolean_true_tokens=("true", "yes", "1"),
-        boolean_false_tokens=("false", "no", "0"),
         assign_indices=True,
         drop_empty_rows=True,
         emit_raw_row=False,
@@ -99,7 +97,10 @@ def _build_column_config(
         if inferred_type == "string":
             column_config[position_key] = StringColumnConfig()
         elif inferred_type == "boolean":
-            column_config[position_key] = BooleanColumnConfig()
+            column_config[position_key] = BooleanColumnConfig(
+                true_tokens=("1", "true", "yes"),
+                false_tokens=("0", "false", "no"),
+            )
         elif inferred_type == "integer":
             column_config[position_key] = IntegerColumnConfig(
                 thousand_separator=thousand_separator,

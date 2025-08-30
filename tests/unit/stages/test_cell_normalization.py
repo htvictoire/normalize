@@ -13,9 +13,12 @@ from shared.models.column import (
 
 COMMON_ARGS = {
     "null_tokens": ["", "null", "none", "n/a", "-"],
-    "boolean_true_tokens": ["true", "yes", "1"],
-    "boolean_false_tokens": ["false", "no", "0"],
 }
+
+_BOOL_CONFIG = BooleanColumnConfig(
+    true_tokens=("1", "true", "yes"),
+    false_tokens=("0", "false", "no"),
+)
 
 
 def _integer_config(
@@ -86,7 +89,7 @@ def test_cell_normalization_applies_casts_and_issue_codes() -> None:
         column_config = {
             "int_col": _integer_config(),
             "float_col": _decimal_config(),
-            "bool_col": BooleanColumnConfig(),
+            "bool_col": _BOOL_CONFIG,
             "text_col": StringColumnConfig(),
         }
         stage.execute(conn, column_config=column_config, **COMMON_ARGS)
@@ -119,7 +122,7 @@ def test_cell_normalization_applies_casts_and_issue_codes() -> None:
         assert issue_payload["float_col"] is None
 
 
-def test_cell_normalization_applies_user_defined_boolean_tokens() -> None:
+def test_cell_normalization_applies_per_column_boolean_tokens() -> None:
     stage = CellNormalizationStage()
     with DuckDBManager() as conn:
         conn.execute(
@@ -140,10 +143,13 @@ def test_cell_normalization_applies_user_defined_boolean_tokens() -> None:
         )
         stage.execute(
             conn,
-            column_config={"bool_col": BooleanColumnConfig()},
+            column_config={
+                "bool_col": BooleanColumnConfig(
+                    true_tokens=("yes",),
+                    false_tokens=("no",),
+                )
+            },
             null_tokens=["", "null"],
-            boolean_true_tokens=["yes"],
-            boolean_false_tokens=["no"],
         )
         rows = conn.execute("SELECT bool_col FROM raw_input ORDER BY _row_index").fetchall()
         assert rows == [(True,), (False,)]

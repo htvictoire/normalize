@@ -39,8 +39,6 @@ def _write_sample_csv(path: Path) -> None:
 def _operation_config(*, include_unique_ratio: bool = True) -> OperationConfig:
     return OperationConfig(
         null_tokens=("", "null", "none", "n/a", "-"),
-        boolean_true_tokens=("true", "yes", "1"),
-        boolean_false_tokens=("false", "no", "0"),
         assign_indices=True,
         drop_empty_rows=True,
         emit_raw_row=True,

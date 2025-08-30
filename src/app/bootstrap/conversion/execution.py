@@ -78,8 +78,6 @@ def execute_conversion(
             conn,
             column_config=resolved_column_config,
             null_tokens=list(operation_config.null_tokens),
-            boolean_true_tokens=list(operation_config.boolean_true_tokens),
-            boolean_false_tokens=list(operation_config.boolean_false_tokens),
             full_raw_row=operation_config.full_raw_row,
             emit_raw_row=operation_config.emit_raw_row,
             emit_parse_issues=operation_config.emit_parse_issues,

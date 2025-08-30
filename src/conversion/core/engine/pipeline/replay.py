@@ -19,8 +19,6 @@ def build_replay_config(effective: EngineConfig) -> dict[str, Any]:
         "thousand_separator": effective.thousand_separator,
         "column_config": serialize_column_config_map(effective.column_config),
         "null_tokens": list(effective.null_tokens),
-        "boolean_true_tokens": list(effective.boolean_true_tokens),
-        "boolean_false_tokens": list(effective.boolean_false_tokens),
         "assign_indices": effective.assign_indices,
         "drop_empty_rows": effective.drop_empty_rows,
         "full_raw_row": effective.full_raw_row,

@@ -27,7 +27,9 @@ def _sample_column_config() -> dict[str, ColumnConfig]:
             grouping_style="western",
             allow_leading_decimal_point=True,
         ),
-        "C": BooleanColumnConfig(),
+        "C": BooleanColumnConfig(
+            true_tokens=("1", "true", "yes"), false_tokens=("0", "false", "no")
+        ),
     }
 
 
@@ -44,8 +46,6 @@ def _engine_config(duckdb_path: str) -> EngineConfig:
         thousand_separator=",",
         column_config=_sample_column_config(),
         null_tokens=("", "null", "none", "n/a", "-"),
-        boolean_true_tokens=("true", "yes", "1"),
-        boolean_false_tokens=("false", "no", "0"),
         assign_indices=True,
         drop_empty_rows=True,
         emit_raw_row=True,
@@ -271,7 +271,9 @@ def test_engine_manifest_replay_config_includes_no_guessing_fields(tmp_path: Pat
                     grouping_style="western",
                     allow_leading_decimal_point=True,
                 ),
-                "C": BooleanColumnConfig(),
+                "C": BooleanColumnConfig(
+            true_tokens=("1", "true", "yes"), false_tokens=("0", "false", "no")
+        ),
             },
         }
     )
