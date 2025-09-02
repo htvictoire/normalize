@@ -1,11 +1,11 @@
-"""Infer source-format settings directly from CSV file content."""
+"""Infer CsvSourceFormat from raw file bytes."""
 
 from __future__ import annotations
 
 import csv
 from collections import Counter
 
-from shared.models.operation import SourceFormatConfig
+from shared.models.operation import CsvSourceFormat
 from suggestion.constants import (
     DELIMITER_CANDIDATES,
     HEADER_SCAN_ROWS,
@@ -183,13 +183,13 @@ def _infer_delimiter(text: str) -> str:
     return best_delimiter
 
 
-def infer_source_format_from_bytes(sample: bytes) -> SourceFormatConfig:
-    """Infer all SourceFormatConfig fields from an already-read byte sample."""
+def infer_csv_source_format(sample: bytes) -> CsvSourceFormat:
+    """Infer all CsvSourceFormat fields from an already-read byte sample."""
     encoding = _infer_encoding(sample)
     text = sample.decode(encoding, errors="ignore")
     delimiter = _infer_delimiter(text)
     header_row_index = _detect_header_row(text, delimiter)
-    return SourceFormatConfig(
+    return CsvSourceFormat(
         encoding=encoding,
         delimiter=delimiter,
         header_mode="present" if header_row_index is not None else "absent",
