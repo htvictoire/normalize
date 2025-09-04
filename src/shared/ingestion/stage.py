@@ -13,11 +13,11 @@ from pathlib import Path
 from duckdb import DuckDBPyConnection
 
 from shared.ingestion.contracts import (
-    HeaderMode,
     IngestionRequest,
     IngestionResult,
 )
 from shared.ingestion.service import run_ingestion
+from shared.models.operation import CsvSourceFormat, ExcelSourceFormat, JsonSourceFormat
 from shared.stages.base import Stage
 
 
@@ -26,7 +26,7 @@ class IngestionStage(Stage):
     Stage adapter that routes ingestion through the ingestion package.
 
     Stage-level concerns:
-    - enforce explicit parse configuration (header, encoding, delimiter)
+    - enforce explicit parse configuration via source format
     - map ingestion result into standard stage metrics
     """
 
@@ -37,12 +37,9 @@ class IngestionStage(Stage):
     def execute(
         self,
         conn: DuckDBPyConnection,
-        csv_path: str | Path,
+        source_path: str | Path,
         *,
-        header_mode: HeaderMode,
-        header_row_index: int | None,
-        encoding: str,
-        delimiter: str,
+        source_format: CsvSourceFormat | ExcelSourceFormat | JsonSourceFormat,
     ) -> IngestionResult:
         """
         Execute ingestion and expose stage metrics.
@@ -53,11 +50,8 @@ class IngestionStage(Stage):
         result = run_ingestion(
             IngestionRequest(
                 conn=conn,
-                csv_path=Path(csv_path),
-                header_mode=header_mode,
-                header_row_index=header_row_index,
-                encoding=encoding,
-                delimiter=delimiter,
+                source_path=Path(source_path),
+                source_format=source_format,
                 table_name=self._table_name,
             )
         )
@@ -65,7 +59,6 @@ class IngestionStage(Stage):
             "duration_seconds": result.duration_seconds,
             "column_count": len(result.column_names),
             "file_size_bytes": result.file_size_bytes,
-            "encoding": result.encoding,
-            "delimiter": result.delimiter,
+            "format_type": source_format.format_type,
         }
         return result

@@ -6,7 +6,7 @@ from pydantic import Field
 
 from shared.models.base import MainModel
 from shared.models.column import ColumnConfig
-from shared.models.operation import SourceFormatConfig
+from shared.models.operation import SourceFormat
 from shared.models.profiling import ColumnCounts
 
 
@@ -22,7 +22,7 @@ class SuggestedColumn(MainModel):
 class SuggestionOutput(MainModel):
     """Suggestion-phase output. Provisional — all fields depend on inferred source format."""
 
-    source_format: SourceFormatConfig
+    source_format: SourceFormat
     null_tokens: tuple[str, ...]
     row_count: int
     columns: dict[str, SuggestedColumn]

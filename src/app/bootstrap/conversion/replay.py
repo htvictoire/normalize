@@ -6,22 +6,22 @@ from collections.abc import Mapping
 from typing import Any
 
 from shared.models.column import ColumnConfig, serialize_column_config_map
-from shared.models.operation import OperationConfig, SourceFormatConfig
+from shared.models.operation import (
+    CsvSourceFormat,
+    ExcelSourceFormat,
+    JsonSourceFormat,
+    OperationConfig,
+)
 
 
 def build_replay_config(
     *,
-    source_format: SourceFormatConfig,
+    source_format: CsvSourceFormat | ExcelSourceFormat | JsonSourceFormat,
     operation_config: OperationConfig,
     confirmed_column_config: Mapping[str, ColumnConfig],
 ) -> dict[str, Any]:
     return {
-        "source_format": {
-            "encoding": source_format.encoding,
-            "delimiter": source_format.delimiter,
-            "header_mode": source_format.header_mode,
-            "header_row_index": source_format.header_row_index,
-        },
+        "source_format": source_format.model_dump(),
         "confirmed_column_config": serialize_column_config_map(confirmed_column_config),
         "operation_config": {
             "null_tokens": list(operation_config.null_tokens),

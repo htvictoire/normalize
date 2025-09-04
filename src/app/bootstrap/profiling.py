@@ -6,7 +6,12 @@ from pathlib import Path
 
 from profiling.pipeline import run_profiling
 from shared.models.column import ColumnConfig
-from shared.models.operation import OperationConfig, SourceFormatConfig
+from shared.models.operation import (
+    CsvSourceFormat,
+    ExcelSourceFormat,
+    JsonSourceFormat,
+    OperationConfig,
+)
 from shared.models.profiling import ProfilingOutput
 
 
@@ -17,7 +22,7 @@ class ProfilingService:
         self,
         *,
         file_path: str | Path,
-        source_format: SourceFormatConfig,
+        source_format: CsvSourceFormat | ExcelSourceFormat | JsonSourceFormat,
         confirmed_column_config: dict[str, ColumnConfig],
         operation_config: OperationConfig,
     ) -> ProfilingOutput:

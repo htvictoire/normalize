@@ -2,22 +2,47 @@
 
 from __future__ import annotations
 
-from typing import Literal
+from typing import Annotated, Literal
+
+from pydantic import Field
 
 from shared.models.base import MainModel
 
 HeaderMode = Literal["present", "absent"]
 TraceMode = Literal["full", "sparse"]
 RunMode = Literal["PROFILE", "APPLY"]
+FileFormat = Literal["csv", "excel", "json"]
 
 
-class SourceFormatConfig(MainModel):
-    """Caller-declared source format settings."""
+class CsvSourceFormat(MainModel):
+    """Source format settings for CSV files."""
 
+    format_type: Literal["csv"] = "csv"
     encoding: str
     delimiter: str
     header_mode: HeaderMode
     header_row_index: int | None
+
+
+class ExcelSourceFormat(MainModel):
+    """Source format settings for Excel files (.xlsx / .xls)."""
+
+    format_type: Literal["excel"] = "excel"
+    sheet_name: str | None = None
+    header_mode: HeaderMode
+    header_row_index: int | None
+
+
+class JsonSourceFormat(MainModel):
+    """Source format settings for JSON files."""
+
+    format_type: Literal["json"] = "json"
+
+
+SourceFormat = Annotated[
+    CsvSourceFormat | ExcelSourceFormat | JsonSourceFormat,
+    Field(discriminator="format_type"),
+]
 
 
 class DecisionThresholds(MainModel):

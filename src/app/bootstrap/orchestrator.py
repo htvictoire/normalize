@@ -19,13 +19,14 @@ from uuid import UUID
 from app.bootstrap.conversion import ConversionService
 from app.bootstrap.profiling import ProfilingService
 from app.bootstrap.suggestion import SuggestionService
+from app.bootstrap.validation import validate_file_format
 from app.infra.postgres.repository import PostgresRunRepository
 from app.models.instance import InstanceModel, InstanceStatus
 from shared.ingestion.checksum import sha256_stream
 from shared.models.confirmation import ConfirmedConfig
 from shared.models.issues import IssueSeverity
 from shared.models.normalization import NormalizationOutput
-from shared.models.operation import RunMode
+from shared.models.operation import FileFormat, RunMode
 from shared.settings import get_settings
 
 
@@ -62,12 +63,18 @@ class MainOrchestrator:
         *,
         file_path: str | Path,
         source_file_name: str,
+        format_type: FileFormat,
     ) -> InstanceModel:
         source_path = Path(file_path)
-        suggestion = self._suggestion_service.suggest(file_path=source_path)
+        validate_file_format(source_path, format_type)
+        suggestion = self._suggestion_service.suggest(
+            file_path=source_path,
+            format_type=format_type,
+        )
         instance = InstanceModel.create(
             source_path=source_path,
             source_file_name=source_file_name,
+            format_type=format_type,
         )
         instance.source_checksum = sha256_stream(source_path)
         instance.set_suggestion_output(suggestion)

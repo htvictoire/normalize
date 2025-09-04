@@ -15,6 +15,8 @@ from pathlib import Path
 
 from duckdb import DuckDBPyConnection
 
+from shared.models.operation import CsvSourceFormat, ExcelSourceFormat, JsonSourceFormat
+
 
 class HeaderMode(StrEnum):
     """
@@ -38,11 +40,8 @@ class IngestionRequest:
 
     Core inputs:
     - `conn`: active DuckDB connection.
-    - `csv_path`: source CSV path.
-    - `header_mode`: explicit header policy (`present` or `absent`).
-    - `header_row_index`: 1-based row index when `header_mode=present`.
-    - `encoding`: explicit file encoding (no auto-detection).
-    - `delimiter`: explicit single-character delimiter (no auto-detection).
+    - `source_path`: source file path (CSV, Excel, or JSON).
+    - `source_format`: format-specific settings controlling how the file is read.
 
     Loading behavior:
     - `table_name`: destination DuckDB table.
@@ -50,11 +49,8 @@ class IngestionRequest:
     """
 
     conn: DuckDBPyConnection
-    csv_path: Path
-    header_mode: HeaderMode
-    header_row_index: int | None
-    encoding: str
-    delimiter: str
+    source_path: Path
+    source_format: CsvSourceFormat | ExcelSourceFormat | JsonSourceFormat
     table_name: str = "raw_input"
     checksum_chunk_size: int = 1_048_576
 
@@ -72,7 +68,5 @@ class IngestionResult:
     file_checksum: str
     column_names: list[str]
     file_size_bytes: int
-    encoding: str
-    delimiter: str
     table_name: str
     duration_seconds: float

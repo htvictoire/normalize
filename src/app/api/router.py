@@ -34,6 +34,7 @@ def create_router(api: MainOrchestrator) -> APIRouter:
             instance = api.suggest(
                 file_path=data_file,
                 source_file_name=payload.name,
+                format_type=payload.format_type,
             )
         except FileNotFoundError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc

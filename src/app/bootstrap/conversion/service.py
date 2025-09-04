@@ -10,7 +10,13 @@ from app.bootstrap.conversion.execution import (
 )
 from shared.models.column import ColumnConfig
 from shared.models.issues import IssueSeverity, NormalizationIssue
-from shared.models.operation import OperationConfig, RunMode, SourceFormatConfig
+from shared.models.operation import (
+    CsvSourceFormat,
+    ExcelSourceFormat,
+    JsonSourceFormat,
+    OperationConfig,
+    RunMode,
+)
 from shared.settings import get_settings
 
 
@@ -21,7 +27,7 @@ class ConversionService:
         self,
         *,
         file_path: str | Path,
-        source_format: SourceFormatConfig,
+        source_format: CsvSourceFormat | ExcelSourceFormat | JsonSourceFormat,
         source_checksum: str,
         confirmed_column_config: dict[str, ColumnConfig],
         operation_config: OperationConfig,
@@ -39,7 +45,7 @@ class ConversionService:
         settings = get_settings()
 
         return execute_conversion(
-            source_csv=Path(file_path),
+            source_path=Path(file_path),
             source_format=source_format,
             source_checksum=source_checksum,
             confirmed_column_config=confirmed_column_config,

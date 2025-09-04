@@ -8,7 +8,7 @@ from pydantic import Field
 
 from shared.models.base import MainModel
 from shared.models.confirmation import ConfirmedConfig
-from shared.models.operation import RunMode
+from shared.models.operation import FileFormat, RunMode
 
 
 class SuggestRequest(MainModel):
@@ -16,6 +16,7 @@ class SuggestRequest(MainModel):
 
     name: str = Field(min_length=1)
     file: str = Field(min_length=1)
+    format_type: FileFormat
 
 
 class ConfirmRequest(ConfirmedConfig):

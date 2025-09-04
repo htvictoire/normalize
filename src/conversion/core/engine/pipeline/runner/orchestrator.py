@@ -19,8 +19,9 @@ from conversion.stages.quality_metrics.stage import QualityMetricsStage
 from conversion.stages.row_normalization import RowNormalizationStage
 from shared.db.duckdb import DuckDBManager, resolve_db_path
 from shared.db.sql import read_columns
-from shared.ingestion import IngestionStage
+from shared.ingestion import HeaderMode, IngestionStage
 from shared.models.normalization import ArtifactPaths, NormalizationOutput, SourceChecksums
+from shared.models.operation import CsvSourceFormat
 
 
 def run_pipeline(
@@ -44,10 +45,14 @@ def run_pipeline(
         ingestion_result = IngestionStage().execute(
             conn,
             source_csv,
-            header_mode=effective.header_mode,
-            header_row_index=effective.header_row_index,
-            encoding=effective.encoding,
-            delimiter=effective.delimiter,
+            source_format=CsvSourceFormat(
+                encoding=effective.encoding,
+                delimiter=effective.delimiter,
+                header_mode=(
+                    "present" if effective.header_mode is HeaderMode.PRESENT else "absent"
+                ),
+                header_row_index=effective.header_row_index,
+            ),
         )
 
         HeaderCanonicalizationStage().execute(conn)

@@ -17,11 +17,17 @@ from conversion.stages.quality_metrics.stage import QualityMetricsStage
 from conversion.stages.row_normalization import RowNormalizationStage
 from shared.db.duckdb import DuckDBManager
 from shared.db.sql import read_columns
-from shared.ingestion import HeaderMode, IngestionRequest, run_ingestion
+from shared.ingestion import IngestionRequest, run_ingestion
 from shared.models.column import ColumnConfig
 from shared.models.issues import NormalizationIssue
 from shared.models.normalization import ArtifactPaths, QualityOutput, SourceChecksums
-from shared.models.operation import OperationConfig, RunMode, SourceFormatConfig
+from shared.models.operation import (
+    CsvSourceFormat,
+    ExcelSourceFormat,
+    JsonSourceFormat,
+    OperationConfig,
+    RunMode,
+)
 
 
 @dataclass(frozen=True)
@@ -36,8 +42,8 @@ class ConversionExecutionOutput:
 
 def execute_conversion(
     *,
-    source_csv: Path,
-    source_format: SourceFormatConfig,
+    source_path: Path,
+    source_format: CsvSourceFormat | ExcelSourceFormat | JsonSourceFormat,
     source_checksum: str,
     confirmed_column_config: dict[str, ColumnConfig],
     operation_config: OperationConfig,
@@ -52,12 +58,9 @@ def execute_conversion(
         run_ingestion(
             IngestionRequest(
                 conn=conn,
-                csv_path=source_csv,
+                source_path=source_path,
+                source_format=source_format,
                 table_name="raw_input",
-                header_mode=HeaderMode(source_format.header_mode),
-                header_row_index=source_format.header_row_index,
-                encoding=source_format.encoding,
-                delimiter=source_format.delimiter,
             )
         )
 

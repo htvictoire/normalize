@@ -3,15 +3,18 @@
 from __future__ import annotations
 
 import csv
+import json
+from pathlib import Path
 
+import openpyxl
 from duckdb import DuckDBPyConnection
 
 from shared.db.sql import quote_identifier
 from suggestion.constants import DISPLAY_RAW_ROWS, DISPLAY_VALUES_PER_COLUMN
 
 
-def read_sample_rows(text: str, *, delimiter: str) -> list[list[str]]:
-    """Return the first DISPLAY_RAW_ROWS rows from decoded text as raw string lists."""
+def read_csv_sample_rows(text: str, *, delimiter: str) -> list[list[str]]:
+    """Return the first DISPLAY_RAW_ROWS rows from decoded CSV text as raw string lists."""
     rows: list[list[str]] = []
     reader = csv.reader(text.splitlines(), delimiter=delimiter)
     for i, row in enumerate(reader):
@@ -19,6 +22,31 @@ def read_sample_rows(text: str, *, delimiter: str) -> list[list[str]]:
             break
         rows.append(row)
     return rows
+
+
+def read_excel_sample_rows(source_file: Path) -> list[list[str]]:
+    """Return the first DISPLAY_RAW_ROWS rows from the first sheet as raw string lists."""
+    wb = openpyxl.load_workbook(str(source_file), read_only=True, data_only=True)
+    ws = wb.worksheets[0]
+    rows: list[list[str]] = []
+    for i, row in enumerate(ws.iter_rows(values_only=True)):
+        if i >= DISPLAY_RAW_ROWS:
+            break
+        rows.append([str(cell) if cell is not None else "" for cell in row])
+    wb.close()
+    return rows
+
+
+def read_json_sample_rows(source_file: Path) -> list[list[str]]:
+    """
+    Return the first DISPLAY_RAW_ROWS records from a JSON array file as raw string lists.
+
+    Only top-level arrays of objects are supported. Each record is serialised
+    as a flat list of its values for consistent display.
+    """
+    text = source_file.read_text(encoding="utf-8", errors="ignore")
+    records: list[dict[str, object]] = json.loads(text)[:DISPLAY_RAW_ROWS]
+    return [[str(v) for v in record.values()] for record in records]
 
 
 def read_sample_values(

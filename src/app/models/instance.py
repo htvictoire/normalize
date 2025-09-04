@@ -9,6 +9,7 @@ from uuid import UUID, uuid4
 from shared.models.base import MainModel
 from shared.models.confirmation import ConfirmedConfig
 from shared.models.normalization import NormalizationOutput
+from shared.models.operation import FileFormat
 from shared.models.profiling import ProfilingOutput
 from shared.models.suggestion import SuggestionOutput
 
@@ -35,6 +36,7 @@ class InstanceModel(MainModel):
     tenant_id: str
     status: InstanceStatus
     source_file_name: str
+    source_file_format: FileFormat
     source_r2_url: str
     source_checksum: str | None
     suggested_config: SuggestionOutput | None = None
@@ -47,6 +49,7 @@ class InstanceModel(MainModel):
         cls,
         *,
         source_path: str | Path,
+        format_type: FileFormat,
         source_file_name: str | None = None,
         tenant_id: str = "default",
         instance_id: UUID | None = None,
@@ -58,6 +61,7 @@ class InstanceModel(MainModel):
             tenant_id=tenant_id,
             status=InstanceStatus.PENDING,
             source_file_name=path.name if source_file_name is None else source_file_name,
+            source_file_format=format_type,
             source_r2_url=str(path),
             source_checksum=None,
         )

@@ -16,7 +16,7 @@ from profiling.stats import (
 )
 from shared.db.duckdb import DuckDBManager
 from shared.db.sql import read_columns
-from shared.ingestion import HeaderMode, IngestionRequest, run_ingestion
+from shared.ingestion import IngestionRequest, run_ingestion
 from shared.ingestion.checksum import sha256_stream
 from shared.models.column import (
     BooleanColumnConfig,
@@ -27,7 +27,12 @@ from shared.models.column import (
     IntegerColumnConfig,
     column_config_type,
 )
-from shared.models.operation import OperationConfig, SourceFormatConfig
+from shared.models.operation import (
+    CsvSourceFormat,
+    ExcelSourceFormat,
+    JsonSourceFormat,
+    OperationConfig,
+)
 from shared.models.profiling import (
     BooleanColumnProfile,
     ColumnProfileStats,
@@ -44,7 +49,7 @@ NUMERIC_MISMATCH_THRESHOLD = 0.60
 def run_profiling(
     file_path: str | Path,
     *,
-    source_format: SourceFormatConfig,
+    source_format: CsvSourceFormat | ExcelSourceFormat | JsonSourceFormat,
     column_config: dict[str, ColumnConfig],
     operation_config: OperationConfig,
 ) -> ProfilingOutput:
@@ -56,12 +61,9 @@ def run_profiling(
         run_ingestion(
             IngestionRequest(
                 conn=conn,
-                csv_path=source_file,
+                source_path=source_file,
+                source_format=source_format,
                 table_name="raw_input",
-                header_mode=HeaderMode(source_format.header_mode),
-                header_row_index=source_format.header_row_index,
-                encoding=source_format.encoding,
-                delimiter=source_format.delimiter,
             )
         )
 

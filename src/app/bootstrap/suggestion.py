@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from shared.models.operation import FileFormat
 from shared.models.suggestion import SuggestionOutput
 from suggestion.pipeline import run_suggestion
 
@@ -14,9 +15,11 @@ class SuggestionService:
     def suggest(
         self,
         file_path: str | Path,
+        *,
+        format_type: FileFormat,
     ) -> SuggestionOutput:
         """Run suggestion pipeline and return inferred output."""
-        return run_suggestion(file_path)
+        return run_suggestion(file_path, format_type=format_type)
 
 
 __all__ = ["SuggestionOutput", "SuggestionService"]

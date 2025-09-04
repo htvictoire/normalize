@@ -6,41 +6,48 @@ from pathlib import Path
 
 from shared.db.duckdb import DuckDBManager
 from shared.db.sql import compute_column_counts, read_columns
-from shared.ingestion import HeaderMode, IngestionRequest, run_ingestion
+from shared.ingestion import IngestionRequest, run_ingestion
+from shared.models.operation import CsvSourceFormat, FileFormat
 from shared.models.suggestion import SuggestedColumn, SuggestionOutput
 from shared.utils.column import build_position_to_name
 from suggestion.column_config import infer_column_type, sample_column_values
-from suggestion.constants import FILE_SAMPLE_BYTES
 from suggestion.null_tokens import infer_null_tokens
-from suggestion.sample_data import read_sample_rows, read_sample_values
-from suggestion.source_format import infer_source_format_from_bytes
+from suggestion.sample_data import (
+    read_csv_sample_rows,
+    read_excel_sample_rows,
+    read_json_sample_rows,
+    read_sample_values,
+)
+from suggestion.source_format import infer_source_format
 
 
-def run_suggestion(file_path: str | Path) -> SuggestionOutput:
+def run_suggestion(file_path: str | Path, *, format_type: FileFormat) -> SuggestionOutput:
     """Run suggestion pipeline for one source file."""
     source_file = Path(file_path)
     if not source_file.exists():
-        raise FileNotFoundError(f"CSV file not found: {source_file}")
+        raise FileNotFoundError(f"Source file not found: {source_file}")
 
-    # Stage 1 — infer source format
-    raw_sample = source_file.read_bytes()[:FILE_SAMPLE_BYTES]
-    source = infer_source_format_from_bytes(raw_sample)
+    # Stage 1 — infer source format from file content
+    source = infer_source_format(source_file, format_type)
 
-    # Stage 2 — get raw sample rows
-    decoded_sample = raw_sample.decode(source.encoding, errors="ignore")
-    sample_rows = read_sample_rows(decoded_sample, delimiter=source.delimiter)
+    # Stage 2 — read raw sample rows directly from file for display
+    if isinstance(source, CsvSourceFormat):
+        raw_bytes = source_file.read_bytes()
+        decoded = raw_bytes.decode(source.encoding, errors="ignore")
+        sample_rows = read_csv_sample_rows(decoded, delimiter=source.delimiter)
+    elif format_type == "excel":
+        sample_rows = read_excel_sample_rows(source_file)
+    else:
+        sample_rows = read_json_sample_rows(source_file)
 
     with DuckDBManager() as conn:
-        # Stage 3 — ingest into DuckDB (using inferred source format settings)
+        # Stage 3 — ingest into DuckDB
         run_ingestion(
             IngestionRequest(
                 conn=conn,
-                csv_path=source_file,
+                source_path=source_file,
+                source_format=source,
                 table_name="raw_input",
-                header_mode=HeaderMode(source.header_mode),
-                header_row_index=source.header_row_index,
-                encoding=source.encoding,
-                delimiter=source.delimiter,
             )
         )
 
