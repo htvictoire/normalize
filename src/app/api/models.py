@@ -15,7 +15,7 @@ class SuggestRequest(MainModel):
     """Request payload for the suggest endpoint."""
 
     name: str = Field(min_length=1)
-    file: str = Field(min_length=1)
+    source_file_url: str = Field(min_length=1)
     format_type: FileFormat
 
 

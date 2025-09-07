@@ -4,16 +4,15 @@ from __future__ import annotations
 
 from fastapi import FastAPI
 
-from app.api.router import create_router
-from app.bootstrap import MainOrchestrator
+from app.api.exceptions import register_exception_handlers
+from app.api.router import router
 
 
 def create_app() -> FastAPI:
-    """Create FastAPI app wired to local controller implementation."""
-    api = MainOrchestrator()
-
+    """Create FastAPI app wired to the normalization router."""
     app = FastAPI(title="Normalization API", version="0.1.0")
-    app.include_router(create_router(api))
+    register_exception_handlers(app)
+    app.include_router(router)
     return app
 
 

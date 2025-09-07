@@ -37,7 +37,7 @@ class InstanceModel(MainModel):
     status: InstanceStatus
     source_file_name: str
     source_file_format: FileFormat
-    source_r2_url: str
+    source_file_url: str
     source_checksum: str | None
     suggested_config: SuggestionOutput | None = None
     confirmed_config: ConfirmedConfig | None = None
@@ -62,7 +62,7 @@ class InstanceModel(MainModel):
             status=InstanceStatus.PENDING,
             source_file_name=path.name if source_file_name is None else source_file_name,
             source_file_format=format_type,
-            source_r2_url=str(path),
+            source_file_url=str(path),
             source_checksum=None,
         )
 

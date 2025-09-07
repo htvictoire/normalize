@@ -1,14 +1,9 @@
 """
-Application orchestration boundary for the normalization lifecycle.
+Orchestration boundary for the suggest / confirm / profile / normalize lifecycle.
 
-`MainOrchestrator` is the transport-agnostic entrypoint used by both:
-- HTTP routes in `app.api.router`
-- any local callers that want the same lifecycle behavior without HTTP
-
-The controller intentionally does not implement heavy business logic itself.
-It coordinates domain services and persistence in a deterministic sequence so
-that API and non-API callers get identical state transitions and error
-semantics.
+MainOrchestrator is the single entrypoint for both the HTTP API and the CLI.
+It sequences domain services, enforces state transitions, and persists every
+lifecycle step via PostgresRunRepository.
 """
 
 from __future__ import annotations
@@ -31,23 +26,6 @@ from shared.settings import get_settings
 
 
 class MainOrchestrator:
-    """
-    Orchestrator for suggest -> confirm -> profile -> normalize workflow.
-
-    Responsibilities:
-    - construct and hold service/repository dependencies
-    - enforce persistence around each lifecycle transition
-    - provide one stable contract for both API handlers and CLI tooling
-
-    Non-responsibilities:
-    - no parsing/inference logic
-    - no conversion SQL execution logic
-    - no direct persistence schema logic
-
-    Those concerns are delegated to `SuggestionService`, `ProfilingService`,
-    `ConversionService`, and `PostgresRunRepository`.
-    """
-
     def __init__(self) -> None:
         settings = get_settings()
         self._repository = PostgresRunRepository(dsn=settings.postgres_dsn)
@@ -99,7 +77,7 @@ class MainOrchestrator:
 
         confirmed = instance.confirmed_config
         profiling_output = self._profiling_service.profile(
-            file_path=instance.source_r2_url,
+            file_path=instance.source_file_url,
             source_format=confirmed.source_format,
             confirmed_column_config=confirmed.column_config,
             operation_config=confirmed.operation_config,
@@ -135,7 +113,7 @@ class MainOrchestrator:
 
         confirmed = instance.confirmed_config
         result = self._conversion_service.convert(
-            file_path=instance.source_r2_url,
+            file_path=instance.source_file_url,
             source_format=confirmed.source_format,
             source_checksum=instance.source_checksum,
             confirmed_column_config=confirmed.column_config,
