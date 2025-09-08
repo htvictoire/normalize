@@ -11,15 +11,7 @@ from suggestion.constants import (
     HEADER_SCAN_ROWS,
     HEADER_SCORE_LOOKAHEAD,
 )
-
-
-def _looks_numeric(value: str) -> bool:
-    """Return True when digits make up at least half the characters of value."""
-    stripped = value.strip()
-    if not stripped:
-        return False
-    digits = sum(1 for char in stripped if char.isdigit())
-    return digits > 0 and digits >= max(len(stripped) // 2, 1)
+from suggestion.source_format.utils import looks_numeric
 
 
 def _read_rows(text: str, *, delimiter: str, limit: int) -> list[list[str]]:
@@ -58,7 +50,7 @@ def _scan_for_header_row(text: str, delimiter: str) -> int | None:
     best_score: float = float("-inf")
 
     for orig_index, values in candidates:
-        numeric_count = sum(1 for v in values if _looks_numeric(v))
+        numeric_count = sum(1 for v in values if looks_numeric(v))
 
         subsequent = [
             idx for idx in eligible_indices if idx > orig_index
@@ -66,7 +58,7 @@ def _scan_for_header_row(text: str, delimiter: str) -> int | None:
 
         if subsequent:
             subsequent_numeric_avg = sum(
-                sum(1 for v in [c.strip() for c in rows[idx]] if _looks_numeric(v))
+                sum(1 for v in [c.strip() for c in rows[idx]] if looks_numeric(v))
                 for idx in subsequent
             ) / len(subsequent)
             score: float = subsequent_numeric_avg - numeric_count

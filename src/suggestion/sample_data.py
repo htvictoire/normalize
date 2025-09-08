@@ -25,7 +25,12 @@ def read_csv_sample_rows(text: str, *, delimiter: str) -> list[list[str]]:
 
 
 def read_excel_sample_rows(source_file: Path) -> list[list[str]]:
-    """Return the first DISPLAY_RAW_ROWS rows from the first sheet as raw string lists."""
+    """
+    Return the first DISPLAY_RAW_ROWS rows from the first sheet as raw string lists.
+
+    openpyxl read_only=True streams rows lazily; only the rows we iterate over
+    are materialised in memory.
+    """
     wb = openpyxl.load_workbook(str(source_file), read_only=True, data_only=True)
     ws = wb.worksheets[0]
     rows: list[list[str]] = []
@@ -41,12 +46,40 @@ def read_json_sample_rows(source_file: Path) -> list[list[str]]:
     """
     Return the first DISPLAY_RAW_ROWS records from a JSON array file as raw string lists.
 
-    Only top-level arrays of objects are supported. Each record is serialised
-    as a flat list of its values for consistent display.
+    Streams the file in 4 KB chunks using an incremental decoder so only one
+    record plus one chunk is held in memory at a time — the full file is never
+    loaded.
     """
-    text = source_file.read_text(encoding="utf-8", errors="ignore")
-    records: list[dict[str, object]] = json.loads(text)[:DISPLAY_RAW_ROWS]
-    return [[str(v) for v in record.values()] for record in records]
+    decoder = json.JSONDecoder()
+    buf = ""
+    rows: list[list[str]] = []
+
+    with source_file.open("r", encoding="utf-8", errors="ignore") as fh:
+        # Advance past the opening '['
+        for chunk in iter(lambda: fh.read(4096), ""):
+            buf += chunk
+            idx = buf.find("[")
+            if idx != -1:
+                buf = buf[idx + 1 :]
+                break
+
+        # Stream-decode one record at a time
+        while len(rows) < DISPLAY_RAW_ROWS:
+            buf = buf.lstrip(" \t\n\r,")
+            if buf.startswith("]"):
+                break
+            try:
+                obj, end = decoder.raw_decode(buf)
+                if isinstance(obj, dict):
+                    rows.append([str(v) for v in obj.values()])
+                buf = buf[end:]
+            except json.JSONDecodeError:
+                chunk = fh.read(4096)
+                if not chunk:
+                    break
+                buf += chunk
+
+    return rows
 
 
 def read_sample_values(

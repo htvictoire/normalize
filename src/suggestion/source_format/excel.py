@@ -8,7 +8,7 @@ import openpyxl
 
 from shared.models.operation import ExcelSourceFormat
 from suggestion.constants import HEADER_SCAN_ROWS
-from suggestion.source_format.csv import _looks_numeric
+from suggestion.source_format.utils import looks_numeric
 
 
 def _is_likely_header_row(row: tuple[object, ...]) -> bool:
@@ -16,7 +16,7 @@ def _is_likely_header_row(row: tuple[object, ...]) -> bool:
     values = [str(cell).strip() for cell in row if cell is not None]
     if not values:
         return False
-    return not any(_looks_numeric(v) for v in values) and len(set(values)) == len(values)
+    return not any(looks_numeric(v) for v in values) and len(set(values)) == len(values)
 
 
 def _detect_header_row(rows: list[tuple[object, ...]]) -> int | None:
