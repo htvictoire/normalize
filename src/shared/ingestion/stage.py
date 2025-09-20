@@ -8,8 +8,6 @@ can evolve without changing stage orchestration contracts.
 
 from __future__ import annotations
 
-from pathlib import Path
-
 from duckdb import DuckDBPyConnection
 
 from shared.ingestion.contracts import (
@@ -17,7 +15,7 @@ from shared.ingestion.contracts import (
     IngestionResult,
 )
 from shared.ingestion.service import run_ingestion
-from shared.models.operation import CsvSourceFormat, ExcelSourceFormat, JsonSourceFormat
+from shared.models.operation import CsvSourceFormat, ExcelSourceFormat, FileSource, JsonSourceFormat
 from shared.stages.base import Stage
 
 
@@ -37,8 +35,9 @@ class IngestionStage(Stage):
     def execute(
         self,
         conn: DuckDBPyConnection,
-        source_path: str | Path,
+        source_url: str,
         *,
+        source_type: FileSource,
         source_format: CsvSourceFormat | ExcelSourceFormat | JsonSourceFormat,
     ) -> IngestionResult:
         """
@@ -50,7 +49,8 @@ class IngestionStage(Stage):
         result = run_ingestion(
             IngestionRequest(
                 conn=conn,
-                source_path=Path(source_path),
+                source_url=source_url,
+                source_type=source_type,
                 source_format=source_format,
                 table_name=self._table_name,
             )
@@ -58,7 +58,7 @@ class IngestionStage(Stage):
         self.metrics = {
             "duration_seconds": result.duration_seconds,
             "column_count": len(result.column_names),
-            "file_size_bytes": result.file_size_bytes,
+            "file_size_bytes": result.file_size_bytes or 0,
             "format_type": source_format.format_type,
         }
         return result

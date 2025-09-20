@@ -11,11 +11,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import StrEnum
-from pathlib import Path
 
 from duckdb import DuckDBPyConnection
 
-from shared.models.operation import CsvSourceFormat, ExcelSourceFormat, JsonSourceFormat
+from shared.models.operation import CsvSourceFormat, ExcelSourceFormat, FileSource, JsonSourceFormat
 
 
 class HeaderMode(StrEnum):
@@ -40,19 +39,19 @@ class IngestionRequest:
 
     Core inputs:
     - `conn`: active DuckDB connection.
-    - `source_path`: source file path (CSV, Excel, or JSON).
+    - `source_url`: source file URL or local path (CSV, Excel, or JSON).
+    - `source_type`: whether the source is a local file or S3-compatible object.
     - `source_format`: format-specific settings controlling how the file is read.
 
     Loading behavior:
     - `table_name`: destination DuckDB table.
-    - `checksum_chunk_size`: streaming checksum chunk size in bytes.
     """
 
     conn: DuckDBPyConnection
-    source_path: Path
+    source_url: str
+    source_type: FileSource
     source_format: CsvSourceFormat | ExcelSourceFormat | JsonSourceFormat
     table_name: str = "raw_input"
-    checksum_chunk_size: int = 1_048_576
 
 
 @dataclass(frozen=True)
@@ -60,13 +59,12 @@ class IngestionResult:
     """
     Output contract for ingestion execution.
 
-    Includes both data-shape metadata (`column_names`) and operational
-    metadata (`duration_seconds`) so the caller can persist traceable
-    run diagnostics.
+    Includes data-shape metadata (`column_names`) and operational
+    metadata (`duration_seconds`, `file_size_bytes`) for tracing.
+    `file_size_bytes` is None when the source is a remote object.
     """
 
-    file_checksum: str
     column_names: list[str]
-    file_size_bytes: int
+    file_size_bytes: int | None
     table_name: str
     duration_seconds: float

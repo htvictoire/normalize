@@ -2,17 +2,17 @@
 Ingestion service entrypoint.
 
 Operational flow:
-1. Resolve input file metadata
+1. Resolve file size for local sources (not available for remote objects)
 2. Dispatch to format-specific ingestor (CSV / Excel / JSON)
-3. Compute SHA256 checksum (after ingestor; hits OS page cache at memory speed)
-4. Return rich metadata for metrics, tracing, and manifest construction
+3. Return result metadata for metrics and tracing
 """
 
 from __future__ import annotations
 
+from pathlib import Path
 from time import perf_counter
 
-from shared.ingestion.checksum import sha256_stream
+from shared.db.duckdb import configure_duckdb_s3
 from shared.ingestion.contracts import (
     HeaderMode,
     IngestionRequest,
@@ -29,15 +29,14 @@ from shared.models.operation import CsvSourceFormat, ExcelSourceFormat
 
 
 def run_ingestion(request: IngestionRequest) -> IngestionResult:
-    """
-    Execute ingestion then checksum.
-
-    SHA256 runs after the ingestor has read the file so it operates on
-    OS page-cached data at memory speed rather than competing for disk
-    bandwidth with the ingestor.
-    """
+    """Dispatch to the format-specific ingestor and return result metadata."""
     start_time = perf_counter()
-    file_size_bytes = request.source_path.stat().st_size
+
+    file_size_bytes: int | None = None
+    if request.source_type == "local":
+        file_size_bytes = Path(request.source_url).stat().st_size
+    else:
+        configure_duckdb_s3(request.conn)
 
     if isinstance(request.source_format, CsvSourceFormat):
         fmt = request.source_format
@@ -45,7 +44,7 @@ def run_ingestion(request: IngestionRequest) -> IngestionResult:
         delimiter = resolve_delimiter_option(fmt.delimiter)
         column_names = DirectCsvIngestor().run(
             request.conn,
-            request.source_path,
+            request.source_url,
             table_name=request.table_name,
             encoding=load_encoding,
             delimiter=delimiter,
@@ -56,7 +55,7 @@ def run_ingestion(request: IngestionRequest) -> IngestionResult:
         excel_fmt = request.source_format
         column_names = DirectExcelIngestor().run(
             request.conn,
-            request.source_path,
+            request.source_url,
             table_name=request.table_name,
             sheet_name=excel_fmt.sheet_name,
             header_mode=HeaderMode(excel_fmt.header_mode),
@@ -65,14 +64,11 @@ def run_ingestion(request: IngestionRequest) -> IngestionResult:
     else:
         column_names = DirectJsonIngestor().run(
             request.conn,
-            request.source_path,
+            request.source_url,
             table_name=request.table_name,
         )
 
-    checksum = sha256_stream(request.source_path, chunk_size=request.checksum_chunk_size)
-
     return IngestionResult(
-        file_checksum=checksum,
         column_names=column_names,
         file_size_bytes=file_size_bytes,
         table_name=request.table_name,

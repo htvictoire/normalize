@@ -7,8 +7,6 @@ CSV file -> DuckDB `read_csv` with explicit parse options -> destination table.
 
 from __future__ import annotations
 
-from pathlib import Path
-
 from duckdb import DuckDBPyConnection
 
 from shared.db.sql import read_columns, validate_identifier
@@ -30,7 +28,7 @@ class DirectCsvIngestor:
     def run(
         self,
         conn: DuckDBPyConnection,
-        csv_path: Path,
+        source_url: str,
         *,
         table_name: str,
         encoding: str,
@@ -51,6 +49,6 @@ class DirectCsvIngestor:
             "SELECT * FROM read_csv("
             "?, header=?, skip=?, delim=?, encoding=?, all_varchar=true"
             ")",
-            [str(csv_path), header, skip, delimiter, encoding],
+            [source_url, header, skip, delimiter, encoding],
         )
         return read_columns(conn, table_name)

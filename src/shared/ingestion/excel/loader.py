@@ -7,8 +7,6 @@ Excel file -> openpyxl streaming (read_only=True) -> conn.executemany() -> desti
 
 from __future__ import annotations
 
-from pathlib import Path
-
 import openpyxl
 from duckdb import DuckDBPyConnection
 
@@ -29,7 +27,7 @@ class DirectExcelIngestor:
     def run(
         self,
         conn: DuckDBPyConnection,
-        excel_path: Path,
+        source_url: str,
         *,
         table_name: str,
         sheet_name: str | None,
@@ -44,7 +42,7 @@ class DirectExcelIngestor:
         """
         validate_identifier(table_name)
 
-        wb = openpyxl.load_workbook(str(excel_path), read_only=True, data_only=True)
+        wb = openpyxl.load_workbook(source_url, read_only=True, data_only=True)
         ws = wb[sheet_name] if sheet_name is not None else wb.worksheets[0]
 
         skip_count = (header_row_index - 1) if header_row_index is not None else 0

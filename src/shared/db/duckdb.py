@@ -6,9 +6,16 @@ import os
 import tempfile
 from pathlib import Path
 from types import TracebackType
+from urllib.parse import urlparse
 
 import duckdb
 from duckdb import DuckDBPyConnection
+
+from shared.settings import get_settings
+
+
+def _escape_sql_string(value: str) -> str:
+    return value.replace("'", "''")
 
 
 class DuckDBManager:
@@ -58,6 +65,24 @@ class DuckDBManager:
         if self._temp_dir is not None:
             self._temp_dir.cleanup()
             self._temp_dir = None
+
+
+def configure_duckdb_s3(conn: DuckDBPyConnection) -> None:
+    """Configure one DuckDB connection for S3-backed reads."""
+    settings = get_settings()
+    endpoint = urlparse(settings.s3_endpoint_url)
+    endpoint_host = endpoint.netloc or endpoint.path
+    use_ssl = endpoint.scheme == "https"
+
+    conn.execute("LOAD httpfs")
+    conn.execute(f"SET s3_endpoint='{_escape_sql_string(endpoint_host)}'")
+    conn.execute(f"SET s3_access_key_id='{_escape_sql_string(settings.s3_access_key_id)}'")
+    conn.execute(
+        f"SET s3_secret_access_key='{_escape_sql_string(settings.s3_secret_access_key)}'"
+    )
+    conn.execute(f"SET s3_use_ssl={'true' if use_ssl else 'false'}")
+    conn.execute("SET s3_url_style='path'")
+    conn.execute("SET s3_region='auto'")
 
 
 def resolve_db_path(db_path: str) -> str:

@@ -17,7 +17,6 @@ from profiling.stats import (
 from shared.db.duckdb import DuckDBManager
 from shared.db.sql import read_columns
 from shared.ingestion import IngestionRequest, run_ingestion
-from shared.ingestion.checksum import sha256_stream
 from shared.models.column import (
     BooleanColumnConfig,
     ColumnConfig,
@@ -27,12 +26,7 @@ from shared.models.column import (
     IntegerColumnConfig,
     column_config_type,
 )
-from shared.models.operation import (
-    CsvSourceFormat,
-    ExcelSourceFormat,
-    JsonSourceFormat,
-    OperationConfig,
-)
+from shared.models.operation import OperationConfig, SourceFormat
 from shared.models.profiling import (
     BooleanColumnProfile,
     ColumnProfileStats,
@@ -41,179 +35,191 @@ from shared.models.profiling import (
     NumericColumnProfile,
     ProfilingOutput,
 )
+from shared.models.source import SourceRef
+from shared.source.access import prepare_ingestion_source
 from shared.utils.column import build_position_to_name
 
 NUMERIC_MISMATCH_THRESHOLD = 0.60
 
 
+def _cleanup_temp_file(path: Path | None) -> None:
+    if path is not None:
+        path.unlink(missing_ok=True)
+
+
 def run_profiling(
-    file_path: str | Path,
+    source: SourceRef,
     *,
-    source_format: CsvSourceFormat | ExcelSourceFormat | JsonSourceFormat,
+    source_checksum: str,
+    source_format: SourceFormat,
     column_config: dict[str, ColumnConfig],
     operation_config: OperationConfig,
 ) -> ProfilingOutput:
     """Run the full-dataset profiling phase using confirmed config."""
-    source_file = Path(file_path)
-    source_checksum = sha256_stream(source_file)
+    prepared = prepare_ingestion_source(source, source_format)
+    try:
+        with DuckDBManager() as conn:
+            run_ingestion(
+                IngestionRequest(
+                    conn=conn,
+                    source_url=prepared.source_url,
+                    source_type=prepared.source_type,
+                    source_format=source_format,
+                    table_name="raw_input",
+                )
+            )
 
-    with DuckDBManager() as conn:
-        run_ingestion(
-            IngestionRequest(
-                conn=conn,
-                source_path=source_file,
-                source_format=source_format,
+            HeaderCanonicalizationStage().execute(conn)
+            canonical_columns = read_columns(conn, "raw_input")
+            position_to_name = build_position_to_name(canonical_columns)
+
+            row_count, empty_row_count = compute_global_stats(
+                conn,
                 table_name="raw_input",
+                null_tokens=operation_config.null_tokens,
             )
-        )
-
-        HeaderCanonicalizationStage().execute(conn)
-        canonical_columns = read_columns(conn, "raw_input")
-        position_to_name = build_position_to_name(canonical_columns)
-
-        row_count, empty_row_count = compute_global_stats(
-            conn,
-            table_name="raw_input",
-            null_tokens=operation_config.null_tokens,
-        )
-        _, null_stats = compute_null_stats(
-            conn,
-            table_name="raw_input",
-            position_to_name=position_to_name,
-            null_tokens=operation_config.null_tokens,
-        )
-
-        issues = []
-        column_stats: dict[str, ColumnProfileStats] = {}
-        currency_ratios: list[float] = []
-        total_non_nullish_cells = 0
-
-        for pos, column_name in position_to_name.items():
-            config = column_config.get(pos)
-            if config is None:
-                continue
-
-            counts = null_stats[pos]
-            total_non_nullish_cells += counts.non_nullish_count
-            null_ratio = 0.0 if row_count <= 0 else (counts.null_count / row_count)
-            nullish_ratio = 0.0 if row_count <= 0 else (counts.nullish_count / row_count)
-
-            type_profile: (
-                CurrencyColumnProfile
-                | NumericColumnProfile
-                | DateColumnProfile
-                | BooleanColumnProfile
-                | None
-            ) = None
-
-            if isinstance(config, CurrencyColumnConfig):
-                currency_profile = compute_currency_column_profile(
-                    conn,
-                    column_name=column_name,
-                    null_tokens=operation_config.null_tokens,
-                    counts=counts,
-                )
-                type_profile = currency_profile
-                currency_ratios.append(currency_profile.dominant_symbol_ratio)
-                if currency_profile.has_mixed_symbols:
-                    issues.append(
-                        build_mixed_currency_issue(
-                            column_name=column_name,
-                            symbols=sorted(currency_profile.symbol_distribution.keys()),
-                            dominant_symbol=currency_profile.dominant_symbol,
-                            dominant_symbol_ratio=currency_profile.dominant_symbol_ratio,
-                        )
-                    )
-
-                numeric_profile = compute_numeric_column_profile(
-                    conn,
-                    column_name=column_name,
-                    config=config,
-                    null_tokens=operation_config.null_tokens,
-                    counts=counts,
-                )
-                if (
-                    numeric_profile.separator_mismatch_detected
-                    and numeric_profile.swapped_match_ratio >= NUMERIC_MISMATCH_THRESHOLD
-                ):
-                    issues.append(
-                        build_separator_mismatch_issue(
-                            column_name=column_name,
-                            decimal_separator=config.decimal_separator,
-                            thousand_separator=config.thousand_separator,
-                            numeric_threshold=NUMERIC_MISMATCH_THRESHOLD,
-                            declared_decimal_ratio=numeric_profile.parse_match_ratio,
-                            swapped_decimal_ratio=numeric_profile.swapped_match_ratio,
-                        )
-                    )
-
-            elif isinstance(config, IntegerColumnConfig):
-                type_profile = compute_numeric_column_profile(
-                    conn,
-                    column_name=column_name,
-                    config=config,
-                    null_tokens=operation_config.null_tokens,
-                    counts=counts,
-                )
-
-            elif isinstance(config, DecimalColumnConfig):
-                numeric_profile = compute_numeric_column_profile(
-                    conn,
-                    column_name=column_name,
-                    config=config,
-                    null_tokens=operation_config.null_tokens,
-                    counts=counts,
-                )
-                type_profile = numeric_profile
-                if (
-                    numeric_profile.separator_mismatch_detected
-                    and numeric_profile.swapped_match_ratio >= NUMERIC_MISMATCH_THRESHOLD
-                ):
-                    issues.append(
-                        build_separator_mismatch_issue(
-                            column_name=column_name,
-                            decimal_separator=config.decimal_separator,
-                            thousand_separator=config.thousand_separator,
-                            numeric_threshold=NUMERIC_MISMATCH_THRESHOLD,
-                            declared_decimal_ratio=numeric_profile.parse_match_ratio,
-                            swapped_decimal_ratio=numeric_profile.swapped_match_ratio,
-                        )
-                    )
-
-            elif isinstance(config, DateColumnConfig):
-                type_profile = compute_date_column_profile(
-                    conn,
-                    column_name=column_name,
-                    date_format=config.date_format,
-                    null_tokens=operation_config.null_tokens,
-                    counts=counts,
-                )
-
-            elif isinstance(config, BooleanColumnConfig):
-                type_profile = compute_boolean_column_profile(
-                    conn,
-                    column_name=column_name,
-                    true_tokens=config.true_tokens,
-                    false_tokens=config.false_tokens,
-                    null_tokens=operation_config.null_tokens,
-                    counts=counts,
-                )
-
-            column_stats[pos] = ColumnProfileStats(
-                label=column_name,
-                column_type=column_config_type(config),
-                counts=counts,
-                null_ratio=null_ratio,
-                nullish_ratio=nullish_ratio,
-                type_profile=type_profile,
+            _, null_stats = compute_null_stats(
+                conn,
+                table_name="raw_input",
+                position_to_name=position_to_name,
+                null_tokens=operation_config.null_tokens,
             )
 
-        column_count = len(canonical_columns)
-        total_cells = row_count * column_count
-        completeness_ratio = 1.0 if total_cells <= 0 else (total_non_nullish_cells / total_cells)
-        pattern_consistency_ratio = (
-            1.0 if not currency_ratios else (sum(currency_ratios) / len(currency_ratios))
-        )
+            issues = []
+            column_stats: dict[str, ColumnProfileStats] = {}
+            currency_ratios: list[float] = []
+            total_non_nullish_cells = 0
+
+            for pos, column_name in position_to_name.items():
+                config = column_config.get(pos)
+                if config is None:
+                    continue
+
+                counts = null_stats[pos]
+                total_non_nullish_cells += counts.non_nullish_count
+                null_ratio = 0.0 if row_count <= 0 else (counts.null_count / row_count)
+                nullish_ratio = 0.0 if row_count <= 0 else (counts.nullish_count / row_count)
+
+                type_profile: (
+                    CurrencyColumnProfile
+                    | NumericColumnProfile
+                    | DateColumnProfile
+                    | BooleanColumnProfile
+                    | None
+                ) = None
+
+                if isinstance(config, CurrencyColumnConfig):
+                    currency_profile = compute_currency_column_profile(
+                        conn,
+                        column_name=column_name,
+                        null_tokens=operation_config.null_tokens,
+                        counts=counts,
+                    )
+                    type_profile = currency_profile
+                    currency_ratios.append(currency_profile.dominant_symbol_ratio)
+                    if currency_profile.has_mixed_symbols:
+                        issues.append(
+                            build_mixed_currency_issue(
+                                column_name=column_name,
+                                symbols=sorted(currency_profile.symbol_distribution.keys()),
+                                dominant_symbol=currency_profile.dominant_symbol,
+                                dominant_symbol_ratio=currency_profile.dominant_symbol_ratio,
+                            )
+                        )
+
+                    numeric_profile = compute_numeric_column_profile(
+                        conn,
+                        column_name=column_name,
+                        config=config,
+                        null_tokens=operation_config.null_tokens,
+                        counts=counts,
+                    )
+                    if (
+                        numeric_profile.separator_mismatch_detected
+                        and numeric_profile.swapped_match_ratio >= NUMERIC_MISMATCH_THRESHOLD
+                    ):
+                        issues.append(
+                            build_separator_mismatch_issue(
+                                column_name=column_name,
+                                decimal_separator=config.decimal_separator,
+                                thousand_separator=config.thousand_separator,
+                                numeric_threshold=NUMERIC_MISMATCH_THRESHOLD,
+                                declared_decimal_ratio=numeric_profile.parse_match_ratio,
+                                swapped_decimal_ratio=numeric_profile.swapped_match_ratio,
+                            )
+                        )
+
+                elif isinstance(config, IntegerColumnConfig):
+                    type_profile = compute_numeric_column_profile(
+                        conn,
+                        column_name=column_name,
+                        config=config,
+                        null_tokens=operation_config.null_tokens,
+                        counts=counts,
+                    )
+
+                elif isinstance(config, DecimalColumnConfig):
+                    numeric_profile = compute_numeric_column_profile(
+                        conn,
+                        column_name=column_name,
+                        config=config,
+                        null_tokens=operation_config.null_tokens,
+                        counts=counts,
+                    )
+                    type_profile = numeric_profile
+                    if (
+                        numeric_profile.separator_mismatch_detected
+                        and numeric_profile.swapped_match_ratio >= NUMERIC_MISMATCH_THRESHOLD
+                    ):
+                        issues.append(
+                            build_separator_mismatch_issue(
+                                column_name=column_name,
+                                decimal_separator=config.decimal_separator,
+                                thousand_separator=config.thousand_separator,
+                                numeric_threshold=NUMERIC_MISMATCH_THRESHOLD,
+                                declared_decimal_ratio=numeric_profile.parse_match_ratio,
+                                swapped_decimal_ratio=numeric_profile.swapped_match_ratio,
+                            )
+                        )
+
+                elif isinstance(config, DateColumnConfig):
+                    type_profile = compute_date_column_profile(
+                        conn,
+                        column_name=column_name,
+                        date_format=config.date_format,
+                        null_tokens=operation_config.null_tokens,
+                        counts=counts,
+                    )
+
+                elif isinstance(config, BooleanColumnConfig):
+                    type_profile = compute_boolean_column_profile(
+                        conn,
+                        column_name=column_name,
+                        true_tokens=config.true_tokens,
+                        false_tokens=config.false_tokens,
+                        null_tokens=operation_config.null_tokens,
+                        counts=counts,
+                    )
+
+                column_stats[pos] = ColumnProfileStats(
+                    label=column_name,
+                    column_type=column_config_type(config),
+                    counts=counts,
+                    null_ratio=null_ratio,
+                    nullish_ratio=nullish_ratio,
+                    type_profile=type_profile,
+                )
+
+            column_count = len(canonical_columns)
+            total_cells = row_count * column_count
+            completeness_ratio = (
+                1.0 if total_cells <= 0 else (total_non_nullish_cells / total_cells)
+            )
+            pattern_consistency_ratio = (
+                1.0 if not currency_ratios else (sum(currency_ratios) / len(currency_ratios))
+            )
+    finally:
+        _cleanup_temp_file(prepared.cleanup_path)
 
     return ProfilingOutput(
         source_checksum=source_checksum,
