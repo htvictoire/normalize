@@ -6,16 +6,12 @@ import json
 import sys
 from datetime import datetime
 from pathlib import Path
-from typing import get_args
 
-from shared.models.operation import FileFormat, RunMode
-
-VALID_MODES: frozenset[str] = frozenset(get_args(RunMode))
+from shared.models.operation import FileFormat
 
 _FORMAT_BY_EXTENSION: dict[str, FileFormat] = {
     ".csv": "csv",
     ".xlsx": "excel",
-    ".xls": "excel",
     ".json": "json",
 }
 
@@ -43,7 +39,7 @@ def infer_format_type(path: Path) -> FileFormat:
     if fmt is None:
         raise ValueError(
             f"Cannot infer format from extension {ext!r}. "
-            "Supported: .csv, .xlsx, .xls, .json"
+            "Supported: .csv, .xlsx, .json"
         )
     return fmt
 

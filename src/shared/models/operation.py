@@ -10,8 +10,8 @@ from shared.models.base import MainModel
 
 HeaderMode = Literal["present", "absent"]
 TraceMode = Literal["full", "sparse"]
-RunMode = Literal["PROFILE", "APPLY"]
 FileFormat = Literal["csv", "excel", "json"]
+FileSource = Literal["local", "s3"]
 
 
 class CsvSourceFormat(MainModel):
@@ -25,7 +25,7 @@ class CsvSourceFormat(MainModel):
 
 
 class ExcelSourceFormat(MainModel):
-    """Source format settings for Excel files (.xlsx / .xls)."""
+    """Source format settings for Excel files (.xlsx only)."""
 
     format_type: Literal["excel"] = "excel"
     sheet_name: str | None = None

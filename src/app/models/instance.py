@@ -3,13 +3,12 @@
 from __future__ import annotations
 
 from enum import StrEnum
-from pathlib import Path
 from uuid import UUID, uuid4
 
 from shared.models.base import MainModel
 from shared.models.confirmation import ConfirmedConfig
 from shared.models.normalization import NormalizationOutput
-from shared.models.operation import FileFormat
+from shared.models.operation import FileFormat, FileSource
 from shared.models.profiling import ProfilingOutput
 from shared.models.suggestion import SuggestionOutput
 
@@ -37,7 +36,8 @@ class InstanceModel(MainModel):
     status: InstanceStatus
     source_file_name: str
     source_file_format: FileFormat
-    source_file_url: str
+    source_file: str
+    source_type: FileSource
     source_checksum: str | None
     suggested_config: SuggestionOutput | None = None
     confirmed_config: ConfirmedConfig | None = None
@@ -48,21 +48,22 @@ class InstanceModel(MainModel):
     def create(
         cls,
         *,
-        source_path: str | Path,
-        format_type: FileFormat,
-        source_file_name: str | None = None,
+        source_file: str,
+        source_file_name: str,
+        source_type: FileSource,
+        source_file_format: FileFormat,
         tenant_id: str = "default",
         instance_id: UUID | None = None,
     ) -> InstanceModel:
-        """Create a new pending instance from one source file path."""
-        path = Path(source_path)
+        """Create a new pending instance."""
         return cls(
             id=instance_id or uuid4(),
             tenant_id=tenant_id,
             status=InstanceStatus.PENDING,
-            source_file_name=path.name if source_file_name is None else source_file_name,
-            source_file_format=format_type,
-            source_file_url=str(path),
+            source_file_name=source_file_name,
+            source_file_format=source_file_format,
+            source_file=source_file,
+            source_type=source_type,
             source_checksum=None,
         )
 

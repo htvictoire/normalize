@@ -97,7 +97,7 @@ NULL_TOKEN_CANDIDATES = frozenset({
 # ---------------------------------------------------------------------------
 
 # All candidate numeric formatting layouts scored during type inference.
-NUMERIC_CANDIDATES: tuple[NumericCandidate, ...] = (
+NUMERIC_CANDIDATES = (
     NumericCandidate(decimal_separator=".", thousand_separator="", grouping_style="western"),
     NumericCandidate(decimal_separator=",", thousand_separator="", grouping_style="western"),
     NumericCandidate(decimal_separator=".", thousand_separator=",", grouping_style="western"),

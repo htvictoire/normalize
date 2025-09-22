@@ -3,46 +3,30 @@
 from __future__ import annotations
 
 import sys
+from pathlib import Path
 from uuid import UUID
 
 from app.bootstrap.orchestrator import MainOrchestrator
-from app.cli.utils import (
-    OUTPUTS_DIR,
-    VALID_MODES,
-    default_output_name,
-    die,
-    write_output,
-)
+from app.cli.utils import die, write_output
+from shared.settings import get_settings
 
-_USAGE = "Usage: main.py convert <instance_id> [output_name] [mode]"
+_USAGE = "Usage: main.py convert <instance_id>"
 
 
 def run(args: list[str]) -> None:
     try:
-        instance_id_str, *rest = args
+        instance_id_str, *_ = args
     except ValueError:
         print(_USAGE, file=sys.stderr)
         sys.exit(1)
 
-    output_name = rest[0] if rest else default_output_name()
-    mode = rest[1] if len(rest) > 1 else "APPLY"
-
-    if mode not in VALID_MODES:
-        die(f"Invalid mode {mode!r}. Must be one of: {sorted(VALID_MODES)}")
-        return
-
-    output_dir = OUTPUTS_DIR / "conversions" / output_name
-
     try:
         instance_id = UUID(instance_id_str)
-        instance = MainOrchestrator().normalize(
-            instance_id,
-            output_dir=output_dir,
-            mode=mode,  # type: ignore[arg-type]
-        )
+        instance = MainOrchestrator().normalize(instance_id)
     except (ValueError, FileNotFoundError, KeyError) as exc:
         die(str(exc))
         return
 
-    output_path = output_dir / "instance.json"
+    settings = get_settings()
+    output_path = Path(settings.conversion_output_dir) / str(instance_id) / "instance.json"
     write_output(instance.model_dump(mode="json"), output_path)

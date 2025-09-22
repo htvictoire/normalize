@@ -5,20 +5,27 @@ from __future__ import annotations
 from pathlib import Path
 
 from shared.models.operation import FileFormat
+from shared.models.source import SourceRef
+from shared.source.access import read_source_probe
 
-_VALID_EXTENSIONS: dict[FileFormat, frozenset[str]] = {
-    "csv": frozenset({".csv"}),
-    "excel": frozenset({".xlsx", ".xls"}),
-    "json": frozenset({".json"}),
+_VALID_EXTENSION: dict[FileFormat, str] = {
+    "csv": ".csv",
+    "excel": ".xlsx",
+    "json": ".json",
 }
 
-_EXCEL_MAGIC = (
-    b"PK\x03\x04",          # XLSX (ZIP)
-    b"\xd0\xcf\x11\xe0",    # XLS (OLE2)
-)
+_VALIDATION_PROBE_BYTES = 8 * 1024
+_XLSX_MAGIC = b"PK\x03\x04"
+_UTF8_BOM = b"\xef\xbb\xbf"
 
 
-def validate_file_format(file_path: Path, declared_format: FileFormat) -> None:
+def _json_probe_payload(probe: bytes) -> bytes:
+    if probe.startswith(_UTF8_BOM):
+        probe = probe[len(_UTF8_BOM) :]
+    return probe.lstrip()
+
+
+def validate_file_format(source: SourceRef) -> None:
     """
     Validate that the file extension and magic bytes both match the declared format.
 
@@ -28,30 +35,27 @@ def validate_file_format(file_path: Path, declared_format: FileFormat) -> None:
     JSON files must be a top-level array (first non-whitespace byte is '[').
     Single-object and newline-delimited JSON are rejected for determinism.
     """
-    ext = file_path.suffix.lower()
-    if ext not in _VALID_EXTENSIONS[declared_format]:
-        allowed = sorted(_VALID_EXTENSIONS[declared_format])
+    ext = Path(source.source_file_name).suffix.lower()
+    if ext != _VALID_EXTENSION[source.source_file_format]:
         raise ValueError(
-            f"Extension {ext!r} is not valid for format {declared_format!r}. "
-            f"Expected one of: {allowed}"
+            f"Extension {ext!r} is not valid for format {source.source_file_format!r}. "
+            f"Expected {_VALID_EXTENSION[source.source_file_format]!r}."
         )
 
-    with file_path.open("rb") as fh:
-        magic = fh.read(8)
+    probe = read_source_probe(source, _VALIDATION_PROBE_BYTES)
+    is_xlsx = probe.startswith(_XLSX_MAGIC)
 
-    is_excel = any(magic.startswith(sig) for sig in _EXCEL_MAGIC)
-
-    if declared_format == "excel" and not is_excel:
+    if source.source_file_format == "excel" and not is_xlsx:
         raise ValueError(
-            "Declared format is 'excel' but file does not have Excel magic bytes."
+            "Declared format is 'excel' but file does not have XLSX magic bytes."
         )
-    if declared_format != "excel" and is_excel:
+    if source.source_file_format != "excel" and is_xlsx:
         raise ValueError(
-            f"File has Excel magic bytes but declared format is {declared_format!r}."
+            f"File has Excel magic bytes but declared format is {source.source_file_format!r}."
         )
 
-    if declared_format == "json":
-        stripped = magic.lstrip()
+    if source.source_file_format == "json":
+        stripped = _json_probe_payload(probe)
         if not stripped or stripped[0:1] != b"[":
             raise ValueError(
                 "JSON files must be a top-level array starting with '['. "

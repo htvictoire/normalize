@@ -2,30 +2,13 @@
 
 from __future__ import annotations
 
-from pathlib import Path
-
-from pydantic import Field
-
-from shared.models.base import MainModel
 from shared.models.confirmation import ConfirmedConfig
-from shared.models.operation import FileFormat, RunMode
+from shared.models.source import SourceRef
 
 
-class SuggestRequest(MainModel):
+class SuggestRequest(SourceRef):
     """Request payload for the suggest endpoint."""
-
-    name: str = Field(min_length=1)
-    source_file_url: str = Field(min_length=1)
-    format_type: FileFormat
 
 
 class ConfirmRequest(ConfirmedConfig):
     """Request payload for instance confirmation."""
-
-
-class NormalizeRequest(MainModel):
-    """Request payload to trigger normalization."""
-
-    output_dir: Path = Path("data/manual_runs")
-    mode: RunMode
-    rules_version: str = "v1"

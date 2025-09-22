@@ -17,11 +17,11 @@ from app.bootstrap.suggestion import SuggestionService
 from app.bootstrap.validation import validate_file_format
 from app.infra.postgres.repository import PostgresRunRepository
 from app.models.instance import InstanceModel, InstanceStatus
-from shared.ingestion.checksum import sha256_stream
+from shared.ingestion.checksum import resolve_checksum
 from shared.models.confirmation import ConfirmedConfig
 from shared.models.issues import IssueSeverity
 from shared.models.normalization import NormalizationOutput
-from shared.models.operation import FileFormat, RunMode
+from shared.models.source import SourceRef
 from shared.settings import get_settings
 
 
@@ -36,25 +36,16 @@ class MainOrchestrator:
     def get_instance(self, instance_id: UUID) -> InstanceModel | None:
         return self._repository.get(instance_id)
 
-    def suggest(
-        self,
-        *,
-        file_path: str | Path,
-        source_file_name: str,
-        format_type: FileFormat,
-    ) -> InstanceModel:
-        source_path = Path(file_path)
-        validate_file_format(source_path, format_type)
-        suggestion = self._suggestion_service.suggest(
-            file_path=source_path,
-            format_type=format_type,
-        )
+    def suggest(self, source: SourceRef) -> InstanceModel:
+        validate_file_format(source)
+        suggestion = self._suggestion_service.suggest(source)
         instance = InstanceModel.create(
-            source_path=source_path,
-            source_file_name=source_file_name,
-            format_type=format_type,
+            source_file=source.source_file,
+            source_file_name=source.source_file_name,
+            source_type=source.source_type,
+            source_file_format=source.source_file_format,
         )
-        instance.source_checksum = sha256_stream(source_path)
+        instance.source_checksum = resolve_checksum(source)
         instance.set_suggestion_output(suggestion)
         self._repository.save(instance)
         return instance
@@ -77,7 +68,13 @@ class MainOrchestrator:
 
         confirmed = instance.confirmed_config
         profiling_output = self._profiling_service.profile(
-            file_path=instance.source_file_url,
+            source=SourceRef(
+                source_file=instance.source_file,
+                source_file_name=instance.source_file_name,
+                source_type=instance.source_type,
+                source_file_format=instance.source_file_format,
+            ),
+            source_checksum=instance.source_checksum or "",
             source_format=confirmed.source_format,
             confirmed_column_config=confirmed.column_config,
             operation_config=confirmed.operation_config,
@@ -86,14 +83,7 @@ class MainOrchestrator:
         self._repository.save(instance)
         return instance
 
-    def normalize(
-        self,
-        instance_id: UUID,
-        *,
-        output_dir: str | Path,
-        mode: RunMode = "APPLY",
-        rules_version: str = "v1",
-    ) -> InstanceModel:
+    def normalize(self, instance_id: UUID) -> InstanceModel:
         instance = self._repository.get_required(instance_id)
         if instance.status is not InstanceStatus.PROFILED:
             raise ValueError("instance must be PROFILED before normalize")
@@ -111,17 +101,23 @@ class MainOrchestrator:
         instance.status = InstanceStatus.NORMALIZING
         self._repository.save(instance)
 
+        settings = get_settings()
+        output_root = Path(settings.conversion_output_dir) / str(instance_id)
+
         confirmed = instance.confirmed_config
         result = self._conversion_service.convert(
-            file_path=instance.source_file_url,
+            source=SourceRef(
+                source_file=instance.source_file,
+                source_file_name=instance.source_file_name,
+                source_type=instance.source_type,
+                source_file_format=instance.source_file_format,
+            ),
             source_format=confirmed.source_format,
             source_checksum=instance.source_checksum,
             confirmed_column_config=confirmed.column_config,
             operation_config=confirmed.operation_config,
             profiling_issues=list(instance.profiling_output.issues),
-            output_dir=output_dir,
-            mode=mode,
-            rules_version=rules_version,
+            output_root=output_root,
         )
         instance.set_normalization_output(
             normalization_output=NormalizationOutput(

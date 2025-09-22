@@ -6,11 +6,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, HTTPException
 
-from app.api.models import (
-    ConfirmRequest,
-    NormalizeRequest,
-    SuggestRequest,
-)
+from app.api.models import ConfirmRequest, SuggestRequest
 from app.bootstrap import MainOrchestrator
 from app.models.instance import InstanceModel
 
@@ -24,11 +20,7 @@ def health() -> dict[str, str]:
 
 @router.post("/normalize/suggest", response_model=InstanceModel)
 def suggest_endpoint(payload: SuggestRequest) -> InstanceModel:
-    return MainOrchestrator().suggest(
-        file_path=payload.source_file_url,
-        source_file_name=payload.name,
-        format_type=payload.format_type,
-    )
+    return MainOrchestrator().suggest(payload)
 
 
 @router.get("/normalize/instances/{instance_id}", response_model=InstanceModel)
@@ -50,10 +42,5 @@ def profile_endpoint(instance_id: UUID) -> InstanceModel:
 
 
 @router.post("/normalize/instances/{instance_id}/normalize", response_model=InstanceModel)
-def normalize_endpoint(instance_id: UUID, payload: NormalizeRequest) -> InstanceModel:
-    return MainOrchestrator().normalize(
-        instance_id,
-        output_dir=payload.output_dir,
-        mode=payload.mode,
-        rules_version=payload.rules_version,
-    )
+def normalize_endpoint(instance_id: UUID) -> InstanceModel:
+    return MainOrchestrator().normalize(instance_id)

@@ -2,17 +2,11 @@
 
 from __future__ import annotations
 
-from pathlib import Path
-
 from profiling.pipeline import run_profiling
 from shared.models.column import ColumnConfig
-from shared.models.operation import (
-    CsvSourceFormat,
-    ExcelSourceFormat,
-    JsonSourceFormat,
-    OperationConfig,
-)
+from shared.models.operation import OperationConfig, SourceFormat
 from shared.models.profiling import ProfilingOutput
+from shared.models.source import SourceRef
 
 
 class ProfilingService:
@@ -21,14 +15,16 @@ class ProfilingService:
     def profile(
         self,
         *,
-        file_path: str | Path,
-        source_format: CsvSourceFormat | ExcelSourceFormat | JsonSourceFormat,
+        source: SourceRef,
+        source_checksum: str,
+        source_format: SourceFormat,
         confirmed_column_config: dict[str, ColumnConfig],
         operation_config: OperationConfig,
     ) -> ProfilingOutput:
         """Execute full-dataset profiling and return profiling output only."""
         return run_profiling(
-            file_path=file_path,
+            source,
+            source_checksum=source_checksum,
             source_format=source_format,
             column_config=confirmed_column_config,
             operation_config=operation_config,

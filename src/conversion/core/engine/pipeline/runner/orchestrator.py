@@ -20,6 +20,7 @@ from conversion.stages.row_normalization import RowNormalizationStage
 from shared.db.duckdb import DuckDBManager, resolve_db_path
 from shared.db.sql import read_columns
 from shared.ingestion import HeaderMode, IngestionStage
+from shared.ingestion.checksum import sha256_stream
 from shared.models.normalization import ArtifactPaths, NormalizationOutput, SourceChecksums
 from shared.models.operation import CsvSourceFormat
 
@@ -42,9 +43,10 @@ def run_pipeline(
         threads=effective.threads,
         database=db_path,
     ) as conn:
-        ingestion_result = IngestionStage().execute(
+        IngestionStage().execute(
             conn,
-            source_csv,
+            str(source_csv),
+            source_type="local",
             source_format=CsvSourceFormat(
                 encoding=effective.encoding,
                 delimiter=effective.delimiter,
@@ -90,8 +92,9 @@ def run_pipeline(
         duckdb_version = str(duckdb_version_row[0])
         replay_config = build_replay_config(effective)
         config_json = json.dumps(replay_config, sort_keys=True, separators=(",", ":"))
+        source_checksum = sha256_stream(source_csv)
         fingerprint = compute_fingerprint(
-            ingestion_result.file_checksum,
+            source_checksum,
             config_json,
             effective.rules_version,
             duckdb_version,
@@ -104,7 +107,7 @@ def run_pipeline(
                 output_dir=output_root,
                 fingerprint=fingerprint,
                 trace_mode=effective.trace_mode,
-                source_checksums=SourceChecksums(source_file=ingestion_result.file_checksum),
+                source_checksums=SourceChecksums(source_file=source_checksum),
                 quality_output=quality_output,
                 issues=[],
                 effective_config=replay_config,

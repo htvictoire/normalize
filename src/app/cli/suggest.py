@@ -13,6 +13,7 @@ from app.cli.utils import (
     resolve_input_file,
     write_output,
 )
+from shared.models.source import SourceRef
 
 _USAGE = "Usage: main.py suggest <filename> [output_name]"
 
@@ -28,11 +29,13 @@ def run(args: list[str]) -> None:
 
     try:
         input_path = resolve_input_file(filename)
-        format_type = infer_format_type(input_path)
         instance = MainOrchestrator().suggest(
-            file_path=input_path,
-            source_file_name=input_path.name,
-            format_type=format_type,
+            SourceRef(
+                source_file=str(input_path),
+                source_file_name=input_path.name,
+                source_type="local",
+                source_file_format=infer_format_type(input_path),
+            )
         )
     except (ValueError, FileNotFoundError) as exc:
         die(str(exc))

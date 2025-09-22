@@ -1,4 +1,4 @@
-"""Runtime settings for the Phase 1 pipeline."""
+"""Runtime settings loaded from .env (prefix: NORMALIZE_)."""
 
 from __future__ import annotations
 
@@ -8,18 +8,19 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    """
-    Minimal settings needed by currently implemented stages.
-
-    Environment variable prefix: `NORMALIZE_`
-    """
-
-    duckdb_memory_limit: str = "4GB"
-    postgres_dsn: str = "postgresql://normalize:normalize@localhost:5438/normalize"
-    api_base_url: str = "http://localhost:8000"
+    duckdb_memory_limit: str
+    postgres_dsn: str
+    api_base_url: str
+    s3_endpoint_url: str
+    s3_access_key_id: str
+    s3_secret_access_key: str
+    s3_bucket: str
+    conversion_output_dir: str
 
     model_config = SettingsConfigDict(
         env_prefix="NORMALIZE_",
+        env_file=".env",
+        env_file_encoding="utf-8",
         case_sensitive=False,
         extra="ignore",
     )
@@ -28,4 +29,4 @@ class Settings(BaseSettings):
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
     """Return cached process-wide settings."""
-    return Settings()
+    return Settings()  # type: ignore[call-arg]
