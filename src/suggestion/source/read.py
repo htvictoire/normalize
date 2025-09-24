@@ -1,20 +1,29 @@
-"""Suggestion Stage 1+2 source reading orchestration."""
+"""Source reading orchestration for the suggestion pipeline."""
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from pathlib import Path
 
-from shared.models.source import SourceReading, SourceRef
-from shared.source.access import prepare_ingestion_source, read_source_probe
+from shared.models.operation import FileSource, SourceFormat
+from shared.models.source import SourceRef
+from shared.source.access import read_source_probe
+from shared.storage.s3 import build_duckdb_s3_url, download_s3_temp, s3_ref
 from suggestion.constants import FILE_SAMPLE_BYTES
 from suggestion.source.csv import infer_csv_source_format, read_csv_sample_rows
 from suggestion.source.excel import read_excel_source
 from suggestion.source.json import infer_json_source_format, read_json_sample_rows
 
 
-def _cleanup_temp_file(path: Path | None) -> None:
-    if path is not None:
-        path.unlink(missing_ok=True)
+@dataclass(frozen=True)
+class SourceReading:
+    """Inferred format, raw sample rows, and the runtime ingestion target for one source."""
+
+    source_format: SourceFormat
+    sample_rows: list[list[str]]
+    ingestion_source_url: str
+    ingestion_source_type: FileSource
+    cleanup_path: Path | None
 
 
 def _read_csv_source(source: SourceRef) -> SourceReading:
@@ -24,38 +33,59 @@ def _read_csv_source(source: SourceRef) -> SourceReading:
         sample.decode(source_format.encoding, errors="ignore"),
         delimiter=source_format.delimiter,
     )
+    if source.source_type == "s3":
+        ingestion_url = build_duckdb_s3_url(s3_ref(source.source_file))
+    else:
+        ingestion_url = source.source_file
     return SourceReading(
         source_format=source_format,
         sample_rows=sample_rows,
-        prepared_ingestion=prepare_ingestion_source(source, source.source_file_format),
+        ingestion_source_url=ingestion_url,
+        ingestion_source_type=source.source_type,
+        cleanup_path=None,
     )
 
 
 def _read_excel_source(source: SourceRef) -> SourceReading:
-    prepared = prepare_ingestion_source(source, source.source_file_format)
+    if source.source_type == "s3":
+        temp_path = download_s3_temp(s3_ref(source.source_file))
+        ingestion_url = str(temp_path)
+        cleanup_path: Path | None = temp_path
+    else:
+        ingestion_url = source.source_file
+        cleanup_path = None
     try:
-        source_format, sample_rows = read_excel_source(Path(prepared.source_url))
-        return SourceReading(
-            source_format=source_format,
-            sample_rows=sample_rows,
-            prepared_ingestion=prepared,
-        )
+        source_format, sample_rows = read_excel_source(Path(ingestion_url))
     except Exception:
-        _cleanup_temp_file(prepared.cleanup_path)
+        if cleanup_path is not None:
+            cleanup_path.unlink(missing_ok=True)
         raise
+    return SourceReading(
+        source_format=source_format,
+        sample_rows=sample_rows,
+        ingestion_source_url=ingestion_url,
+        ingestion_source_type="local",
+        cleanup_path=cleanup_path,
+    )
 
 
 def _read_json_source(source: SourceRef) -> SourceReading:
     sample = read_source_probe(source, FILE_SAMPLE_BYTES)
+    if source.source_type == "s3":
+        ingestion_url = build_duckdb_s3_url(s3_ref(source.source_file))
+    else:
+        ingestion_url = source.source_file
     return SourceReading(
         source_format=infer_json_source_format(),
         sample_rows=read_json_sample_rows(sample),
-        prepared_ingestion=prepare_ingestion_source(source, source.source_file_format),
+        ingestion_source_url=ingestion_url,
+        ingestion_source_type=source.source_type,
+        cleanup_path=None,
     )
 
 
 def read_source(source: SourceRef) -> SourceReading:
-    """Read suggestion Stage 1+2 data for one source."""
+    """Infer format settings and collect raw sample rows for one source."""
     if source.source_file_format == "csv":
         return _read_csv_source(source)
     if source.source_file_format == "excel":

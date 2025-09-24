@@ -1,5 +1,5 @@
 """Shared source-access helpers."""
 
-from shared.source.access import prepare_ingestion_source, read_source_probe
+from shared.source.access import read_source_probe
 
-__all__ = ["prepare_ingestion_source", "read_source_probe"]
+__all__ = ["read_source_probe"]
