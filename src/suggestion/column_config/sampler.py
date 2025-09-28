@@ -27,11 +27,18 @@ def sample_column_values(
     )
     sampled_rows = conn.execute(sql).fetchall()
     result: dict[str, list[str]] = {col: [] for col in columns}
+    full_columns = 0
+    total_columns = len(columns)
     for row in sampled_rows:
+        if full_columns == total_columns:
+            break
         for index, col_name in enumerate(columns):
-            if len(result[col_name]) >= INFERENCE_SAMPLES_PER_COLUMN:
+            col_values = result[col_name]
+            if len(col_values) >= INFERENCE_SAMPLES_PER_COLUMN:
                 continue
             value = normalize_cell_value(row[index])
             if value is not None:
-                result[col_name].append(value)
+                col_values.append(value)
+                if len(col_values) == INFERENCE_SAMPLES_PER_COLUMN:
+                    full_columns += 1
     return result

@@ -12,4 +12,4 @@ class SuggestionService:
         return run_suggestion(source)
 
 
-__all__ = ["SuggestionOutput", "SuggestionService"]
+__all__ = ["SuggestionService"]

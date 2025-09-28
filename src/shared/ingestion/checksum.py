@@ -6,8 +6,7 @@ import hashlib
 from pathlib import Path
 
 from shared.models.source import SourceRef
-from shared.settings import get_settings
-from shared.storage.s3 import S3ObjectRef, fetch_s3_checksum
+from shared.storage.s3 import fetch_s3_checksum, s3_ref
 
 
 def sha256_stream(path: Path, chunk_size: int = 1_048_576) -> str:
@@ -30,6 +29,5 @@ def resolve_checksum(source: SourceRef) -> str:
     For S3-compatible objects the checksum is fetched from object metadata — no download.
     """
     if source.source_type == "s3":
-        obj = S3ObjectRef(bucket=get_settings().s3_bucket, key=source.source_file)
-        return fetch_s3_checksum(obj)
+        return fetch_s3_checksum(s3_ref(source.source_file))
     return sha256_stream(Path(source.source_file))

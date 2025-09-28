@@ -6,7 +6,7 @@ PIP := $(VENV_PYTHON) -m pip
 DEPS_STAMP := $(VENV)/.deps-installed
 
 # ── lifecycle args ────────────────────────────────────────────────────────────
-FILE      ?= prod_like_10k.csv
+FILE      ?= prod_like_10m.csv
 INSTANCE  ?=
 CONFIRMED ?=
 MODE      ?= APPLY

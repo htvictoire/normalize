@@ -21,9 +21,9 @@ from shared.ingestion import IngestionRequest, run_ingestion
 from shared.models.column import ColumnConfig
 from shared.models.issues import NormalizationIssue
 from shared.models.normalization import ArtifactPaths, QualityOutput, SourceChecksums
-from shared.models.operation import OperationConfig, SourceFormat
+from shared.models.operation import ExcelSourceFormat, FileSource, OperationConfig, SourceFormat
 from shared.models.source import SourceRef
-from shared.source.access import prepare_ingestion_source
+from shared.storage.s3 import build_duckdb_s3_url, download_s3_temp, s3_ref
 
 
 @dataclass(frozen=True)
@@ -51,14 +51,24 @@ def execute_conversion(
     duckdb_memory_limit: str,
 ) -> ConversionExecutionOutput:
     """Run deterministic conversion pipeline and return artifact payload."""
-    prepared = prepare_ingestion_source(source, source_format)
+    cleanup_path: Path | None = None
+    ingestion_type: FileSource = "local"
+    if source.source_type == "s3" and isinstance(source_format, ExcelSourceFormat):
+        cleanup_path = download_s3_temp(s3_ref(source.source_file))
+        ingestion_url = str(cleanup_path)
+    elif source.source_type == "s3":
+        ingestion_url = build_duckdb_s3_url(s3_ref(source.source_file))
+        ingestion_type = "s3"
+    else:
+        ingestion_url = source.source_file
+
     try:
         with DuckDBManager(memory_limit=duckdb_memory_limit, threads=4) as conn:
             run_ingestion(
                 IngestionRequest(
                     conn=conn,
-                    source_url=prepared.source_url,
-                    source_type=prepared.source_type,
+                    source_url=ingestion_url,
+                    source_type=ingestion_type,
                     source_format=source_format,
                     table_name="raw_input",
                 )
@@ -122,8 +132,8 @@ def execute_conversion(
                 rules_version=_RULES_VERSION,
             )
     finally:
-        if prepared.cleanup_path is not None:
-            prepared.cleanup_path.unlink(missing_ok=True)
+        if cleanup_path is not None:
+            cleanup_path.unlink(missing_ok=True)
 
     return ConversionExecutionOutput(
         status="READY",

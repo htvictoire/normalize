@@ -39,6 +39,5 @@ def read_sample_values(
 
     result: dict[str, list[str]] = {pos: [] for pos in positions}
     for col_idx, val in rows:
-        if val is not None:
-            result[positions[col_idx]].append(str(val))
+        result[positions[col_idx]].append(str(val))
     return result

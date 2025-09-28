@@ -43,6 +43,11 @@ def _build_s3_client() -> _S3ClientProtocol:
     )
 
 
+def s3_ref(key: str) -> S3ObjectRef:
+    """Resolve a storage key to an S3ObjectRef using the configured bucket."""
+    return S3ObjectRef(bucket=get_settings().s3_bucket, key=key)
+
+
 def fetch_s3_probe(obj: S3ObjectRef, n_bytes: int) -> bytes:
     """Read the first `n_bytes` from an S3-compatible object."""
     if n_bytes < 1:
@@ -113,4 +118,5 @@ __all__ = [
     "download_s3_temp",
     "fetch_s3_checksum",
     "fetch_s3_probe",
+    "s3_ref",
 ]

@@ -8,6 +8,9 @@ from suggestion.column_config.models import NumericCandidate
 # Source format inference
 # ---------------------------------------------------------------------------
 
+# DuckDB table name used throughout the suggestion pipeline.
+SUGGESTION_TABLE_NAME = "raw_input"
+
 # Maximum bytes read from the file. All inference runs on this prefix.
 FILE_SAMPLE_BYTES = 4 * 1024 * 1024
 
@@ -27,10 +30,10 @@ HEADER_SCORE_LOOKAHEAD = 5
 # ---------------------------------------------------------------------------
 
 # Maximum raw rows returned for display.
-DISPLAY_RAW_ROWS = 30
+DISPLAY_RAW_ROWS = 15
 
 # Maximum non-null values collected per column for type preview display.
-DISPLAY_VALUES_PER_COLUMN = 20
+DISPLAY_VALUES_PER_COLUMN = 10
 
 # ---------------------------------------------------------------------------
 # Type inference sampling

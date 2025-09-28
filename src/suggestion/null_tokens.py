@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
+
 from duckdb import DuckDBPyConnection
 
 from shared.db.sql import quote_identifier, quote_string
@@ -12,7 +14,7 @@ def infer_null_tokens(
     conn: DuckDBPyConnection,
     *,
     table_name: str,
-    columns: list[str],
+    columns: Sequence[str],
 ) -> tuple[str, ...]:
     """Return which known null sentinel strings actually appear in the data."""
     if not columns:

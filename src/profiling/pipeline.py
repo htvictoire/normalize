@@ -26,7 +26,7 @@ from shared.models.column import (
     IntegerColumnConfig,
     column_config_type,
 )
-from shared.models.operation import OperationConfig, SourceFormat
+from shared.models.operation import ExcelSourceFormat, FileSource, OperationConfig, SourceFormat
 from shared.models.profiling import (
     BooleanColumnProfile,
     ColumnProfileStats,
@@ -36,7 +36,7 @@ from shared.models.profiling import (
     ProfilingOutput,
 )
 from shared.models.source import SourceRef
-from shared.source.access import prepare_ingestion_source
+from shared.storage.s3 import build_duckdb_s3_url, download_s3_temp, s3_ref
 from shared.utils.column import build_position_to_name
 
 NUMERIC_MISMATCH_THRESHOLD = 0.60
@@ -56,14 +56,24 @@ def run_profiling(
     operation_config: OperationConfig,
 ) -> ProfilingOutput:
     """Run the full-dataset profiling phase using confirmed config."""
-    prepared = prepare_ingestion_source(source, source_format)
+    cleanup_path: Path | None = None
+    ingestion_type: FileSource = "local"
+    if source.source_type == "s3" and isinstance(source_format, ExcelSourceFormat):
+        cleanup_path = download_s3_temp(s3_ref(source.source_file))
+        ingestion_url = str(cleanup_path)
+    elif source.source_type == "s3":
+        ingestion_url = build_duckdb_s3_url(s3_ref(source.source_file))
+        ingestion_type = "s3"
+    else:
+        ingestion_url = source.source_file
+
     try:
         with DuckDBManager() as conn:
             run_ingestion(
                 IngestionRequest(
                     conn=conn,
-                    source_url=prepared.source_url,
-                    source_type=prepared.source_type,
+                    source_url=ingestion_url,
+                    source_type=ingestion_type,
                     source_format=source_format,
                     table_name="raw_input",
                 )
@@ -219,7 +229,7 @@ def run_profiling(
                 1.0 if not currency_ratios else (sum(currency_ratios) / len(currency_ratios))
             )
     finally:
-        _cleanup_temp_file(prepared.cleanup_path)
+        _cleanup_temp_file(cleanup_path)
 
     return ProfilingOutput(
         source_checksum=source_checksum,

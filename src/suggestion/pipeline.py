@@ -1,90 +1,90 @@
 """
 Suggestion pipeline — infers provisional settings for one source file.
 
-Stage 1  Infer source format from file content: encoding, delimiter, and header
-         position for CSV; sheet and header for Excel; no inference needed for JSON.
+Phase 1  Read source: infer format settings and collect raw sample rows in one
+         pass. CSV and JSON use a single byte probe; Excel opens the workbook once.
 
-Stage 2  Read raw sample rows directly from the source file so the display
-         reflects exactly what the user submitted before any inferred settings
-         are applied.
+Phase 2  Ingest into an in-memory DuckDB table using the inferred format.
 
-Stage 3  Ingest into an in-memory DuckDB instance using the inferred format.
-         The connection is discarded after Stage 8 — nothing is persisted.
+Phase 3  Derive ordered column labels and position keys.
 
-Stage 4  Derive ordered column labels and position keys.
-
-Stage 5  Infer a ColumnConfig (type, separators, date format, …) per column
+Phase 4  Infer a ColumnConfig (type, separators, date format, …) per column
          from a random sample of up to 256 non-null values.
 
-Stage 6  Infer null tokens from recurring empty-looking values across all columns.
+Phase 5  Infer null tokens from recurring empty-looking values across all columns.
 
-Stage 7  Compute null / non-null counts per column using the inferred null tokens.
+Phase 6  Compute null / non-null counts per column using the inferred null tokens.
 
-Stage 8  Collect per-column sample values for display.
+Phase 7  Collect per-column sample values for display.
 """
 
 from __future__ import annotations
 
 from shared.db.duckdb import DuckDBManager
-from shared.db.sql import compute_column_counts, read_columns
+from shared.db.sql import compute_column_counts
 from shared.ingestion import IngestionRequest, run_ingestion
 from shared.models.source import SourceRef
 from shared.models.suggestion import SuggestedColumn, SuggestionOutput
 from shared.utils.column import build_position_to_name
 from suggestion.column_config.inference import infer_column_type
 from suggestion.column_config.sampler import sample_column_values
-from suggestion.null_tokens import infer_null_tokens
 from suggestion.column_display import read_sample_values
+from suggestion.constants import SUGGESTION_TABLE_NAME
+from suggestion.null_tokens import infer_null_tokens
 from suggestion.source.read import read_source
 
 
 def run_suggestion(source: SourceRef) -> SuggestionOutput:
     """Run suggestion pipeline for one source file."""
+    # Phase 1
     reading = read_source(source)
     try:
         with DuckDBManager() as conn:
-            # Stage 3
-            run_ingestion(
+            # Phase 2
+            ingestion = run_ingestion(
                 IngestionRequest(
                     conn=conn,
-                    source_url=reading.prepared_ingestion.source_url,
-                    source_type=reading.prepared_ingestion.source_type,
+                    source_url=reading.ingestion_source_url,
+                    source_type=reading.ingestion_source_type,
                     source_format=reading.source_format,
-                    table_name="raw_input",
+                    table_name=SUGGESTION_TABLE_NAME,
                 )
             )
 
-            # Stage 4
-            columns = read_columns(conn, "raw_input")
-            position_to_name = build_position_to_name(columns)
+            # Phase 3
+            position_to_name = build_position_to_name(ingestion.column_names)
 
-            # Stage 5
-            sampled_values = sample_column_values(conn, table_name="raw_input", columns=columns)
+            # Phase 4
+            sampled_values = sample_column_values(
+                conn, table_name=SUGGESTION_TABLE_NAME, columns=ingestion.column_names
+            )
             column_configs = {
                 pos: infer_column_type(sampled_values[name])
                 for pos, name in position_to_name.items()
             }
 
-            # Stage 6
-            null_tokens = infer_null_tokens(conn, table_name="raw_input", columns=columns)
+            # Phase 5
+            null_tokens = infer_null_tokens(
+                conn, table_name=SUGGESTION_TABLE_NAME, columns=ingestion.column_names
+            )
 
-            # Stage 7
+            # Phase 6
             row_count, column_counts = compute_column_counts(
                 conn,
-                table_name="raw_input",
+                table_name=SUGGESTION_TABLE_NAME,
                 position_to_name=position_to_name,
                 null_tokens=null_tokens,
             )
 
-            # Stage 8
+            # Phase 7
             sample_values_by_position = read_sample_values(
                 conn,
-                table_name="raw_input",
+                table_name=SUGGESTION_TABLE_NAME,
                 position_to_name=position_to_name,
             )
     finally:
-        if reading.prepared_ingestion.cleanup_path is not None:
-            reading.prepared_ingestion.cleanup_path.unlink(missing_ok=True)
+        if reading.cleanup_path is not None:
+            reading.cleanup_path.unlink(missing_ok=True)
 
     return SuggestionOutput(
         source_format=reading.source_format,
