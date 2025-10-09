@@ -31,5 +31,5 @@ def infer_null_tokens(
         )
 
     rows = conn.execute(" UNION ".join(parts)).fetchall()
-    found = {row[0] for row in rows if row[0] is not None}
+    found = {row[0] for row in rows}
     return tuple(sorted(c for c in NULL_TOKEN_CANDIDATES if c in found))

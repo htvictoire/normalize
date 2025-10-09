@@ -17,7 +17,9 @@ from shared.models.column import (
 from suggestion.column_config.numeric.scoring import infer_best_numeric_fits
 from suggestion.constants import (
     BOOLEAN_FALSE_TOKENS,
+    BOOLEAN_TOKEN_PAIRS,
     BOOLEAN_TRUE_TOKENS,
+    CURRENCY_MATCH_MIN_RATIO,
     DATE_FORMAT_CANDIDATES,
     TYPE_MATCH_MIN_RATIO,
 )
@@ -56,7 +58,7 @@ def _infer_numeric(values: Sequence[str], sample_count: int) -> ColumnConfig | N
             thousand_separator=c.thousand_separator,
             grouping_style=c.grouping_style,
         )
-    if currency_fit.matches / sample_count >= TYPE_MATCH_MIN_RATIO:
+    if currency_fit.matches / sample_count >= CURRENCY_MATCH_MIN_RATIO:
         c = currency_fit.candidate
         return CurrencyColumnConfig(
             decimal_separator=c.decimal_separator,
@@ -85,11 +87,11 @@ def infer_column_type(values: Sequence[str]) -> ColumnConfig:
     def meets_threshold(matches: int) -> bool:
         return matches / sample_count >= TYPE_MATCH_MIN_RATIO
 
-    boolean_matches = sum(1 for v in values if _is_boolean(v))
-    if meets_threshold(boolean_matches):
-        normalized = [v.strip().lower() for v in values]
-        true_tokens = tuple(sorted({v for v in normalized if v in BOOLEAN_TRUE_TOKENS}))
-        false_tokens = tuple(sorted({v for v in normalized if v in BOOLEAN_FALSE_TOKENS}))
+    boolean_normalized = {v.strip().lower() for v in values if _is_boolean(v)}
+    if meets_threshold(len(boolean_normalized)):
+        active_pairs = [(t, f) for t, f in BOOLEAN_TOKEN_PAIRS if t in boolean_normalized or f in boolean_normalized]
+        true_tokens = tuple(sorted(t for t, _ in active_pairs))
+        false_tokens = tuple(sorted(f for _, f in active_pairs))
         return BooleanColumnConfig(true_tokens=true_tokens, false_tokens=false_tokens)
 
     numeric = _infer_numeric(values, sample_count)

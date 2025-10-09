@@ -6,7 +6,8 @@ import re
 
 from shared.db.sql import quote_string
 
-KNOWN_CURRENCY_SYMBOLS: tuple[str, ...] = (
+KNOWN_CURRENCY_TOKENS: tuple[str, ...] = (
+    # Symbols
     "$",
     "€",
     "£",
@@ -32,8 +33,7 @@ KNOWN_CURRENCY_SYMBOLS: tuple[str, ...] = (
     "HK$",
     "MX$",
     "CN¥",
-)
-KNOWN_CURRENCY_CODES: tuple[str, ...] = (
+    # ISO codes
     "USD",
     "EUR",
     "JPY",
@@ -54,6 +54,9 @@ KNOWN_CURRENCY_CODES: tuple[str, ...] = (
     "ZAR",
     "TRY",
     "AED",
+    # Accounting
+    "CR",
+    "DR",
 )
 
 
@@ -81,13 +84,9 @@ def build_currency_symbol_extract_expr(value_expr: str) -> str:
 
 
 def _currency_token_pattern_lower() -> str:
-    tokens = [token.lower() for token in _canonical_currency_tokens()]
+    tokens = [token.lower() for token in KNOWN_CURRENCY_TOKENS]
     escaped = sorted((re.escape(token) for token in tokens), key=len, reverse=True)
     return "(?:" + "|".join(escaped) + ")"
-
-
-def _canonical_currency_tokens() -> tuple[str, ...]:
-    return (*KNOWN_CURRENCY_SYMBOLS, *KNOWN_CURRENCY_CODES)
 
 
 CURRENCY_TOKEN_PATTERN_LOWER = _currency_token_pattern_lower()

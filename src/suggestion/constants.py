@@ -50,14 +50,35 @@ INFERENCE_SAMPLE_SEED = 42
 
 # Minimum fraction of non-null sampled values that must match a candidate type
 # before that type is accepted for a column.
-TYPE_MATCH_MIN_RATIO = 0.80
+TYPE_MATCH_MIN_RATIO = 0.55
+
+# Lower threshold for currency: explicit currency tokens are rare enough in
+# non-currency columns that 25% is already a strong signal.
+CURRENCY_MATCH_MIN_RATIO = 0.25
 
 # ---------------------------------------------------------------------------
 # Boolean tokens
 # ---------------------------------------------------------------------------
 
-BOOLEAN_TRUE_TOKENS = {"1", "true", "yes"}
-BOOLEAN_FALSE_TOKENS = {"0", "false", "no"}
+# Each pair is (true_token, false_token). Finding either side in the data
+# causes both sides to be included in the suggested config.
+BOOLEAN_TOKEN_PAIRS: tuple[tuple[str, str], ...] = (
+    ("true", "false"),
+    ("yes", "no"),
+    ("1", "0"),
+    ("t", "f"),
+    ("y", "n"),
+    ("on", "off"),
+    ("active", "inactive"),
+    ("enabled", "disabled"),
+    ("checked", "unchecked"),
+    ("pass", "fail"),
+    ("ok", "nok"),
+    ("paid", "unpaid"),
+)
+
+BOOLEAN_TRUE_TOKENS: frozenset[str] = frozenset(t for t, _ in BOOLEAN_TOKEN_PAIRS)
+BOOLEAN_FALSE_TOKENS: frozenset[str] = frozenset(f for _, f in BOOLEAN_TOKEN_PAIRS)
 
 # ---------------------------------------------------------------------------
 # Date formats

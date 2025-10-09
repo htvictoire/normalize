@@ -42,23 +42,20 @@ def _valid_grouping(
     return _valid_group_sizes(groups, grouping_style)
 
 
-def _strip_numeric_sign(value: str) -> tuple[str, bool] | None:
+def _strip_numeric_sign(value: str) -> str | None:
     stripped = value.strip().replace(" ", "")
     if not stripped:
         return None
 
-    negative = False
     if stripped.startswith("(") and stripped.endswith(")"):
         stripped = stripped[1:-1]
-        negative = True
-    if stripped.startswith("+"):
+    if stripped.startswith(("+", "-")):
         stripped = stripped[1:]
-    if stripped.startswith("-"):
-        stripped = stripped[1:]
-        negative = True
+    if stripped.endswith(("+", "-")):
+        stripped = stripped[:-1]
     if not stripped:
         return None
-    return stripped, negative
+    return stripped
 
 
 def parse_numeric_token(
@@ -74,10 +71,9 @@ def parse_numeric_token(
     has_currency = CURRENCY_DETECTION_RE.search(value) is not None
     clean = CURRENCY_DETECTION_RE.sub("", value).strip() if has_currency else value
 
-    sign_result = _strip_numeric_sign(clean)
-    if sign_result is None:
+    stripped = _strip_numeric_sign(clean)
+    if stripped is None:
         return None
-    stripped, negative = sign_result
 
     decimal_separator = candidate.decimal_separator
     thousand_separator = candidate.thousand_separator
@@ -115,18 +111,12 @@ def parse_numeric_token(
         if parse_ok and fractional_part and fractional_part.isdigit():
             normalized = f"{integer_digits}.{fractional_part}"
         else:
-            parse_ok = False
-            normalized = ""
+            return None
     elif parse_ok:
         normalized = integer_digits
     else:
-        normalized = ""
-
-    if not parse_ok:
         return None
 
-    if negative:
-        normalized = f"-{normalized}"
     return NumericParseResult(
         normalized=normalized,
         has_currency=has_currency,

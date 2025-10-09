@@ -58,7 +58,7 @@ def _score_candidate(
             leading_decimal_matches += 1
         if parsed.has_currency:
             currency_matches += 1
-        elif "." in parsed.normalized:
+        elif candidate.decimal_separator in parsed.normalized:
             decimal_matches += 1
         else:
             integer_matches += 1
