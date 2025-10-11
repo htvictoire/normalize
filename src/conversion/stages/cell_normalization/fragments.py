@@ -16,12 +16,15 @@ from conversion.stages.cell_normalization.sql_helpers import quote_identifier
 from conversion.stages.cell_normalization.transforms.dispatcher import build_column_exprs
 from conversion.stages.cell_normalization.transforms.nullish import build_nullish_predicate
 from shared.models.column import (
+    AccountingColumnConfig,
     BooleanColumnConfig,
     ColumnConfig,
     CurrencyColumnConfig,
     DateColumnConfig,
     DecimalColumnConfig,
     IntegerColumnConfig,
+    PercentageColumnConfig,
+    SignedColumnConfig,
     column_config_type,
 )
 
@@ -75,7 +78,7 @@ def build_cell_expression_fragments(
             column_thousand_separator = spec.thousand_separator
             column_grouping_style = spec.grouping_style
             allow_leading_decimal_point = False
-        elif isinstance(spec, DecimalColumnConfig | CurrencyColumnConfig):
+        elif isinstance(spec, DecimalColumnConfig | CurrencyColumnConfig | PercentageColumnConfig | SignedColumnConfig | AccountingColumnConfig):  # noqa: E501
             column_decimal_separator = spec.decimal_separator
             column_thousand_separator = spec.thousand_separator
             column_grouping_style = spec.grouping_style
@@ -92,6 +95,18 @@ def build_cell_expression_fragments(
         false_tokens: tuple[str, ...] = (
             spec.false_tokens if isinstance(spec, BooleanColumnConfig) else ()
         )
+        signed_spec: SignedColumnConfig | AccountingColumnConfig | None = (
+            spec if isinstance(spec, SignedColumnConfig | AccountingColumnConfig) else None
+        )
+        positive_markers: tuple[str, ...] = (
+            signed_spec.positive_markers if signed_spec is not None else ()
+        )
+        negative_markers: tuple[str, ...] = (
+            signed_spec.negative_markers if signed_spec is not None else ()
+        )
+        parentheses_as_negative = (
+            signed_spec.parentheses_as_negative if signed_spec is not None else False
+        )
         col_parse_entries, normalized_expr, issue_expr = build_column_exprs(
             column_name,
             inferred_type,
@@ -105,6 +120,9 @@ def build_cell_expression_fragments(
             grouping_style=column_grouping_style,
             allow_leading_decimal_point=allow_leading_decimal_point,
             date_format=date_format,
+            positive_markers=positive_markers,
+            negative_markers=negative_markers,
+            parentheses_as_negative=parentheses_as_negative,
         )
         parse_cte_entries.extend(col_parse_entries)
         issue_col = issue_alias(column_name)

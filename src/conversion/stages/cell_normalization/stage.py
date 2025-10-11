@@ -19,6 +19,7 @@ from conversion.stages.cell_normalization.sql_helpers import (
     read_columns,
     validate_identifier,
 )
+from shared.db.sql import execute_scalar
 from shared.models.column import ColumnConfig
 from shared.stages.base import Stage
 
@@ -108,10 +109,7 @@ class CellNormalizationStage(Stage):
             emit_parse_issues=emit_parse_issues,
         )
 
-        row_count_row = conn.execute(f"SELECT COUNT(*) FROM {table_name}").fetchone()
-        if row_count_row is None:
-            raise RuntimeError("row count query returned no rows")
-        row_count = int(row_count_row[0])
+        row_count = execute_scalar(conn, f"SELECT COUNT(*) FROM {table_name}")
         self.metrics = {
             "duration_seconds": perf_counter() - start_time,
             "rows_processed": row_count,

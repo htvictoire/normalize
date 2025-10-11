@@ -23,34 +23,18 @@ def build_currency_symbol_stripped_expr(value_expr: str) -> str:
     return f"TRIM({suffix_stripped})"
 
 
-def build_accounting_negative_predicate(value_expr: str) -> str:
-    """Match accounting-style negative notations on a SQL value expression."""
-    trimmed = f"TRIM({value_expr})"
-    return (
-        f"REGEXP_FULL_MATCH({trimmed}, {quote_string(r'^\(.+\)$')}) "
-        f"OR REGEXP_FULL_MATCH({trimmed}, {quote_string(r'^.+-$')}) "
-        f"OR REGEXP_FULL_MATCH({trimmed}, {quote_string(r'^.+\s+(?:cr|dr)$')})"
-    )
-
-
-def build_accounting_normalized_expr(value_expr: str) -> str:
-    """Normalize accounting-style negative markers into signed decimal text."""
+def _build_structural_sign_expr(value_expr: str) -> str:
+    """Normalize structural negatives (parentheses, trailing minus) to signed decimal text."""
     trimmed = f"TRIM({value_expr})"
     parenthesized_inner = f"TRIM(SUBSTRING({trimmed}, 2, LENGTH({trimmed}) - 2))"
     parenthesized_inner_stripped = build_currency_symbol_stripped_expr(parenthesized_inner)
     trailing_minus_inner = f"TRIM(SUBSTRING({trimmed}, 1, LENGTH({trimmed}) - 1))"
-    trailing_cr_inner = f"TRIM(REGEXP_REPLACE({trimmed}, {quote_string(r'\s+cr$')}, ''))"
-    trailing_dr_inner = f"TRIM(REGEXP_REPLACE({trimmed}, {quote_string(r'\s+dr$')}, ''))"
     return (
         "CASE "
         f"WHEN REGEXP_FULL_MATCH({trimmed}, {quote_string(r'^\(.+\)$')}) "
         f"THEN '-' || {parenthesized_inner_stripped} "
         f"WHEN REGEXP_FULL_MATCH({trimmed}, {quote_string(r'^.+-$')}) "
         f"THEN '-' || {trailing_minus_inner} "
-        f"WHEN REGEXP_FULL_MATCH({trimmed}, {quote_string(r'^.+\s+cr$')}) "
-        f"THEN '-' || {trailing_cr_inner} "
-        f"WHEN REGEXP_FULL_MATCH({trimmed}, {quote_string(r'^.+\s+dr$')}) "
-        f"THEN {trailing_dr_inner} "
         f"ELSE {trimmed} END"
     )
 
@@ -58,4 +42,4 @@ def build_accounting_normalized_expr(value_expr: str) -> str:
 def build_currency_numeric_candidate_expr(value_expr: str) -> str:
     """Normalize currency text into sign+digits text before separator replacement."""
     symbol_stripped = build_currency_symbol_stripped_expr(value_expr)
-    return build_accounting_normalized_expr(symbol_stripped)
+    return _build_structural_sign_expr(symbol_stripped)
