@@ -3,35 +3,20 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
+from dataclasses import replace
 
 from suggestion.column_config.models import (
     NumericCandidate,
     NumericCandidateStats,
+    NumericFits,
     NumericTypeFit,
 )
 from suggestion.column_config.numeric.parsing import parse_numeric_token
 from suggestion.constants import LEADING_DECIMAL_MIN_RATIO, NUMERIC_CANDIDATES
 
 
-def _keep_better(
-    current: NumericTypeFit | None,
-    candidate: NumericTypeFit,
-) -> NumericTypeFit:
-    if current is None:
-        return candidate
-    current_score = (
-        current.matches,
-        current.separator_evidence,
-        current.grouping_evidence,
-        -current.rank,
-    )
-    candidate_score = (
-        candidate.matches,
-        candidate.separator_evidence,
-        candidate.grouping_evidence,
-        -candidate.rank,
-    )
-    return candidate if candidate_score > current_score else current
+def _fit_key(fit: NumericTypeFit) -> tuple[int, int, int, int]:
+    return (fit.matches, fit.separator_evidence, fit.grouping_evidence, -fit.rank)
 
 
 def _score_candidate(
@@ -42,6 +27,9 @@ def _score_candidate(
     integer_matches = 0
     decimal_matches = 0
     currency_matches = 0
+    accounting_matches = 0
+    signed_matches = 0
+    percentage_matches = 0
     separator_evidence = 0
     grouping_evidence = 0
     leading_decimal_matches = 0
@@ -56,8 +44,14 @@ def _score_candidate(
             grouping_evidence += 1
         if parsed.leading_decimal_point:
             leading_decimal_matches += 1
-        if parsed.has_currency:
+        if parsed.has_signed and parsed.has_currency:
+            accounting_matches += 1
+        elif parsed.has_signed:
+            signed_matches += 1
+        elif parsed.has_currency:
             currency_matches += 1
+        elif parsed.has_percentage:
+            percentage_matches += 1
         elif candidate.decimal_separator in parsed.normalized:
             decimal_matches += 1
         else:
@@ -67,52 +61,53 @@ def _score_candidate(
         integer_matches=integer_matches,
         decimal_matches=decimal_matches,
         currency_matches=currency_matches,
+        accounting_matches=accounting_matches,
+        signed_matches=signed_matches,
+        percentage_matches=percentage_matches,
         separator_evidence=separator_evidence,
         grouping_evidence=grouping_evidence,
         leading_decimal_matches=leading_decimal_matches,
     )
 
 
-def infer_best_numeric_fits(
+def _candidate_fits(
     values: Sequence[str],
-) -> tuple[NumericTypeFit, NumericTypeFit, NumericTypeFit]:
-    """Return best integer/decimal/currency fit across all numeric candidates."""
-    best_integer: NumericTypeFit | None = None
-    best_decimal: NumericTypeFit | None = None
-    best_currency: NumericTypeFit | None = None
+    total: int,
+    rank: int,
+    candidate: NumericCandidate,
+) -> NumericFits:
+    stats = _score_candidate(values, candidate)
+    allow_leading = total > 0 and stats.leading_decimal_matches / total >= LEADING_DECIMAL_MIN_RATIO
+    base = NumericTypeFit(
+        matches=0,
+        separator_evidence=stats.separator_evidence,
+        grouping_evidence=stats.grouping_evidence,
+        rank=rank,
+        candidate=candidate,
+        allow_leading_decimal_point=allow_leading,
+    )
+    return NumericFits(
+        integer=replace(base, matches=stats.integer_matches),
+        decimal=replace(base, matches=stats.decimal_matches),
+        currency=replace(base, matches=stats.currency_matches),
+        accounting=replace(base, matches=stats.accounting_matches),
+        percentage=replace(base, matches=stats.percentage_matches),
+        signed=replace(base, matches=stats.signed_matches),
+    )
 
+
+def infer_best_numeric_fits(values: Sequence[str]) -> NumericFits:
+    """Return best integer/decimal/currency/accounting/percentage/signed fit."""
     total = len(values)
-    for rank, candidate in enumerate(NUMERIC_CANDIDATES):
-        stats = _score_candidate(values, candidate)
-        allow_leading_decimal_point = (
-            total > 0
-            and stats.leading_decimal_matches / total >= LEADING_DECIMAL_MIN_RATIO
-        )
-        best_integer = _keep_better(best_integer, NumericTypeFit(
-            matches=stats.integer_matches,
-            separator_evidence=stats.separator_evidence,
-            grouping_evidence=stats.grouping_evidence,
-            rank=rank,
-            candidate=candidate,
-            allow_leading_decimal_point=allow_leading_decimal_point,
-        ))
-        best_decimal = _keep_better(best_decimal, NumericTypeFit(
-            matches=stats.decimal_matches,
-            separator_evidence=stats.separator_evidence,
-            grouping_evidence=stats.grouping_evidence,
-            rank=rank,
-            candidate=candidate,
-            allow_leading_decimal_point=allow_leading_decimal_point,
-        ))
-        best_currency = _keep_better(best_currency, NumericTypeFit(
-            matches=stats.currency_matches,
-            separator_evidence=stats.separator_evidence,
-            grouping_evidence=stats.grouping_evidence,
-            rank=rank,
-            candidate=candidate,
-            allow_leading_decimal_point=allow_leading_decimal_point,
-        ))
-
-    if best_integer is None or best_decimal is None or best_currency is None:
-        raise RuntimeError("NUMERIC_CANDIDATES is empty")  # pragma: no cover
-    return best_integer, best_decimal, best_currency
+    all_fits = [
+        _candidate_fits(values, total, rank, candidate)
+        for rank, candidate in enumerate(NUMERIC_CANDIDATES)
+    ]
+    return NumericFits(
+        integer=max((f.integer for f in all_fits), key=_fit_key),
+        decimal=max((f.decimal for f in all_fits), key=_fit_key),
+        currency=max((f.currency for f in all_fits), key=_fit_key),
+        accounting=max((f.accounting for f in all_fits), key=_fit_key),
+        percentage=max((f.percentage for f in all_fits), key=_fit_key),
+        signed=max((f.signed for f in all_fits), key=_fit_key),
+    )

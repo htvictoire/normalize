@@ -39,14 +39,8 @@ DISPLAY_VALUES_PER_COLUMN = 10
 # Type inference sampling
 # ---------------------------------------------------------------------------
 
-# Number of rows fed to the DuckDB reservoir sampler for type inference.
-INFERENCE_RESERVOIR_ROWS = 2000
-
 # Maximum number of sampled values used per column during type inference.
 INFERENCE_SAMPLES_PER_COLUMN = 256
-
-# Random seed for the reservoir sampler, for reproducibility.
-INFERENCE_SAMPLE_SEED = 42
 
 # Minimum fraction of non-null sampled values that must match a candidate type
 # before that type is accepted for a column.
@@ -128,4 +122,5 @@ NUMERIC_CANDIDATES = (
     NumericCandidate(decimal_separator=",", thousand_separator=".", grouping_style="western"),
     NumericCandidate(decimal_separator=".", thousand_separator=",", grouping_style="indian"),
     NumericCandidate(decimal_separator=",", thousand_separator=".", grouping_style="indian"),
+    NumericCandidate(decimal_separator=".", thousand_separator="'", grouping_style="western"),
 )

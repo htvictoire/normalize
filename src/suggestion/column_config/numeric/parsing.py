@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from shared.models.column import GroupingStyle
 from shared.utils.currency import CURRENCY_DETECTION_RE
+from shared.utils.sign_markers import SIGN_MARKER_DETECTION_RE
 from suggestion.column_config.models import NumericCandidate, NumericParseResult
 from suggestion.constants import (
     GROUP_FIRST_MAX_DIGITS,
@@ -42,7 +43,7 @@ def _valid_grouping(
     return _valid_group_sizes(groups, grouping_style)
 
 
-def _strip_numeric_sign(value: str) -> str | None:
+def _strip_numeric_sign(value: str) -> tuple[str, bool] | None:
     stripped = value.strip().replace(" ", "")
     if not stripped:
         return None
@@ -53,9 +54,12 @@ def _strip_numeric_sign(value: str) -> str | None:
         stripped = stripped[1:]
     if stripped.endswith(("+", "-")):
         stripped = stripped[:-1]
+    has_percentage = stripped.endswith("%")
+    if has_percentage:
+        stripped = stripped[:-1]
     if not stripped:
         return None
-    return stripped
+    return stripped, has_percentage
 
 
 def parse_numeric_token(
@@ -71,9 +75,16 @@ def parse_numeric_token(
     has_currency = CURRENCY_DETECTION_RE.search(value) is not None
     clean = CURRENCY_DETECTION_RE.sub("", value).strip() if has_currency else value
 
-    stripped = _strip_numeric_sign(clean)
-    if stripped is None:
+    has_signed = SIGN_MARKER_DETECTION_RE.search(clean) is not None
+    if has_signed:
+        clean = SIGN_MARKER_DETECTION_RE.sub("", clean).strip()
+    if not has_signed and clean.strip().startswith("(") and clean.strip().endswith(")"):
+        has_signed = True
+
+    sign_result = _strip_numeric_sign(clean)
+    if sign_result is None:
         return None
+    stripped, has_percentage = sign_result
 
     decimal_separator = candidate.decimal_separator
     thousand_separator = candidate.thousand_separator
@@ -120,6 +131,8 @@ def parse_numeric_token(
     return NumericParseResult(
         normalized=normalized,
         has_currency=has_currency,
+        has_signed=has_signed,
+        has_percentage=has_percentage,
         used_decimal_separator=used_decimal_separator,
         used_thousand_separator=used_thousand_separator,
         leading_decimal_point=leading_decimal_point,

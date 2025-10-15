@@ -22,6 +22,8 @@ class NumericParseResult:
 
     normalized: str
     has_currency: bool
+    has_signed: bool
+    has_percentage: bool
     used_decimal_separator: bool
     used_thousand_separator: bool
     leading_decimal_point: bool
@@ -34,6 +36,9 @@ class NumericCandidateStats:
     integer_matches: int
     decimal_matches: int
     currency_matches: int
+    accounting_matches: int
+    signed_matches: int
+    percentage_matches: int
     separator_evidence: int
     grouping_evidence: int
     leading_decimal_matches: int
@@ -49,3 +54,15 @@ class NumericTypeFit:
     rank: int
     candidate: NumericCandidate
     allow_leading_decimal_point: bool
+
+
+@dataclass(frozen=True)
+class NumericFits:
+    """Best-fit result for each numeric type family."""
+
+    integer: NumericTypeFit
+    decimal: NumericTypeFit
+    currency: NumericTypeFit
+    accounting: NumericTypeFit
+    percentage: NumericTypeFit
+    signed: NumericTypeFit
