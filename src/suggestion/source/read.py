@@ -10,17 +10,27 @@ from shared.models.source import SourceRef
 from shared.source.access import read_source_probe
 from shared.storage.s3 import build_duckdb_s3_url, download_s3_temp, s3_ref
 from suggestion.constants import FILE_SAMPLE_BYTES
-from suggestion.source.csv import infer_csv_source_format, read_csv_sample_rows
+from suggestion.source.csv import (
+    infer_csv_source_format,
+    read_csv_column_names_and_inference_rows,
+    read_csv_sample_rows,
+)
 from suggestion.source.excel import read_excel_source
-from suggestion.source.json import infer_json_source_format, read_json_sample_rows
+from suggestion.source.json import (
+    infer_json_source_format,
+    read_json_column_names_and_inference_rows,
+    read_json_sample_rows,
+)
 
 
 @dataclass(frozen=True)
 class SourceReading:
-    """Inferred format, raw sample rows, and the runtime ingestion target for one source."""
+    """Inferred format, raw sample rows, column names, inference rows, and ingestion target."""
 
     source_format: SourceFormat
     sample_rows: list[list[str]]
+    column_names: list[str]
+    inference_rows: list[list[str]]
     ingestion_source_url: str
     ingestion_source_type: FileSource
     cleanup_path: Path | None
@@ -29,9 +39,13 @@ class SourceReading:
 def _read_csv_source(source: SourceRef) -> SourceReading:
     sample = read_source_probe(source, FILE_SAMPLE_BYTES)
     source_format = infer_csv_source_format(sample)
-    sample_rows = read_csv_sample_rows(
-        sample.decode(source_format.encoding, errors="ignore"),
+    text = sample.decode(source_format.encoding, errors="ignore")
+    sample_rows = read_csv_sample_rows(text, delimiter=source_format.delimiter)
+    column_names, inference_rows = read_csv_column_names_and_inference_rows(
+        text,
         delimiter=source_format.delimiter,
+        header_mode=source_format.header_mode,
+        header_row_index=source_format.header_row_index,
     )
     if source.source_type == "s3":
         ingestion_url = build_duckdb_s3_url(s3_ref(source.source_file))
@@ -40,6 +54,8 @@ def _read_csv_source(source: SourceRef) -> SourceReading:
     return SourceReading(
         source_format=source_format,
         sample_rows=sample_rows,
+        column_names=column_names,
+        inference_rows=inference_rows,
         ingestion_source_url=ingestion_url,
         ingestion_source_type=source.source_type,
         cleanup_path=None,
@@ -55,7 +71,9 @@ def _read_excel_source(source: SourceRef) -> SourceReading:
         ingestion_url = source.source_file
         cleanup_path = None
     try:
-        source_format, sample_rows = read_excel_source(Path(ingestion_url))
+        source_format, sample_rows, column_names, inference_rows = read_excel_source(
+            Path(ingestion_url)
+        )
     except Exception:
         if cleanup_path is not None:
             cleanup_path.unlink(missing_ok=True)
@@ -63,6 +81,8 @@ def _read_excel_source(source: SourceRef) -> SourceReading:
     return SourceReading(
         source_format=source_format,
         sample_rows=sample_rows,
+        column_names=column_names,
+        inference_rows=inference_rows,
         ingestion_source_url=ingestion_url,
         ingestion_source_type="local",
         cleanup_path=cleanup_path,
@@ -75,9 +95,12 @@ def _read_json_source(source: SourceRef) -> SourceReading:
         ingestion_url = build_duckdb_s3_url(s3_ref(source.source_file))
     else:
         ingestion_url = source.source_file
+    column_names, inference_rows = read_json_column_names_and_inference_rows(sample)
     return SourceReading(
         source_format=infer_json_source_format(),
         sample_rows=read_json_sample_rows(sample),
+        column_names=column_names,
+        inference_rows=inference_rows,
         ingestion_source_url=ingestion_url,
         ingestion_source_type=source.source_type,
         cleanup_path=None,
@@ -85,7 +108,7 @@ def _read_json_source(source: SourceRef) -> SourceReading:
 
 
 def read_source(source: SourceRef) -> SourceReading:
-    """Infer format settings and collect raw sample rows for one source."""
+    """Infer format settings, collect sample rows, and parse inference rows for one source."""
     if source.source_file_format == "csv":
         return _read_csv_source(source)
     if source.source_file_format == "excel":

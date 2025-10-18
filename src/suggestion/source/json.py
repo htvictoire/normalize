@@ -13,6 +13,40 @@ def infer_json_source_format() -> JsonSourceFormat:
     return JsonSourceFormat()
 
 
+def read_json_column_names_and_inference_rows(
+    sample: bytes,
+) -> tuple[list[str], list[list[str]]]:
+    """Parse column names and all data rows from a JSON array byte probe."""
+    decoder = json.JSONDecoder()
+    text = sample.decode("utf-8-sig", errors="ignore")
+    start = text.find("[")
+    if start == -1:
+        return [], []
+
+    buf = text[start + 1 :]
+    column_names: list[str] = []
+    rows: list[list[str]] = []
+
+    while True:
+        buf = buf.lstrip(" \t\n\r,")
+        if not buf or buf.startswith("]"):
+            break
+        try:
+            obj, end = decoder.raw_decode(buf)
+        except json.JSONDecodeError:
+            break
+        if not isinstance(obj, dict):
+            raise TypeError("JSON files must be a top-level array of objects.")
+        if not column_names:
+            column_names = list(obj.keys())
+        row = [str(value) if value is not None else "" for value in obj.values()]
+        if len(row) == len(column_names):
+            rows.append(row)
+        buf = buf[end:]
+
+    return column_names, rows
+
+
 def read_json_sample_rows(sample: bytes) -> list[list[str]]:
     """
     Read sample rows from a JSON array probe.
