@@ -28,6 +28,7 @@ KNOWN_CURRENCY_TOKENS: tuple[str, ...] = (
     "R$",
     "C$",
     "A$",
+    "AU$",
     "NZ$",
     "S$",
     "HK$",
@@ -54,22 +55,25 @@ KNOWN_CURRENCY_TOKENS: tuple[str, ...] = (
     "ZAR",
     "TRY",
     "AED",
-    # Accounting
-    "CR",
-    "DR",
 )
 
 
 def build_currency_symbol_extract_expr(value_expr: str) -> str:
     """Extract the leading or trailing currency token when present."""
-    lowered_trimmed = f"LOWER(TRIM({value_expr}))"
+    trimmed = f"TRIM({value_expr})"
+    inner = f"TRIM(SUBSTRING({trimmed}, 2, LENGTH({trimmed}) - 2))"
+    paren_stripped = (
+        f"CASE WHEN REGEXP_FULL_MATCH({trimmed}, {quote_string(r'^\(.+\)$')}) "
+        f"THEN {inner} ELSE {trimmed} END"
+    )
+    lowered = f"LOWER({paren_stripped})"
     token_pattern = CURRENCY_TOKEN_PATTERN_LOWER
     prefix_extract = (
-        f"REGEXP_EXTRACT({lowered_trimmed}, "
+        f"REGEXP_EXTRACT({lowered}, "
         f"{quote_string(rf'^[+-]?\\s*({token_pattern})\\s*.+$')}, 1)"
     )
     suffix_extract = (
-        f"REGEXP_EXTRACT({lowered_trimmed}, "
+        f"REGEXP_EXTRACT({lowered}, "
         f"{quote_string(rf'^.+\\s*({token_pattern})$')}, 1)"
     )
     symbol_candidate = (
@@ -77,7 +81,7 @@ def build_currency_symbol_extract_expr(value_expr: str) -> str:
     )
     return (
         "CASE "
-        f"WHEN NULLIF(TRIM({value_expr}), '') IS NULL THEN NULL "
+        f"WHEN NULLIF({trimmed}, '') IS NULL THEN NULL "
         f"WHEN {symbol_candidate} IS NULL THEN NULL "
         f"ELSE UPPER({symbol_candidate}) END"
     )

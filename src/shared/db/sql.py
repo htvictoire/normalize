@@ -26,6 +26,11 @@ def quote_string(value: str) -> str:
     return "'" + value.replace("'", "''") + "'"
 
 
+def execute_scalar(conn: DuckDBPyConnection, sql: str) -> int:
+    """Execute a query returning a single integer scalar (e.g. COUNT)."""
+    return int(conn.execute(sql).fetchall()[0][0])
+
+
 def read_columns(conn: DuckDBPyConnection, table_name: str) -> list[str]:
     """Read ordered table column names from DuckDB."""
     validate_identifier(table_name)

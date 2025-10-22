@@ -10,7 +10,6 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     duckdb_memory_limit: str
     postgres_dsn: str
-    api_base_url: str
     s3_endpoint_url: str
     s3_access_key_id: str
     s3_secret_access_key: str

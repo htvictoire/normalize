@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from duckdb import DuckDBPyConnection
 
-from shared.db.sql import nullish_predicate, quote_identifier, quote_string
+from shared.db.sql import execute_scalar, nullish_predicate, quote_identifier, quote_string
 from shared.models.profiling import BooleanColumnProfile, ColumnCounts
 
 
@@ -25,19 +25,14 @@ def compute_boolean_column_profile(
     true_in = _in_clause(true_tokens)
     false_in = _in_clause(false_tokens)
 
-    true_row = conn.execute(
-        f"SELECT COUNT(*) FROM raw_input WHERE NOT ({nullish}) AND {normalized} IN ({true_in})"
-    ).fetchone()
-    if true_row is None:
-        raise RuntimeError("true token count query returned no rows")
-    true_token_count = int(true_row[0])
-
-    false_row = conn.execute(
-        f"SELECT COUNT(*) FROM raw_input WHERE NOT ({nullish}) AND {normalized} IN ({false_in})"
-    ).fetchone()
-    if false_row is None:
-        raise RuntimeError("false token count query returned no rows")
-    false_token_count = int(false_row[0])
+    true_token_count = execute_scalar(
+        conn,
+        f"SELECT COUNT(*) FROM raw_input WHERE NOT ({nullish}) AND {normalized} IN ({true_in})",
+    )
+    false_token_count = execute_scalar(
+        conn,
+        f"SELECT COUNT(*) FROM raw_input WHERE NOT ({nullish}) AND {normalized} IN ({false_in})",
+    )
 
     non_nullish = counts.non_nullish_count
     unrecognized_count = max(non_nullish - true_token_count - false_token_count, 0)

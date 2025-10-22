@@ -9,7 +9,10 @@ from pydantic import Field, TypeAdapter
 
 from shared.models.base import MainModel
 
-ColumnType = Literal["string", "boolean", "integer", "decimal", "currency", "date"]
+ColumnType = Literal[
+    "string", "boolean", "integer", "decimal", "currency",
+    "percentage", "signed", "accounting", "date",
+]
 GroupingStyle = Literal["western", "indian"]
 
 
@@ -55,6 +58,42 @@ class CurrencyColumnConfig(MainModel):
     type: Literal["currency"] = "currency"
 
 
+class PercentageColumnConfig(MainModel):
+    """Declared percentage column configuration."""
+
+    decimal_separator: str
+    thousand_separator: str
+    grouping_style: GroupingStyle
+    allow_leading_decimal_point: bool
+    type: Literal["percentage"] = "percentage"
+
+
+class SignedColumnConfig(MainModel):
+    """Declared signed column configuration — numeric values where sign is encoded via markers."""
+
+    decimal_separator: str
+    thousand_separator: str
+    grouping_style: GroupingStyle
+    allow_leading_decimal_point: bool
+    positive_markers: tuple[str, ...]
+    negative_markers: tuple[str, ...]
+    parentheses_as_negative: bool
+    type: Literal["signed"] = "signed"
+
+
+class AccountingColumnConfig(MainModel):
+    """Declared accounting column — currency symbols present alongside sign markers."""
+
+    decimal_separator: str
+    thousand_separator: str
+    grouping_style: GroupingStyle
+    allow_leading_decimal_point: bool
+    positive_markers: tuple[str, ...]
+    negative_markers: tuple[str, ...]
+    parentheses_as_negative: bool
+    type: Literal["accounting"] = "accounting"
+
+
 class DateColumnConfig(MainModel):
     """Declared date column configuration."""
 
@@ -69,6 +108,9 @@ ColumnConfig = Annotated[
         | IntegerColumnConfig
         | DecimalColumnConfig
         | CurrencyColumnConfig
+        | PercentageColumnConfig
+        | SignedColumnConfig
+        | AccountingColumnConfig
         | DateColumnConfig
     ),
     Field(discriminator="type"),

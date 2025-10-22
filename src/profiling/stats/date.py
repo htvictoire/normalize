@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from duckdb import DuckDBPyConnection
 
-from shared.db.sql import nullish_predicate, quote_identifier, quote_string
+from shared.db.sql import execute_scalar, nullish_predicate, quote_identifier, quote_string
 from shared.models.profiling import ColumnCounts, DateColumnProfile
 
 
@@ -24,13 +24,10 @@ def compute_date_column_profile(
         date_expr = f"TRY_CAST(TRY_STRPTIME({quoted}, {quote_string(date_format)}) AS DATE)"
 
     nullish = nullish_predicate(quoted, null_tokens)
-    match_row = conn.execute(
-        "SELECT COUNT(*) FROM raw_input "
-        f"WHERE NOT ({nullish}) AND {date_expr} IS NOT NULL"
-    ).fetchone()
-    if match_row is None:
-        raise RuntimeError("date format match count query returned no rows")
-    format_match_count = int(match_row[0])
+    format_match_count = execute_scalar(
+        conn,
+        f"SELECT COUNT(*) FROM raw_input WHERE NOT ({nullish}) AND {date_expr} IS NOT NULL",
+    )
 
     non_nullish = counts.non_nullish_count
     format_match_ratio = 1.0 if non_nullish <= 0 else (format_match_count / non_nullish)
