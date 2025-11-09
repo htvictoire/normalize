@@ -46,9 +46,14 @@ INFERENCE_SAMPLES_PER_COLUMN = 256
 # before that type is accepted for a column.
 TYPE_MATCH_MIN_RATIO = 0.55
 
-# Lower threshold for currency: explicit currency tokens are rare enough in
-# non-currency columns that 25% is already a strong signal.
-CURRENCY_MATCH_MIN_RATIO = 0.25
+# Minimum match ratio for accounting and currency types. Currency symbol tokens
+# are rare enough in non-numeric columns that ~10% match is a strong signal.
+CURRENCY_MATCH_MIN_RATIO = 0.1
+
+# Minimum match ratio for signed type. Sign markers can appear in non-numeric
+# columns more readily than currency symbols, so this is tracked separately
+# from CURRENCY_MATCH_MIN_RATIO to allow independent tuning.
+SIGNED_MATCH_MIN_RATIO = 0.1
 
 # ---------------------------------------------------------------------------
 # Boolean tokens

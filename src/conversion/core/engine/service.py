@@ -22,6 +22,8 @@ class ConversionEngine:
         csv_path: str | Path,
         output_dir: str | Path,
         config: EngineConfig,
+        *,
+        source_checksum: str,
         mode: str = "APPLY",
     ) -> NormalizationOutput:
         """
@@ -48,6 +50,7 @@ class ConversionEngine:
 
         return run_pipeline(
             source_csv=source_csv,
+            source_checksum=source_checksum,
             output_root=output_root,
             effective=effective,
             run_mode=run_mode,

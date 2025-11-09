@@ -20,7 +20,6 @@ from conversion.stages.row_normalization import RowNormalizationStage
 from shared.db.duckdb import DuckDBManager, resolve_db_path
 from shared.db.sql import read_columns
 from shared.ingestion import HeaderMode, IngestionStage
-from shared.ingestion.checksum import sha256_stream
 from shared.models.normalization import ArtifactPaths, NormalizationOutput, SourceChecksums
 from shared.models.operation import CsvSourceFormat
 
@@ -28,6 +27,7 @@ from shared.models.operation import CsvSourceFormat
 def run_pipeline(
     *,
     source_csv: Path,
+    source_checksum: str,
     output_root: Path,
     effective: EngineConfig,
     run_mode: str,
@@ -92,7 +92,6 @@ def run_pipeline(
         duckdb_version = str(duckdb_version_row[0])
         replay_config = build_replay_config(effective)
         config_json = json.dumps(replay_config, sort_keys=True, separators=(",", ":"))
-        source_checksum = sha256_stream(source_csv)
         fingerprint = compute_fingerprint(
             source_checksum,
             config_json,

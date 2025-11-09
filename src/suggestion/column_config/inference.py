@@ -30,6 +30,7 @@ from suggestion.constants import (
     BOOLEAN_TRUE_TOKENS,
     CURRENCY_MATCH_MIN_RATIO,
     DATE_FORMAT_CANDIDATES,
+    SIGNED_MATCH_MIN_RATIO,
     TYPE_MATCH_MIN_RATIO,
 )
 
@@ -98,9 +99,20 @@ def _infer_currency_like(
             negative_markers=negative_markers,
             parentheses_as_negative=parentheses_as_negative,
         )
-    if fits.signed.matches / sample_count >= CURRENCY_MATCH_MIN_RATIO:
+    if fits.signed.matches / sample_count >= SIGNED_MATCH_MIN_RATIO:
         c = fits.signed.candidate
         negative_markers, positive_markers, parentheses_as_negative = _detect_signed_markers(values)
+        has_currency_evidence = any(CURRENCY_DETECTION_RE.search(v) for v in values)
+        if has_currency_evidence:
+            return AccountingColumnConfig(
+                decimal_separator=c.decimal_separator,
+                thousand_separator=c.thousand_separator,
+                grouping_style=c.grouping_style,
+                allow_leading_decimal_point=fits.signed.allow_leading_decimal_point,
+                positive_markers=positive_markers,
+                negative_markers=negative_markers,
+                parentheses_as_negative=parentheses_as_negative,
+            )
         return SignedColumnConfig(
             decimal_separator=c.decimal_separator,
             thousand_separator=c.thousand_separator,

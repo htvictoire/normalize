@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import base64
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
@@ -25,8 +24,6 @@ class _S3ClientProtocol(Protocol):
     def get_object(self, **kwargs: Any) -> dict[str, Any]: ...
 
     def download_fileobj(self, *args: Any, **kwargs: Any) -> None: ...
-
-    def get_object_attributes(self, **kwargs: Any) -> dict[str, Any]: ...
 
 
 def _build_s3_client() -> _S3ClientProtocol:
@@ -93,30 +90,10 @@ def build_duckdb_s3_url(obj: S3ObjectRef) -> str:
     return f"s3://{obj.bucket}/{obj.key}"
 
 
-def fetch_s3_checksum(obj: S3ObjectRef) -> str:
-    """
-    Return the SHA256 checksum stored on an S3-compatible object.
-
-    Requires the object to have been uploaded with x-amz-checksum-sha256.
-    Makes a single GetObjectAttributes call — no file download.
-    """
-    client = _build_s3_client()
-    response = client.get_object_attributes(
-        Bucket=obj.bucket,
-        Key=obj.key,
-        ObjectAttributes=["Checksum"],
-    )
-    checksum = response.get("Checksum", {}).get("ChecksumSHA256")
-    if checksum is None:
-        raise ValueError("Remote source is missing SHA256 checksum metadata.")
-    return base64.b64decode(checksum).hex()
-
-
 __all__ = [
     "S3ObjectRef",
     "build_duckdb_s3_url",
     "download_s3_temp",
-    "fetch_s3_checksum",
     "fetch_s3_probe",
     "s3_ref",
 ]
