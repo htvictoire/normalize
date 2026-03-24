@@ -15,18 +15,7 @@ from conversion.stages.cell_normalization.naming import (
 from conversion.stages.cell_normalization.sql_helpers import quote_identifier
 from conversion.stages.cell_normalization.transforms.dispatcher import build_column_exprs
 from conversion.stages.cell_normalization.transforms.nullish import build_nullish_predicate
-from shared.models.column import (
-    AccountingColumnConfig,
-    BooleanColumnConfig,
-    ColumnConfig,
-    CurrencyColumnConfig,
-    DateColumnConfig,
-    DecimalColumnConfig,
-    IntegerColumnConfig,
-    PercentageColumnConfig,
-    SignedColumnConfig,
-    column_config_type,
-)
+from shared.models.column import ColumnConfig
 
 
 @dataclass(frozen=True)
@@ -57,7 +46,6 @@ def build_cell_expression_fragments(
 
     for column_name in data_columns:
         spec = column_config[column_name]
-        inferred_type = column_config_type(spec)
         quoted_column = quote_identifier(column_name)
         raw_alias = quote_identifier(parse_raw_alias(column_name))
         lower_alias = quote_identifier(parse_lower_alias(column_name))
@@ -70,59 +58,12 @@ def build_cell_expression_fragments(
                 build_nullish_predicate(raw_alias, lower_alias, token_policy.null_tokens),
             )
         )
-        column_decimal_separator: str
-        column_thousand_separator: str
-        column_grouping_style: str
-        if isinstance(spec, IntegerColumnConfig):
-            column_decimal_separator = ""
-            column_thousand_separator = spec.thousand_separator
-            column_grouping_style = spec.grouping_style
-            allow_leading_decimal_point = False
-        elif isinstance(spec, DecimalColumnConfig | CurrencyColumnConfig | PercentageColumnConfig | SignedColumnConfig | AccountingColumnConfig):  # noqa: E501
-            column_decimal_separator = spec.decimal_separator
-            column_thousand_separator = spec.thousand_separator
-            column_grouping_style = spec.grouping_style
-            allow_leading_decimal_point = spec.allow_leading_decimal_point
-        else:
-            column_decimal_separator = ""
-            column_thousand_separator = ""
-            column_grouping_style = ""
-            allow_leading_decimal_point = False
-        date_format = spec.date_format if isinstance(spec, DateColumnConfig) else None
-        true_tokens: tuple[str, ...] = (
-            spec.true_tokens if isinstance(spec, BooleanColumnConfig) else ()
-        )
-        false_tokens: tuple[str, ...] = (
-            spec.false_tokens if isinstance(spec, BooleanColumnConfig) else ()
-        )
-        signed_spec: SignedColumnConfig | AccountingColumnConfig | None = (
-            spec if isinstance(spec, SignedColumnConfig | AccountingColumnConfig) else None
-        )
-        positive_markers: tuple[str, ...] = (
-            signed_spec.positive_markers if signed_spec is not None else ()
-        )
-        negative_markers: tuple[str, ...] = (
-            signed_spec.negative_markers if signed_spec is not None else ()
-        )
-        parentheses_as_negative = (
-            signed_spec.parentheses_as_negative if signed_spec is not None else False
-        )
         col_parse_entries, normalized_expr, issue_expr = build_column_exprs(
             column_name,
-            inferred_type,
+            spec,
             nullish_alias,
             raw_value=raw_alias,
             normalized_raw_value=lower_alias,
-            true_tokens=true_tokens,
-            false_tokens=false_tokens,
-            decimal_separator=column_decimal_separator,
-            thousand_separator=column_thousand_separator,
-            grouping_style=column_grouping_style,
-            allow_leading_decimal_point=allow_leading_decimal_point,
-            date_format=date_format,
-            positive_markers=positive_markers,
-            negative_markers=negative_markers,
-            parentheses_as_negative=parentheses_as_negative,
         )
         parse_cte_entries.extend(col_parse_entries)
         issue_col = issue_alias(column_name)

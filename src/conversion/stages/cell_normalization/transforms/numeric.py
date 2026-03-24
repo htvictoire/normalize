@@ -50,6 +50,7 @@ def build_decimal_exprs(
     thousand_separator: str,
     grouping_style: str,
     allow_leading_decimal_point: bool,
+    issue_label: str = "INVALID_DECIMAL",
 ) -> tuple[list[tuple[str, str]], str, str]:
     """Build (parse_cte_entries, normalized_expr, issue_expr) for a decimal column."""
     trimmed = f"TRIM({raw_value})"
@@ -76,7 +77,7 @@ def build_decimal_exprs(
     issue = (
         f"CASE WHEN {nullish_predicate} THEN NULL "
         f"WHEN {match_alias} AND {cast_alias} IS NOT NULL THEN NULL "
-        "ELSE 'INVALID_DECIMAL' END"
+        f"ELSE '{issue_label}' END"
     )
     return ([(match_alias, match_expr), (cast_alias, cast_expr)], normalized, issue)
 

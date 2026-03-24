@@ -4,10 +4,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from conversion.stages.cell_normalization.currency_helpers import (
-    build_currency_numeric_candidate_expr,
-)
-from conversion.stages.cell_normalization.signed_helpers import build_signed_value_expr
 from conversion.stages.header_canonicalization import HeaderCanonicalizationStage
 from profiling.issues import build_mixed_currency_issue, build_separator_mismatch_issue
 from profiling.stats import (
@@ -18,6 +14,7 @@ from profiling.stats import (
     compute_null_stats,
     compute_numeric_column_profile,
 )
+from shared.column_parsing.normalizer import build_value_candidate_expr
 from shared.db.duckdb import DuckDBManager
 from shared.db.sql import quote_identifier, read_columns
 from shared.ingestion import IngestionRequest, run_ingestion
@@ -125,8 +122,10 @@ def run_profiling(
                     | None
                 ) = None
 
-                if isinstance(config, CurrencyColumnConfig):
-                    raw_col = f"TRIM(CAST({quote_identifier(column_name)} AS VARCHAR))"
+                raw_col = f"TRIM(CAST({quote_identifier(column_name)} AS VARCHAR))"
+                candidate = build_value_candidate_expr(raw_col, config)
+
+                if isinstance(config, CurrencyColumnConfig | AccountingColumnConfig):
                     currency_profile = compute_currency_column_profile(
                         conn,
                         column_name=column_name,
@@ -145,139 +144,35 @@ def run_profiling(
                             )
                         )
 
+                if isinstance(
+                    config,
+                    IntegerColumnConfig
+                    | DecimalColumnConfig
+                    | CurrencyColumnConfig
+                    | PercentageColumnConfig
+                    | SignedColumnConfig
+                    | AccountingColumnConfig,
+                ):
                     numeric_profile = compute_numeric_column_profile(
                         conn,
                         column_name=column_name,
                         config=config,
                         null_tokens=operation_config.null_tokens,
                         counts=counts,
-                        normalized_value_expr=build_currency_numeric_candidate_expr(raw_col),
+                        normalized_value_expr=candidate,
                     )
+                    if type_profile is None:
+                        type_profile = numeric_profile
                     if (
-                        numeric_profile.separator_mismatch_detected
-                        and numeric_profile.swapped_match_ratio >= NUMERIC_MISMATCH_THRESHOLD
-                    ):
-                        issues.append(
-                            build_separator_mismatch_issue(
-                                column_name=column_name,
-                                decimal_separator=config.decimal_separator,
-                                thousand_separator=config.thousand_separator,
-                                numeric_threshold=NUMERIC_MISMATCH_THRESHOLD,
-                                declared_decimal_ratio=numeric_profile.parse_match_ratio,
-                                swapped_decimal_ratio=numeric_profile.swapped_match_ratio,
-                            )
+                        isinstance(
+                            config,
+                            DecimalColumnConfig
+                            | CurrencyColumnConfig
+                            | PercentageColumnConfig
+                            | SignedColumnConfig
+                            | AccountingColumnConfig,
                         )
-
-                elif isinstance(config, AccountingColumnConfig):
-                    raw_col = f"TRIM(CAST({quote_identifier(column_name)} AS VARCHAR))"
-                    currency_profile = compute_currency_column_profile(
-                        conn,
-                        column_name=column_name,
-                        null_tokens=operation_config.null_tokens,
-                        counts=counts,
-                    )
-                    type_profile = currency_profile
-                    currency_ratios.append(currency_profile.dominant_symbol_ratio)
-                    if currency_profile.has_mixed_symbols:
-                        issues.append(
-                            build_mixed_currency_issue(
-                                column_name=column_name,
-                                symbols=sorted(currency_profile.symbol_distribution.keys()),
-                                dominant_symbol=currency_profile.dominant_symbol,
-                                dominant_symbol_ratio=currency_profile.dominant_symbol_ratio,
-                            )
-                        )
-                    numeric_profile = compute_numeric_column_profile(
-                        conn,
-                        column_name=column_name,
-                        config=config,
-                        null_tokens=operation_config.null_tokens,
-                        counts=counts,
-                        normalized_value_expr=build_signed_value_expr(
-                            raw_col,
-                            positive_markers=config.positive_markers,
-                            negative_markers=config.negative_markers,
-                            parentheses_as_negative=config.parentheses_as_negative,
-                        ),
-                    )
-                    if (
-                        numeric_profile.separator_mismatch_detected
-                        and numeric_profile.swapped_match_ratio >= NUMERIC_MISMATCH_THRESHOLD
-                    ):
-                        issues.append(
-                            build_separator_mismatch_issue(
-                                column_name=column_name,
-                                decimal_separator=config.decimal_separator,
-                                thousand_separator=config.thousand_separator,
-                                numeric_threshold=NUMERIC_MISMATCH_THRESHOLD,
-                                declared_decimal_ratio=numeric_profile.parse_match_ratio,
-                                swapped_decimal_ratio=numeric_profile.swapped_match_ratio,
-                            )
-                        )
-
-                elif isinstance(config, SignedColumnConfig):
-                    raw_col = f"TRIM(CAST({quote_identifier(column_name)} AS VARCHAR))"
-                    numeric_profile = compute_numeric_column_profile(
-                        conn,
-                        column_name=column_name,
-                        config=config,
-                        null_tokens=operation_config.null_tokens,
-                        counts=counts,
-                        normalized_value_expr=build_signed_value_expr(
-                            raw_col,
-                            positive_markers=config.positive_markers,
-                            negative_markers=config.negative_markers,
-                            parentheses_as_negative=config.parentheses_as_negative,
-                        ),
-                    )
-                    type_profile = numeric_profile
-                    if (
-                        numeric_profile.separator_mismatch_detected
-                        and numeric_profile.swapped_match_ratio >= NUMERIC_MISMATCH_THRESHOLD
-                    ):
-                        issues.append(
-                            build_separator_mismatch_issue(
-                                column_name=column_name,
-                                decimal_separator=config.decimal_separator,
-                                thousand_separator=config.thousand_separator,
-                                numeric_threshold=NUMERIC_MISMATCH_THRESHOLD,
-                                declared_decimal_ratio=numeric_profile.parse_match_ratio,
-                                swapped_decimal_ratio=numeric_profile.swapped_match_ratio,
-                            )
-                        )
-
-                elif isinstance(config, PercentageColumnConfig):
-                    raw_col = f"TRIM(CAST({quote_identifier(column_name)} AS VARCHAR))"
-                    percent_stripped = f"TRIM(REGEXP_REPLACE({raw_col}, '\\s*%\\s*$', ''))"
-                    type_profile = compute_numeric_column_profile(
-                        conn,
-                        column_name=column_name,
-                        config=config,
-                        null_tokens=operation_config.null_tokens,
-                        counts=counts,
-                        normalized_value_expr=percent_stripped,
-                    )
-
-                elif isinstance(config, IntegerColumnConfig):
-                    type_profile = compute_numeric_column_profile(
-                        conn,
-                        column_name=column_name,
-                        config=config,
-                        null_tokens=operation_config.null_tokens,
-                        counts=counts,
-                    )
-
-                elif isinstance(config, DecimalColumnConfig):
-                    numeric_profile = compute_numeric_column_profile(
-                        conn,
-                        column_name=column_name,
-                        config=config,
-                        null_tokens=operation_config.null_tokens,
-                        counts=counts,
-                    )
-                    type_profile = numeric_profile
-                    if (
-                        numeric_profile.separator_mismatch_detected
+                        and numeric_profile.separator_mismatch_detected
                         and numeric_profile.swapped_match_ratio >= NUMERIC_MISMATCH_THRESHOLD
                     ):
                         issues.append(
