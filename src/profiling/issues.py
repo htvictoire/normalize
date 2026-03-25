@@ -2,10 +2,82 @@
 
 from __future__ import annotations
 
+from shared.models.column import (
+    AccountingColumnConfig,
+    ColumnConfig,
+    CurrencyColumnConfig,
+    DecimalColumnConfig,
+    PercentageColumnConfig,
+    SignedColumnConfig,
+)
 from shared.models.issues import IssueSeverity, NormalizationIssue
+from shared.models.profiling import (
+    AccountingColumnProfile,
+    ColumnProfile,
+    CurrencyColumnProfile,
+    DecimalColumnProfile,
+    PercentageColumnProfile,
+    SignedColumnProfile,
+)
 
 ISSUE_CODE_MIXED_CURRENCY = "MIXED_CURRENCY"
 ISSUE_CODE_SEPARATOR_MISMATCH = "SEPARATOR_MISMATCH"
+
+_MixedCurrencyProfile = CurrencyColumnProfile | AccountingColumnProfile
+_SeparatorMismatchProfile = (
+    DecimalColumnProfile
+    | PercentageColumnProfile
+    | SignedColumnProfile
+    | CurrencyColumnProfile
+    | AccountingColumnProfile
+)
+_SeparatorMismatchConfig = (
+    DecimalColumnConfig
+    | PercentageColumnConfig
+    | SignedColumnConfig
+    | CurrencyColumnConfig
+    | AccountingColumnConfig
+)
+
+
+def collect_column_issues(
+    column_name: str,
+    config: ColumnConfig,
+    profile: ColumnProfile,
+    issues: list[NormalizationIssue],
+    currency_ratios: list[float],
+    *,
+    numeric_threshold: float,
+) -> None:
+    """Append any data-quality issues detected from the column profile."""
+    if isinstance(profile, _MixedCurrencyProfile):
+        currency_ratios.append(profile.dominant_symbol_ratio)
+        if profile.has_mixed_symbols:
+            issues.append(
+                build_mixed_currency_issue(
+                    column_name=column_name,
+                    symbols=sorted(profile.symbol_distribution.keys()),
+                    dominant_symbol=profile.dominant_symbol,
+                    dominant_symbol_ratio=profile.dominant_symbol_ratio,
+                )
+            )
+
+    if (
+        isinstance(profile, _SeparatorMismatchProfile)
+        and isinstance(config, _SeparatorMismatchConfig)
+        and profile.separator_mismatch_detected
+        and profile.swapped_match_ratio >= numeric_threshold
+    ):
+        issues.append(
+            build_separator_mismatch_issue(
+                column_name=column_name,
+                decimal_separator=config.decimal_separator,
+                thousand_separator=config.thousand_separator,
+                numeric_threshold=numeric_threshold,
+                declared_decimal_ratio=profile.parse_match_ratio,
+                swapped_decimal_ratio=profile.swapped_match_ratio,
+            )
+        )
 
 
 def build_mixed_currency_issue(

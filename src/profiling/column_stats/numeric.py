@@ -1,4 +1,4 @@
-"""Numeric profiling stats."""
+"""Numeric profiling stats — one compute function per numeric config type."""
 
 from __future__ import annotations
 
@@ -17,54 +17,152 @@ from shared.models.column import (
     PercentageColumnConfig,
     SignedColumnConfig,
 )
-from shared.models.profiling import ColumnCounts, NumericColumnProfile
+from shared.models.profiling import (
+    ColumnCounts,
+    DecimalColumnProfile,
+    IntegerColumnProfile,
+    PercentageColumnProfile,
+    SignedColumnProfile,
+)
+
+_DecimalFamilyConfig = (
+    DecimalColumnConfig
+    | PercentageColumnConfig
+    | SignedColumnConfig
+    | CurrencyColumnConfig
+    | AccountingColumnConfig
+)
 
 
-def compute_numeric_column_profile(
+def compute_integer_column_profile(
     conn: DuckDBPyConnection,
     *,
     column_name: str,
-    config: (
-        DecimalColumnConfig
-        | IntegerColumnConfig
-        | CurrencyColumnConfig
-        | PercentageColumnConfig
-        | SignedColumnConfig
-        | AccountingColumnConfig
-    ),
+    config: IntegerColumnConfig,
     null_tokens: tuple[str, ...],
     counts: ColumnCounts,
     normalized_value_expr: str | None = None,
-) -> NumericColumnProfile:
-    """Count matches for the declared format; detect separator swaps where applicable.
-
-    Pass normalized_value_expr to pre-strip decorations (currency symbols, sign markers,
-    percentage signs) before matching, so the regex sees plain numeric text.
-    """
+) -> IntegerColumnProfile:
+    """Count values that match the declared integer format."""
     quoted = quote_identifier(column_name)
-    raw_value = f"TRIM(CAST({quoted} AS VARCHAR))"
-    match_value = normalized_value_expr if normalized_value_expr is not None else raw_value
+    match_value = normalized_value_expr or f"TRIM(CAST({quoted} AS VARCHAR))"
     nullish = nullish_predicate(quoted, null_tokens)
     non_nullish = counts.non_nullish_count
 
-    if isinstance(config, IntegerColumnConfig):
-        pattern = integer_pattern_regex(
-            thousand_separator=config.thousand_separator,
-            grouping_style=config.grouping_style,
-        )
-        parse_match_count = execute_scalar(
-            conn,
-            f"SELECT COUNT(*) FROM raw_input WHERE NOT ({nullish}) "
-            f"AND REGEXP_FULL_MATCH({match_value}, {quote_string(pattern)})",
-        )
-        parse_match_ratio = 1.0 if non_nullish <= 0 else (parse_match_count / non_nullish)
-        return NumericColumnProfile(
-            parse_match_count=parse_match_count,
-            parse_match_ratio=parse_match_ratio,
-            swapped_match_count=0,
-            swapped_match_ratio=0.0,
-            separator_mismatch_detected=False,
-        )
+    pattern = integer_pattern_regex(
+        thousand_separator=config.thousand_separator,
+        grouping_style=config.grouping_style,
+    )
+    parse_match_count = execute_scalar(
+        conn,
+        f"SELECT COUNT(*) FROM raw_input WHERE NOT ({nullish}) "
+        f"AND REGEXP_FULL_MATCH({match_value}, {quote_string(pattern)})",
+    )
+    parse_match_ratio = 1.0 if non_nullish <= 0 else (parse_match_count / non_nullish)
+    return IntegerColumnProfile(
+        parse_match_count=parse_match_count,
+        parse_match_ratio=parse_match_ratio,
+    )
+
+
+def compute_decimal_column_profile(
+    conn: DuckDBPyConnection,
+    *,
+    column_name: str,
+    config: DecimalColumnConfig,
+    null_tokens: tuple[str, ...],
+    counts: ColumnCounts,
+    normalized_value_expr: str | None = None,
+) -> DecimalColumnProfile:
+    """Count values matching the declared decimal format; detect separator swaps."""
+    pm, pmr, sm, smr = decimal_parse_stats(
+        conn,
+        column_name=column_name,
+        config=config,
+        null_tokens=null_tokens,
+        counts=counts,
+        normalized_value_expr=normalized_value_expr,
+    )
+    return DecimalColumnProfile(
+        parse_match_count=pm,
+        parse_match_ratio=pmr,
+        swapped_match_count=sm,
+        swapped_match_ratio=smr,
+        separator_mismatch_detected=sm > pm,
+    )
+
+
+def compute_percentage_column_profile(
+    conn: DuckDBPyConnection,
+    *,
+    column_name: str,
+    config: PercentageColumnConfig,
+    null_tokens: tuple[str, ...],
+    counts: ColumnCounts,
+    normalized_value_expr: str | None = None,
+) -> PercentageColumnProfile:
+    """Count values matching the declared percentage format; detect separator swaps."""
+    pm, pmr, sm, smr = decimal_parse_stats(
+        conn,
+        column_name=column_name,
+        config=config,
+        null_tokens=null_tokens,
+        counts=counts,
+        normalized_value_expr=normalized_value_expr,
+    )
+    return PercentageColumnProfile(
+        parse_match_count=pm,
+        parse_match_ratio=pmr,
+        swapped_match_count=sm,
+        swapped_match_ratio=smr,
+        separator_mismatch_detected=sm > pm,
+    )
+
+
+def compute_signed_column_profile(
+    conn: DuckDBPyConnection,
+    *,
+    column_name: str,
+    config: SignedColumnConfig,
+    null_tokens: tuple[str, ...],
+    counts: ColumnCounts,
+    normalized_value_expr: str | None = None,
+) -> SignedColumnProfile:
+    """Count values matching the declared signed format; detect separator swaps."""
+    pm, pmr, sm, smr = decimal_parse_stats(
+        conn,
+        column_name=column_name,
+        config=config,
+        null_tokens=null_tokens,
+        counts=counts,
+        normalized_value_expr=normalized_value_expr,
+    )
+    return SignedColumnProfile(
+        parse_match_count=pm,
+        parse_match_ratio=pmr,
+        swapped_match_count=sm,
+        swapped_match_ratio=smr,
+        separator_mismatch_detected=sm > pm,
+    )
+
+
+def decimal_parse_stats(
+    conn: DuckDBPyConnection,
+    *,
+    column_name: str,
+    config: _DecimalFamilyConfig,
+    null_tokens: tuple[str, ...],
+    counts: ColumnCounts,
+    normalized_value_expr: str | None,
+) -> tuple[int, float, int, float]:
+    """Return (parse_match_count, parse_match_ratio, swapped_match_count, swapped_match_ratio).
+
+    Shared by all decimal-family types: decimal, percentage, signed, currency, accounting.
+    """
+    quoted = quote_identifier(column_name)
+    match_value = normalized_value_expr or f"TRIM(CAST({quoted} AS VARCHAR))"
+    nullish = nullish_predicate(quoted, null_tokens)
+    non_nullish = counts.non_nullish_count
 
     declared_pattern = decimal_pattern_regex(
         decimal_separator=config.decimal_separator,
@@ -92,11 +190,4 @@ def compute_numeric_column_profile(
 
     parse_match_ratio = 1.0 if non_nullish <= 0 else (parse_match_count / non_nullish)
     swapped_match_ratio = 1.0 if non_nullish <= 0 else (swapped_match_count / non_nullish)
-
-    return NumericColumnProfile(
-        parse_match_count=parse_match_count,
-        parse_match_ratio=parse_match_ratio,
-        swapped_match_count=swapped_match_count,
-        swapped_match_ratio=swapped_match_ratio,
-        separator_mismatch_detected=swapped_match_count > parse_match_count,
-    )
+    return parse_match_count, parse_match_ratio, swapped_match_count, swapped_match_ratio

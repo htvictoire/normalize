@@ -1,4 +1,4 @@
-"""Currency profiling stats."""
+"""Accounting profiling stats."""
 
 from __future__ import annotations
 
@@ -6,21 +6,21 @@ from duckdb import DuckDBPyConnection
 
 from profiling.column_stats.numeric import decimal_parse_stats
 from shared.db.sql import nullish_predicate, quote_identifier
-from shared.models.column import CurrencyColumnConfig
-from shared.models.profiling import ColumnCounts, CurrencyColumnProfile
+from shared.models.column import AccountingColumnConfig
+from shared.models.profiling import AccountingColumnProfile, ColumnCounts
 from shared.utils.currency import build_currency_symbol_extract_expr
 
 
-def compute_currency_column_profile(
+def compute_accounting_column_profile(
     conn: DuckDBPyConnection,
     *,
     column_name: str,
-    config: CurrencyColumnConfig,
+    config: AccountingColumnConfig,
     null_tokens: tuple[str, ...],
     counts: ColumnCounts,
     normalized_value_expr: str | None = None,
-) -> CurrencyColumnProfile:
-    """Compute symbol distribution and parse match metrics for a currency column."""
+) -> AccountingColumnProfile:
+    """Compute symbol distribution and parse match metrics for an accounting column."""
     quoted = quote_identifier(column_name)
     symbol_expr = build_currency_symbol_extract_expr(quoted)
     nullish = nullish_predicate(quoted, null_tokens)
@@ -49,7 +49,7 @@ def compute_currency_column_profile(
         normalized_value_expr=normalized_value_expr,
     )
 
-    return CurrencyColumnProfile(
+    return AccountingColumnProfile(
         symbol_distribution=distribution,
         dominant_symbol=dominant_symbol,
         dominant_symbol_ratio=dominant_symbol_ratio,

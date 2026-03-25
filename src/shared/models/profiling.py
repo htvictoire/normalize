@@ -14,14 +14,66 @@ class ColumnCounts(MainModel):
     non_nullish_count: int    # row_count - nullish_count
 
 
+class StringColumnProfile(MainModel):
+    distinct_count: int
+    distinct_ratio: float
+    min_length: int
+    max_length: int
+
+
+class BooleanColumnProfile(MainModel):
+    true_token_count: int
+    false_token_count: int
+    unrecognized_count: int
+    recognized_ratio: float
+
+
+class IntegerColumnProfile(MainModel):
+    parse_match_count: int
+    parse_match_ratio: float
+
+
+class DecimalColumnProfile(MainModel):
+    parse_match_count: int
+    parse_match_ratio: float
+    swapped_match_count: int
+    swapped_match_ratio: float
+    separator_mismatch_detected: bool
+
+
+class PercentageColumnProfile(MainModel):
+    parse_match_count: int
+    parse_match_ratio: float
+    swapped_match_count: int
+    swapped_match_ratio: float
+    separator_mismatch_detected: bool
+
+
+class SignedColumnProfile(MainModel):
+    parse_match_count: int
+    parse_match_ratio: float
+    swapped_match_count: int
+    swapped_match_ratio: float
+    separator_mismatch_detected: bool
+
+
 class CurrencyColumnProfile(MainModel):
     symbol_distribution: dict[str, int]
     dominant_symbol: str | None
     dominant_symbol_ratio: float
     has_mixed_symbols: bool
+    parse_match_count: int
+    parse_match_ratio: float
+    swapped_match_count: int
+    swapped_match_ratio: float
+    separator_mismatch_detected: bool
 
 
-class NumericColumnProfile(MainModel):
+class AccountingColumnProfile(MainModel):
+    symbol_distribution: dict[str, int]
+    dominant_symbol: str | None
+    dominant_symbol_ratio: float
+    has_mixed_symbols: bool
     parse_match_count: int
     parse_match_ratio: float
     swapped_match_count: int
@@ -34,11 +86,17 @@ class DateColumnProfile(MainModel):
     format_match_ratio: float
 
 
-class BooleanColumnProfile(MainModel):
-    true_token_count: int
-    false_token_count: int
-    unrecognized_count: int
-    recognized_ratio: float
+ColumnProfile = (
+    StringColumnProfile
+    | BooleanColumnProfile
+    | IntegerColumnProfile
+    | DecimalColumnProfile
+    | PercentageColumnProfile
+    | SignedColumnProfile
+    | CurrencyColumnProfile
+    | AccountingColumnProfile
+    | DateColumnProfile
+)
 
 
 class ColumnProfileStats(MainModel):
@@ -47,13 +105,7 @@ class ColumnProfileStats(MainModel):
     counts: ColumnCounts
     null_ratio: float
     nullish_ratio: float
-    type_profile: (
-        CurrencyColumnProfile
-        | NumericColumnProfile
-        | DateColumnProfile
-        | BooleanColumnProfile
-        | None
-    )
+    type_profile: ColumnProfile
 
 
 class ProfilingOutput(MainModel):
