@@ -15,7 +15,6 @@ from profiling.column_stats.numeric import (
     compute_signed_column_profile,
 )
 from profiling.column_stats.string import compute_string_column_profile
-from shared.parsing.dispatch import build_value_candidate_expr
 from shared.db.sql import quote_identifier
 from shared.models.column import (
     AccountingColumnConfig,
@@ -29,6 +28,7 @@ from shared.models.column import (
     StringColumnConfig,
 )
 from shared.models.profiling import ColumnCounts, ColumnProfile
+from shared.parsing.dispatch import build_value_candidate_expr
 
 
 def compute_column_profile(  # noqa: PLR0911

@@ -15,8 +15,6 @@ back a plain ``TRIM(value_expr)``.
 
 from __future__ import annotations
 
-from shared.parsing.currency import normalize_structural_sign, strip_currency_symbols
-from shared.parsing.markers import has_marker, strip_marker
 from shared.db.sql import quote_string
 from shared.models.column import (
     AccountingColumnConfig,
@@ -25,6 +23,8 @@ from shared.models.column import (
     PercentageColumnConfig,
     SignedColumnConfig,
 )
+from shared.parsing.currency import normalize_structural_sign, strip_currency_symbols
+from shared.parsing.markers import has_marker, strip_marker
 
 
 def build_value_candidate_expr(value_expr: str, config: ColumnConfig) -> str:
