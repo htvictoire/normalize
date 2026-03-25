@@ -43,8 +43,8 @@ class MainOrchestrator:
             source_file_name=source.source_file_name,
             source_type=source.source_type,
             source_file_format=source.source_file_format,
+            source_checksum=source_checksum,
         )
-        instance.source_checksum = source_checksum
         instance.set_suggestion_output(suggestion)
         self._repository.save(instance)
         return instance
@@ -73,7 +73,7 @@ class MainOrchestrator:
                 source_type=instance.source_type,
                 source_file_format=instance.source_file_format,
             ),
-            source_checksum=instance.source_checksum or "",
+            source_checksum=instance.source_checksum,
             source_format=confirmed.source_format,
             confirmed_column_config=confirmed.column_config,
             operation_config=confirmed.operation_config,

@@ -38,7 +38,7 @@ class InstanceModel(MainModel):
     source_file_format: FileFormat
     source_file: str
     source_type: FileSource
-    source_checksum: str | None
+    source_checksum: str
     suggested_config: SuggestionOutput | None = None
     confirmed_config: ConfirmedConfig | None = None
     profiling_output: ProfilingOutput | None = None
@@ -52,6 +52,7 @@ class InstanceModel(MainModel):
         source_file_name: str,
         source_type: FileSource,
         source_file_format: FileFormat,
+        source_checksum: str,
         tenant_id: str = "default",
         instance_id: UUID | None = None,
     ) -> InstanceModel:
@@ -64,7 +65,7 @@ class InstanceModel(MainModel):
             source_file_format=source_file_format,
             source_file=source_file,
             source_type=source_type,
-            source_checksum=None,
+            source_checksum=source_checksum,
         )
 
     def set_suggestion_output(self, suggestion: SuggestionOutput) -> None:

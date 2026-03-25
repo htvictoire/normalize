@@ -17,13 +17,17 @@ from conversion.stages.quality_metrics.stage import QualityMetricsStage
 from conversion.stages.row_normalization import RowNormalizationStage
 from shared.db.duckdb import DuckDBManager
 from shared.db.sql import read_columns
-from shared.ingestion import IngestionRequest, run_ingestion
+from shared.ingestion import (
+    IngestionRequest,
+    cleanup_ingestion_setup,
+    resolve_ingestion_setup,
+    run_ingestion,
+)
 from shared.models.column import ColumnConfig
 from shared.models.issues import NormalizationIssue
 from shared.models.normalization import ArtifactPaths, QualityOutput, SourceChecksums
-from shared.models.operation import ExcelSourceFormat, FileSource, OperationConfig, SourceFormat
+from shared.models.operation import OperationConfig, SourceFormat
 from shared.models.source import SourceRef
-from shared.storage.s3 import build_duckdb_s3_url, download_s3_temp, s3_ref
 
 
 @dataclass(frozen=True)
@@ -51,24 +55,14 @@ def execute_conversion(
     duckdb_memory_limit: str,
 ) -> ConversionExecutionOutput:
     """Run deterministic conversion pipeline and return artifact payload."""
-    cleanup_path: Path | None = None
-    ingestion_type: FileSource = "local"
-    if source.source_type == "s3" and isinstance(source_format, ExcelSourceFormat):
-        cleanup_path = download_s3_temp(s3_ref(source.source_file))
-        ingestion_url = str(cleanup_path)
-    elif source.source_type == "s3":
-        ingestion_url = build_duckdb_s3_url(s3_ref(source.source_file))
-        ingestion_type = "s3"
-    else:
-        ingestion_url = source.source_file
-
+    setup = resolve_ingestion_setup(source, source_format)
     try:
         with DuckDBManager(memory_limit=duckdb_memory_limit, threads=4) as conn:
             run_ingestion(
                 IngestionRequest(
                     conn=conn,
-                    source_url=ingestion_url,
-                    source_type=ingestion_type,
+                    source_url=setup.url,
+                    source_type=setup.source_type,
                     source_format=source_format,
                     table_name="raw_input",
                 )
@@ -132,8 +126,7 @@ def execute_conversion(
                 rules_version=_RULES_VERSION,
             )
     finally:
-        if cleanup_path is not None:
-            cleanup_path.unlink(missing_ok=True)
+        cleanup_ingestion_setup(setup)
 
     return ConversionExecutionOutput(
         status="READY",

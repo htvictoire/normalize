@@ -1,23 +1,38 @@
-"""Profiling pipeline over the full dataset."""
+"""Profiling pipeline — measures the full dataset against the confirmed config.
+
+Phase 1  Resolve the ingestion source (local path or S3 URL, temp-file download
+         for S3 Excel) and ingest into a DuckDB in-memory table.
+
+Phase 2  Compute row-level stats: total row count, empty row count, and per-column
+         null/nullish counts using the confirmed null tokens.
+
+Phase 3  For each configured column, compute the type-specific column profile and
+         detect data-quality issues (mixed currency symbols, separator mismatch).
+
+Phase 4  Assemble and return the ProfilingOutput.
+"""
 
 from __future__ import annotations
 
-from pathlib import Path
-
 from conversion.stages.header_canonicalization import HeaderCanonicalizationStage
-from profiling.issues import build_mixed_currency_issue, build_separator_mismatch_issue
-from profiling.stats import (
+from profiling.column_stats import (
     compute_boolean_column_profile,
     compute_currency_column_profile,
     compute_date_column_profile,
     compute_global_stats,
-    compute_null_stats,
     compute_numeric_column_profile,
 )
+from profiling.constants import NUMERIC_MISMATCH_THRESHOLD
+from profiling.issues import build_mixed_currency_issue, build_separator_mismatch_issue
 from shared.column_parsing.normalizer import build_value_candidate_expr
-from shared.db.duckdb import DuckDBManager
-from shared.db.sql import quote_identifier, read_columns
-from shared.ingestion import IngestionRequest, run_ingestion
+from shared.db.duckdb import DuckDBManager, configure_duckdb_s3
+from shared.db.sql import compute_column_counts, quote_identifier, read_columns
+from shared.ingestion import (
+    IngestionRequest,
+    cleanup_ingestion_setup,
+    resolve_ingestion_setup,
+    run_ingestion,
+)
 from shared.models.column import (
     AccountingColumnConfig,
     BooleanColumnConfig,
@@ -30,7 +45,7 @@ from shared.models.column import (
     SignedColumnConfig,
     column_config_type,
 )
-from shared.models.operation import ExcelSourceFormat, FileSource, OperationConfig, SourceFormat
+from shared.models.operation import OperationConfig, SourceFormat
 from shared.models.profiling import (
     BooleanColumnProfile,
     ColumnProfileStats,
@@ -40,15 +55,7 @@ from shared.models.profiling import (
     ProfilingOutput,
 )
 from shared.models.source import SourceRef
-from shared.storage.s3 import build_duckdb_s3_url, download_s3_temp, s3_ref
 from shared.utils.column import build_position_to_name
-
-NUMERIC_MISMATCH_THRESHOLD = 0.60
-
-
-def _cleanup_temp_file(path: Path | None) -> None:
-    if path is not None:
-        path.unlink(missing_ok=True)
 
 
 def run_profiling(
@@ -60,24 +67,16 @@ def run_profiling(
     operation_config: OperationConfig,
 ) -> ProfilingOutput:
     """Run the full-dataset profiling phase using confirmed config."""
-    cleanup_path: Path | None = None
-    ingestion_type: FileSource = "local"
-    if source.source_type == "s3" and isinstance(source_format, ExcelSourceFormat):
-        cleanup_path = download_s3_temp(s3_ref(source.source_file))
-        ingestion_url = str(cleanup_path)
-    elif source.source_type == "s3":
-        ingestion_url = build_duckdb_s3_url(s3_ref(source.source_file))
-        ingestion_type = "s3"
-    else:
-        ingestion_url = source.source_file
-
+    setup = resolve_ingestion_setup(source, source_format)
     try:
         with DuckDBManager() as conn:
+            if setup.source_type == "s3":
+                configure_duckdb_s3(conn)
             run_ingestion(
                 IngestionRequest(
                     conn=conn,
-                    source_url=ingestion_url,
-                    source_type=ingestion_type,
+                    source_url=setup.url,
+                    source_type=setup.source_type,
                     source_format=source_format,
                     table_name="raw_input",
                 )
@@ -92,7 +91,7 @@ def run_profiling(
                 table_name="raw_input",
                 null_tokens=operation_config.null_tokens,
             )
-            _, null_stats = compute_null_stats(
+            _, null_stats = compute_column_counts(
                 conn,
                 table_name="raw_input",
                 position_to_name=position_to_name,
@@ -223,7 +222,7 @@ def run_profiling(
                 1.0 if not currency_ratios else (sum(currency_ratios) / len(currency_ratios))
             )
     finally:
-        _cleanup_temp_file(cleanup_path)
+        cleanup_ingestion_setup(setup)
 
     return ProfilingOutput(
         source_checksum=source_checksum,

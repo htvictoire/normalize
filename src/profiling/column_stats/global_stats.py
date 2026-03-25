@@ -1,4 +1,4 @@
-"""Global profiling stats."""
+"""Global row-level profiling stats."""
 
 from __future__ import annotations
 
@@ -13,7 +13,10 @@ def compute_global_stats(
     table_name: str,
     null_tokens: tuple[str, ...],
 ) -> tuple[int, int]:
-    """Return (row_count, empty_row_count)."""
+    """Return (row_count, empty_row_count).
+
+    An empty row is one where every column is null or matches a configured null token.
+    """
     validate_identifier(table_name)
     row_count = execute_scalar(conn, f"SELECT COUNT(*) FROM {table_name}")
 
@@ -30,8 +33,8 @@ def compute_global_stats(
 
 def _nullish_predicate(value_expr: str, null_tokens: tuple[str, ...]) -> str:
     base = f"NULLIF(TRIM(CAST({value_expr} AS VARCHAR)), '')"
-    normalized_tokens = sorted({token.strip().lower() for token in null_tokens if token.strip()})
-    if not normalized_tokens:
+    normalized = sorted({token.strip().lower() for token in null_tokens if token.strip()})
+    if not normalized:
         return f"{base} IS NULL"
-    in_clause = ", ".join(quote_string(token) for token in normalized_tokens)
+    in_clause = ", ".join(quote_string(token) for token in normalized)
     return f"{base} IS NULL OR LOWER(TRIM(CAST({value_expr} AS VARCHAR))) IN ({in_clause})"
