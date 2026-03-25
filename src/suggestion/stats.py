@@ -3,16 +3,16 @@
 from __future__ import annotations
 
 from shared.db.duckdb import DuckDBManager, configure_duckdb_s3
-from shared.db.sql import nullish_predicate, quote_identifier
+from shared.db.sql import compute_column_counts_from_relation
 from shared.ingestion.contracts import HeaderMode
 from shared.ingestion.csv.options import (
     resolve_delimiter_option,
     resolve_encoding_option,
     resolve_header_options,
 )
-from shared.models.operation import CsvSourceFormat, ExcelSourceFormat
+from shared.models.operation import CsvSourceFormat, ExcelSourceFormat, JsonSourceFormat
 from shared.models.profiling import ColumnCounts
-from suggestion.source.read import SourceReading
+from suggestion.source import SourceReading
 
 
 def compute_source_stats(
@@ -28,16 +28,18 @@ def compute_source_stats(
             reading,
             null_tokens,
             position_to_name,
-            source_expr="read_csv(?, header=?, skip=?, delim=?, encoding=?, all_varchar=true)",
+            relation_expr="read_csv(?, header=?, skip=?, delim=?, encoding=?, all_varchar=true)",
             extra_params=_csv_params(reading.source_format),
         )
-    return _scan_stats(
-        reading,
-        null_tokens,
-        position_to_name,
-        source_expr="read_json_auto(?)",
-        extra_params=[],
-    )
+    if isinstance(reading.source_format, JsonSourceFormat):
+        return _scan_stats(
+            reading,
+            null_tokens,
+            position_to_name,
+            relation_expr="read_json_auto(?)",
+            extra_params=[],
+        )
+    raise TypeError(f"Unsupported source format: {type(reading.source_format).__name__}")
 
 
 def _csv_params(fmt: CsvSourceFormat) -> list[object]:
@@ -52,41 +54,21 @@ def _scan_stats(
     null_tokens: tuple[str, ...],
     position_to_name: dict[str, str],
     *,
-    source_expr: str,
+    relation_expr: str,
     extra_params: list[object],
 ) -> tuple[int, dict[str, ColumnCounts]]:
-    exprs: list[str] = []
-    for index, column_name in enumerate(position_to_name.values()):
-        quoted = quote_identifier(column_name)
-        structural = f"NULLIF(TRIM(CAST({quoted} AS VARCHAR)), '') IS NULL"
-        nullish = nullish_predicate(quoted, null_tokens)
-        exprs.append(
-            f"COALESCE(SUM(CASE WHEN {structural} THEN 1 ELSE 0 END), 0) AS __c{index}_null"
-        )
-        exprs.append(
-            f"COALESCE(SUM(CASE WHEN {nullish} THEN 1 ELSE 0 END), 0) AS __c{index}_nullish"
-        )
-
-    query = f"SELECT COUNT(*) AS __row_count, {', '.join(exprs)} FROM {source_expr}"
     params = [reading.ingestion_source_url, *extra_params]
 
     with DuckDBManager() as conn:
         if reading.ingestion_source_type == "s3":
             configure_duckdb_s3(conn)
-        row = conn.execute(query, params).fetchall()[0]
-
-    row_count = int(row[0])
-    counts: dict[str, ColumnCounts] = {}
-    for index, pos in enumerate(position_to_name.keys()):
-        null_count = int(row[1 + index * 2])
-        nullish_count = int(row[1 + index * 2 + 1])
-        counts[pos] = ColumnCounts(
-            null_count=null_count,
-            nullish_count=nullish_count,
-            non_null_count=row_count - null_count,
-            non_nullish_count=row_count - nullish_count,
+        return compute_column_counts_from_relation(
+            conn,
+            relation_expr=relation_expr,
+            position_to_name=position_to_name,
+            null_tokens=null_tokens,
+            params=params,
         )
-    return row_count, counts
 
 
 def _excel_stats(

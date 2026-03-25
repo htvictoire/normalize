@@ -12,7 +12,7 @@ from shared.models.column import (
 )
 from suggestion.column_config.boolean import is_boolean
 from suggestion.column_config.date import best_date_format
-from suggestion.column_config.numeric.decision import infer_numeric_type
+from suggestion.column_config.numeric import infer_numeric_type
 from suggestion.constants import BOOLEAN_TOKEN_PAIRS, TYPE_MATCH_MIN_RATIO
 
 
@@ -26,12 +26,13 @@ def infer_column_type(values: Sequence[str]) -> ColumnConfig:
     def meets_threshold(matches: int) -> bool:
         return matches / sample_count >= TYPE_MATCH_MIN_RATIO
 
-    boolean_normalized = {v.strip().lower() for v in values if is_boolean(v)}
-    if meets_threshold(len(boolean_normalized)):
+    boolean_matches = [v.strip().lower() for v in values if is_boolean(v)]
+    if meets_threshold(len(boolean_matches)):
+        observed_boolean_tokens = set(boolean_matches)
         active_pairs = [
             (t, f)
             for t, f in BOOLEAN_TOKEN_PAIRS
-            if t in boolean_normalized or f in boolean_normalized
+            if t in observed_boolean_tokens or f in observed_boolean_tokens
         ]
         true_tokens = tuple(sorted(t for t, _ in active_pairs))
         false_tokens = tuple(sorted(f for _, f in active_pairs))

@@ -12,7 +12,7 @@ from suggestion.constants import (
     HEADER_SCAN_ROWS,
     HEADER_SCORE_LOOKAHEAD,
 )
-from suggestion.source.utils import looks_numeric
+from suggestion.source.heuristics import looks_numeric
 
 
 def _read_rows(text: str, *, delimiter: str, limit: int) -> list[list[str]]:
@@ -31,7 +31,7 @@ def _scan_for_header_row(text: str, delimiter: str) -> int | None:
         return None
 
     col_counts = [len(row) for row in rows]
-    modal_count = max(set(col_counts), key=col_counts.count)
+    modal_count = max(Counter(col_counts).items(), key=lambda item: (item[1], item[0]))[0]
     if modal_count == 0:
         return None
 
@@ -40,7 +40,7 @@ def _scan_for_header_row(text: str, delimiter: str) -> int | None:
     candidates: list[tuple[int, list[str]]] = []
     for index in eligible_indices:
         values = [value.strip() for value in rows[index]]
-        if any(values) and len(set(values)) == len(values):
+        if any(values):
             candidates.append((index, values))
 
     if not candidates:
@@ -75,7 +75,7 @@ def _scan_for_header_row(text: str, delimiter: str) -> int | None:
 def _detect_header_row(text: str, delimiter: str) -> int | None:
     snippet = text[:128_000]
     if not snippet.strip():
-        return 1
+        return None
 
     try:
         if csv.Sniffer().has_header(snippet):
@@ -142,7 +142,8 @@ def read_csv_column_names_and_inference_rows(
     if not rows:
         return [], []
 
-    col_count = len(rows[0])
+    first_non_empty_row = next((row for row in rows if row), rows[0])
+    col_count = len(first_non_empty_row)
 
     if header_mode == "present" and header_row_index is not None:
         header_idx = header_row_index - 1

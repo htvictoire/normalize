@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import re
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
+from typing import cast
 
 from duckdb import DuckDBPyConnection
 
@@ -48,21 +49,14 @@ def nullish_predicate(value_expr: str, null_tokens: tuple[str, ...]) -> str:
     return f"{base} IS NULL OR LOWER(TRIM(CAST({value_expr} AS VARCHAR))) IN ({in_clause})"
 
 
-def compute_column_counts(
-    conn: DuckDBPyConnection,
+def _build_column_count_query(
     *,
-    table_name: str,
+    relation_expr: str,
     position_to_name: Mapping[str, str],
-    null_tokens: tuple[str, ...] = (),
-) -> tuple[int, dict[str, ColumnCounts]]:
-    """Return (row_count, {position_key: ColumnCounts}) in a single query.
-
-    null_tokens drives the nullish count — pass inferred tokens at suggestion
-    time, confirmed tokens at profiling time.
-    """
+    null_tokens: tuple[str, ...],
+) -> str:
     if not position_to_name:
-        row = conn.execute(f"SELECT COUNT(*) FROM {table_name}").fetchone()
-        return (0 if row is None else int(row[0])), {}
+        return f"SELECT COUNT(*) AS row_count FROM {relation_expr}"
 
     exprs: list[str] = []
     for index, column_name in enumerate(position_to_name.values()):
@@ -76,16 +70,19 @@ def compute_column_counts(
             f"COALESCE(SUM(CASE WHEN {nullish} THEN 1 ELSE 0 END), 0) AS __c{index}_nullish"
         )
 
-    query = f"SELECT COUNT(*) AS row_count, {', '.join(exprs)} FROM {table_name}"
-    row = conn.execute(query).fetchone()
-    if row is None:
-        return 0, {}
+    return f"SELECT COUNT(*) AS row_count, {', '.join(exprs)} FROM {relation_expr}"
 
-    row_count = int(row[0])
+
+def _column_counts_from_row(
+    row: Sequence[object],
+    *,
+    position_to_name: Mapping[str, str],
+) -> tuple[int, dict[str, ColumnCounts]]:
+    row_count = cast(int, row[0])
     counts: dict[str, ColumnCounts] = {}
     for index, position_key in enumerate(position_to_name.keys()):
-        null_count = int(row[1 + index * 2])
-        nullish_count = int(row[1 + index * 2 + 1])
+        null_count = cast(int, row[1 + index * 2])
+        nullish_count = cast(int, row[1 + index * 2 + 1])
         counts[position_key] = ColumnCounts(
             null_count=null_count,
             nullish_count=nullish_count,
@@ -93,3 +90,44 @@ def compute_column_counts(
             non_nullish_count=max(row_count - nullish_count, 0),
         )
     return row_count, counts
+
+
+def compute_column_counts_from_relation(
+    conn: DuckDBPyConnection,
+    *,
+    relation_expr: str,
+    position_to_name: Mapping[str, str],
+    null_tokens: tuple[str, ...] = (),
+    params: Sequence[object] = (),
+) -> tuple[int, dict[str, ColumnCounts]]:
+    """Return (row_count, {position_key: ColumnCounts}) from any DuckDB relation expression."""
+    query = _build_column_count_query(
+        relation_expr=relation_expr,
+        position_to_name=position_to_name,
+        null_tokens=null_tokens,
+    )
+    row = conn.execute(query, params).fetchone()
+    if row is None:
+        return 0, {}
+    return _column_counts_from_row(row, position_to_name=position_to_name)
+
+
+def compute_column_counts(
+    conn: DuckDBPyConnection,
+    *,
+    table_name: str,
+    position_to_name: Mapping[str, str],
+    null_tokens: tuple[str, ...] = (),
+) -> tuple[int, dict[str, ColumnCounts]]:
+    """Return (row_count, {position_key: ColumnCounts}) in a single query.
+
+    null_tokens drives the nullish count — pass inferred tokens at suggestion
+    time, confirmed tokens at profiling time.
+    """
+    validate_identifier(table_name)
+    return compute_column_counts_from_relation(
+        conn,
+        relation_expr=table_name,
+        position_to_name=position_to_name,
+        null_tokens=null_tokens,
+    )

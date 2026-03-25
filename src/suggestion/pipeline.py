@@ -25,12 +25,11 @@ from shared.models.column import ColumnConfig
 from shared.models.source import SourceRef
 from shared.models.suggestion import SuggestedColumn, SuggestionOutput
 from shared.utils.column import build_position_to_name
-from suggestion.column_config.inference import infer_column_type
-from suggestion.column_config.sampler import sample_column_values
-from suggestion.column_display import read_sample_values
+from suggestion.column_config import infer_column_type, sample_column_values
+from suggestion.display import read_sample_values
 from suggestion.null_tokens import infer_null_tokens
-from suggestion.source.read import SourceReading, read_source
-from suggestion.source_stats import compute_source_stats
+from suggestion.source import SourceReading, read_source
+from suggestion.stats import compute_source_stats
 
 
 @dataclass(frozen=True)
@@ -40,10 +39,10 @@ class _CoreSuggestion:
 
 
 def _run_core(reading: SourceReading, position_to_name: dict[str, str]) -> _CoreSuggestion:
-    sampled_values = sample_column_values(reading.inference_rows, reading.column_names)
+    sampled_values_by_position = sample_column_values(reading.inference_rows, position_to_name)
     column_configs = {
-        pos: infer_column_type(sampled_values[name])
-        for pos, name in position_to_name.items()
+        pos: infer_column_type(sampled_values_by_position[pos])
+        for pos in position_to_name
     }
     sample_values_by_position = read_sample_values(reading.inference_rows, position_to_name)
     return _CoreSuggestion(

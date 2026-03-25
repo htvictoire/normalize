@@ -9,7 +9,7 @@ from shared.models.operation import FileSource, SourceFormat
 from shared.models.source import SourceRef
 from shared.source.access import read_source_probe
 from shared.storage.s3 import build_duckdb_s3_url, download_s3_temp, s3_ref
-from suggestion.constants import FILE_SAMPLE_BYTES
+from suggestion.constants import FILE_SAMPLE_BYTES, JSON_FIRST_OBJECT_MAX_BYTES
 from suggestion.source.csv import (
     infer_csv_source_format,
     read_csv_column_names_and_inference_rows,
@@ -17,6 +17,7 @@ from suggestion.source.csv import (
 )
 from suggestion.source.excel import read_excel_source
 from suggestion.source.json import (
+    ensure_json_first_object_within_limit,
     infer_json_source_format,
     read_json_column_names_and_inference_rows,
     read_json_sample_rows,
@@ -91,6 +92,7 @@ def _read_excel_source(source: SourceRef) -> SourceReading:
 
 def _read_json_source(source: SourceRef) -> SourceReading:
     sample = read_source_probe(source, FILE_SAMPLE_BYTES)
+    ensure_json_first_object_within_limit(sample[:JSON_FIRST_OBJECT_MAX_BYTES])
     if source.source_type == "s3":
         ingestion_url = build_duckdb_s3_url(s3_ref(source.source_file))
     else:
@@ -113,4 +115,6 @@ def read_source(source: SourceRef) -> SourceReading:
         return _read_csv_source(source)
     if source.source_file_format == "excel":
         return _read_excel_source(source)
-    return _read_json_source(source)
+    if source.source_file_format == "json":
+        return _read_json_source(source)
+    raise ValueError(f"Unsupported source file format: {source.source_file_format!r}")

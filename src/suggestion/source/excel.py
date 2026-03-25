@@ -9,7 +9,7 @@ import openpyxl
 
 from shared.models.operation import ExcelSourceFormat
 from suggestion.constants import DISPLAY_RAW_ROWS, HEADER_SCAN_ROWS
-from suggestion.source.utils import looks_numeric
+from suggestion.source.heuristics import looks_numeric
 
 
 def _has_visible_value(cell: object) -> bool:
@@ -26,7 +26,7 @@ def _is_likely_header_row(row: tuple[object, ...]) -> bool:
     values = [str(cell).strip() for cell in row if cell is not None]
     if not values:
         return False
-    return not any(looks_numeric(value) for value in values) and len(set(values)) == len(values)
+    return not any(looks_numeric(value) for value in values)
 
 
 def _detect_header_row(rows: list[tuple[object, ...]]) -> int | None:
@@ -69,7 +69,7 @@ def read_excel_source(
         header_idx = header_row_index - 1
         if header_idx < len(all_rows):
             column_names = [
-                str(cell).strip() if cell is not None else f"col_{i}"
+                (str(cell).strip() if cell is not None else "") or f"col_{i}"
                 for i, cell in enumerate(all_rows[header_idx])
             ]
         else:

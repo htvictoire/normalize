@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from profiling.pipeline import run_profiling
+from profiling import run_profiling
 from shared.models.column import ColumnConfig
 from shared.models.operation import OperationConfig, SourceFormat
 from shared.models.profiling import ProfilingOutput

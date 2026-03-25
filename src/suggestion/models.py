@@ -24,6 +24,7 @@ class NumericParseResult:
     has_currency: bool
     has_signed: bool
     has_percentage: bool
+    has_fractional_part: bool
     used_decimal_separator: bool
     used_thousand_separator: bool
     leading_decimal_point: bool

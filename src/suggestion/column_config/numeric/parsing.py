@@ -5,13 +5,13 @@ from __future__ import annotations
 from shared.models.column import GroupingStyle
 from shared.utils.currency import CURRENCY_DETECTION_RE
 from shared.utils.sign_markers import SIGN_MARKER_DETECTION_RE
-from suggestion.column_config.models import NumericCandidate, NumericParseResult
 from suggestion.constants import (
     GROUP_FIRST_MAX_DIGITS,
     GROUP_INDIAN_MIDDLE_SIZE,
     GROUP_INDIAN_TWO_GROUP_CASE,
     GROUP_WESTERN_SIZE,
 )
+from suggestion.models import NumericCandidate, NumericParseResult
 
 
 def _valid_group_sizes(groups: list[str], grouping_style: GroupingStyle) -> bool:
@@ -118,6 +118,7 @@ def parse_numeric_token(
     if parse_ok and not integer_digits.isdigit():
         parse_ok = False
 
+    has_fractional_part = fractional_part is not None
     if fractional_part is not None:
         if parse_ok and fractional_part and fractional_part.isdigit():
             normalized = f"{integer_digits}.{fractional_part}"
@@ -133,6 +134,7 @@ def parse_numeric_token(
         has_currency=has_currency,
         has_signed=has_signed,
         has_percentage=has_percentage,
+        has_fractional_part=has_fractional_part,
         used_decimal_separator=used_decimal_separator,
         used_thousand_separator=used_thousand_separator,
         leading_decimal_point=leading_decimal_point,

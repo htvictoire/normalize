@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from shared.models.source import SourceRef
 from shared.models.suggestion import SuggestionOutput
-from suggestion.pipeline import run_suggestion
+from suggestion import run_suggestion
 
 
 class SuggestionService:

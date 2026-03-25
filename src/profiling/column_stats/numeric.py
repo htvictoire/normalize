@@ -32,11 +32,11 @@ def compute_integer_column_profile(
     config: IntegerColumnConfig,
     null_tokens: tuple[str, ...],
     counts: ColumnCounts,
-    normalized_value_expr: str | None = None,
+    normalized_value_expr: str,
 ) -> IntegerColumnProfile:
     """Count values that match the declared integer format."""
     quoted = quote_identifier(column_name)
-    match_value = normalized_value_expr or f"TRIM(CAST({quoted} AS VARCHAR))"
+    match_value = normalized_value_expr
     nullish = nullish_predicate(quoted, null_tokens)
     non_nullish = counts.non_nullish_count
 
@@ -63,7 +63,7 @@ def compute_decimal_column_profile(
     config: DecimalColumnConfig,
     null_tokens: tuple[str, ...],
     counts: ColumnCounts,
-    normalized_value_expr: str | None = None,
+    normalized_value_expr: str,
 ) -> DecimalColumnProfile:
     """Count values matching the declared decimal format; detect separator swaps."""
     pm, pmr, sm, smr = decimal_parse_stats(
@@ -90,7 +90,7 @@ def compute_percentage_column_profile(
     config: PercentageColumnConfig,
     null_tokens: tuple[str, ...],
     counts: ColumnCounts,
-    normalized_value_expr: str | None = None,
+    normalized_value_expr: str,
 ) -> PercentageColumnProfile:
     """Count values matching the declared percentage format; detect separator swaps."""
     pm, pmr, sm, smr = decimal_parse_stats(
@@ -117,7 +117,7 @@ def compute_signed_column_profile(
     config: SignedColumnConfig,
     null_tokens: tuple[str, ...],
     counts: ColumnCounts,
-    normalized_value_expr: str | None = None,
+    normalized_value_expr: str,
 ) -> SignedColumnProfile:
     """Count values matching the declared signed format; detect separator swaps."""
     pm, pmr, sm, smr = decimal_parse_stats(
@@ -144,14 +144,14 @@ def decimal_parse_stats(
     config: DecimalFamilyColumnConfig,
     null_tokens: tuple[str, ...],
     counts: ColumnCounts,
-    normalized_value_expr: str | None,
+    normalized_value_expr: str,
 ) -> tuple[int, float, int, float]:
     """Return (parse_match_count, parse_match_ratio, swapped_match_count, swapped_match_ratio).
 
     Shared by all decimal-family types: decimal, percentage, signed, currency, accounting.
     """
     quoted = quote_identifier(column_name)
-    match_value = normalized_value_expr or f"TRIM(CAST({quoted} AS VARCHAR))"
+    match_value = normalized_value_expr
     nullish = nullish_predicate(quoted, null_tokens)
     non_nullish = counts.non_nullish_count
 

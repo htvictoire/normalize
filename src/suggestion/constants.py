@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from suggestion.column_config.models import NumericCandidate
+from suggestion.models import NumericCandidate
 
 # ---------------------------------------------------------------------------
 # Source format inference
@@ -13,6 +13,10 @@ SUGGESTION_TABLE_NAME = "raw_input"
 
 # Maximum bytes read from the file. All inference runs on this prefix.
 FILE_SAMPLE_BYTES = 4 * 1024 * 1024
+
+# Product budget: JSON sources with roughly 1000 objects should stay within 1 GiB.
+# That yields an explicit per-object budget of about 1 MiB for the first row.
+JSON_FIRST_OBJECT_MAX_BYTES = 1024 * 1024
 
 # Delimiter candidates, in order of prevalence.
 DELIMITER_CANDIDATES = [",", ";", "\t", "|"]

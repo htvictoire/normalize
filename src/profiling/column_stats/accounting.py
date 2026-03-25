@@ -18,7 +18,7 @@ def compute_accounting_column_profile(
     config: AccountingColumnConfig,
     null_tokens: tuple[str, ...],
     counts: ColumnCounts,
-    normalized_value_expr: str | None = None,
+    normalized_value_expr: str,
 ) -> AccountingColumnProfile:
     """Compute symbol distribution and parse match metrics for an accounting column."""
     quoted = quote_identifier(column_name)

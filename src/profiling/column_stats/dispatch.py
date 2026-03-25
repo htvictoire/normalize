@@ -21,6 +21,7 @@ from shared.models.column import (
     BooleanColumnConfig,
     ColumnConfig,
     CurrencyColumnConfig,
+    DateColumnConfig,
     DecimalColumnConfig,
     IntegerColumnConfig,
     PercentageColumnConfig,
@@ -110,11 +111,12 @@ def compute_column_profile(  # noqa: PLR0911
             counts=counts,
             normalized_value_expr=candidate,
         )
-    # DateColumnConfig
-    return compute_date_column_profile(
-        conn,
-        column_name=column_name,
-        date_format=config.date_format,
-        null_tokens=null_tokens,
-        counts=counts,
-    )
+    if isinstance(config, DateColumnConfig):
+        return compute_date_column_profile(
+            conn,
+            column_name=column_name,
+            date_format=config.date_format,
+            null_tokens=null_tokens,
+            counts=counts,
+        )
+    raise TypeError(f"Unsupported column config: {type(config).__name__}")

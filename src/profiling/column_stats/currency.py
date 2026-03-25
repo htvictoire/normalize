@@ -18,7 +18,7 @@ def compute_currency_column_profile(
     config: CurrencyColumnConfig,
     null_tokens: tuple[str, ...],
     counts: ColumnCounts,
-    normalized_value_expr: str | None = None,
+    normalized_value_expr: str,
 ) -> CurrencyColumnProfile:
     """Compute symbol distribution and parse match metrics for a currency column."""
     quoted = quote_identifier(column_name)
