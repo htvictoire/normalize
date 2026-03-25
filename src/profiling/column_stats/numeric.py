@@ -10,9 +10,8 @@ from conversion.stages.cell_normalization.transforms.numeric import (
 )
 from shared.db.sql import execute_scalar, nullish_predicate, quote_identifier, quote_string
 from shared.models.column import (
-    AccountingColumnConfig,
-    CurrencyColumnConfig,
     DecimalColumnConfig,
+    DecimalFamilyColumnConfig,
     IntegerColumnConfig,
     PercentageColumnConfig,
     SignedColumnConfig,
@@ -23,14 +22,6 @@ from shared.models.profiling import (
     IntegerColumnProfile,
     PercentageColumnProfile,
     SignedColumnProfile,
-)
-
-_DecimalFamilyConfig = (
-    DecimalColumnConfig
-    | PercentageColumnConfig
-    | SignedColumnConfig
-    | CurrencyColumnConfig
-    | AccountingColumnConfig
 )
 
 
@@ -150,7 +141,7 @@ def decimal_parse_stats(
     conn: DuckDBPyConnection,
     *,
     column_name: str,
-    config: _DecimalFamilyConfig,
+    config: DecimalFamilyColumnConfig,
     null_tokens: tuple[str, ...],
     counts: ColumnCounts,
     normalized_value_expr: str | None,

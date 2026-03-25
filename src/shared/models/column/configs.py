@@ -1,4 +1,4 @@
-"""Per-column configuration types shared across app and engine layers."""
+"""Concrete column configuration types and the ColumnConfig discriminated union."""
 
 from __future__ import annotations
 
@@ -8,12 +8,12 @@ from typing import Annotated, Any, Literal, cast
 from pydantic import Field, TypeAdapter
 
 from shared.models.base import MainModel
-
-ColumnType = Literal[
-    "string", "boolean", "integer", "decimal", "currency",
-    "percentage", "signed", "accounting", "date",
-]
-GroupingStyle = Literal["western", "indian"]
+from shared.models.column.base import (
+    ColumnType,
+    DecimalFamilyColumnConfig,
+    NumericColumnConfig,
+    SignedFamilyColumnConfig,
+)
 
 
 class StringColumnConfig(MainModel):
@@ -30,67 +30,39 @@ class BooleanColumnConfig(MainModel):
     type: Literal["boolean"] = "boolean"
 
 
-class IntegerColumnConfig(MainModel):
+class IntegerColumnConfig(NumericColumnConfig):
     """Declared integer column configuration."""
 
-    thousand_separator: str
-    grouping_style: GroupingStyle
     type: Literal["integer"] = "integer"
 
 
-class DecimalColumnConfig(MainModel):
+class DecimalColumnConfig(DecimalFamilyColumnConfig):
     """Declared decimal column configuration."""
 
-    decimal_separator: str
-    thousand_separator: str
-    grouping_style: GroupingStyle
-    allow_leading_decimal_point: bool
     type: Literal["decimal"] = "decimal"
 
 
-class CurrencyColumnConfig(MainModel):
+class CurrencyColumnConfig(DecimalFamilyColumnConfig):
     """Declared currency column configuration."""
 
-    decimal_separator: str
-    thousand_separator: str
-    grouping_style: GroupingStyle
-    allow_leading_decimal_point: bool
     type: Literal["currency"] = "currency"
 
 
-class PercentageColumnConfig(MainModel):
+class PercentageColumnConfig(DecimalFamilyColumnConfig):
     """Declared percentage column configuration."""
 
-    decimal_separator: str
-    thousand_separator: str
-    grouping_style: GroupingStyle
-    allow_leading_decimal_point: bool
     type: Literal["percentage"] = "percentage"
 
 
-class SignedColumnConfig(MainModel):
+class SignedColumnConfig(SignedFamilyColumnConfig):
     """Declared signed column configuration — numeric values where sign is encoded via markers."""
 
-    decimal_separator: str
-    thousand_separator: str
-    grouping_style: GroupingStyle
-    allow_leading_decimal_point: bool
-    positive_markers: tuple[str, ...]
-    negative_markers: tuple[str, ...]
-    parentheses_as_negative: bool
     type: Literal["signed"] = "signed"
 
 
-class AccountingColumnConfig(MainModel):
+class AccountingColumnConfig(SignedFamilyColumnConfig):
     """Declared accounting column — currency symbols present alongside sign markers."""
 
-    decimal_separator: str
-    thousand_separator: str
-    grouping_style: GroupingStyle
-    allow_leading_decimal_point: bool
-    positive_markers: tuple[str, ...]
-    negative_markers: tuple[str, ...]
-    parentheses_as_negative: bool
     type: Literal["accounting"] = "accounting"
 
 

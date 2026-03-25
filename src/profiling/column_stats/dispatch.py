@@ -15,7 +15,7 @@ from profiling.column_stats.numeric import (
     compute_signed_column_profile,
 )
 from profiling.column_stats.string import compute_string_column_profile
-from shared.column_parsing.normalizer import build_value_candidate_expr
+from shared.parsing.dispatch import build_value_candidate_expr
 from shared.db.sql import quote_identifier
 from shared.models.column import (
     AccountingColumnConfig,

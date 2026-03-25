@@ -2,42 +2,16 @@
 
 from __future__ import annotations
 
-from shared.models.column import (
-    AccountingColumnConfig,
-    ColumnConfig,
-    CurrencyColumnConfig,
-    DecimalColumnConfig,
-    PercentageColumnConfig,
-    SignedColumnConfig,
-)
+from shared.models.column import ColumnConfig, DecimalFamilyColumnConfig
 from shared.models.issues import IssueSeverity, NormalizationIssue
 from shared.models.profiling import (
-    AccountingColumnProfile,
     ColumnProfile,
-    CurrencyColumnProfile,
-    DecimalColumnProfile,
-    PercentageColumnProfile,
-    SignedColumnProfile,
+    SeparatorMismatchProfile,
+    SymbolDistributionProfile,
 )
 
 ISSUE_CODE_MIXED_CURRENCY = "MIXED_CURRENCY"
 ISSUE_CODE_SEPARATOR_MISMATCH = "SEPARATOR_MISMATCH"
-
-_MixedCurrencyProfile = CurrencyColumnProfile | AccountingColumnProfile
-_SeparatorMismatchProfile = (
-    DecimalColumnProfile
-    | PercentageColumnProfile
-    | SignedColumnProfile
-    | CurrencyColumnProfile
-    | AccountingColumnProfile
-)
-_SeparatorMismatchConfig = (
-    DecimalColumnConfig
-    | PercentageColumnConfig
-    | SignedColumnConfig
-    | CurrencyColumnConfig
-    | AccountingColumnConfig
-)
 
 
 def collect_column_issues(
@@ -50,7 +24,7 @@ def collect_column_issues(
     numeric_threshold: float,
 ) -> None:
     """Append any data-quality issues detected from the column profile."""
-    if isinstance(profile, _MixedCurrencyProfile):
+    if isinstance(profile, SymbolDistributionProfile):
         currency_ratios.append(profile.dominant_symbol_ratio)
         if profile.has_mixed_symbols:
             issues.append(
@@ -63,8 +37,8 @@ def collect_column_issues(
             )
 
     if (
-        isinstance(profile, _SeparatorMismatchProfile)
-        and isinstance(config, _SeparatorMismatchConfig)
+        isinstance(profile, SeparatorMismatchProfile)
+        and isinstance(config, DecimalFamilyColumnConfig)
         and profile.separator_mismatch_detected
         and profile.swapped_match_ratio >= numeric_threshold
     ):

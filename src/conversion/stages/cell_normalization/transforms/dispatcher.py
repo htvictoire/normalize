@@ -8,17 +8,13 @@ from conversion.stages.cell_normalization.transforms.numeric import (
     build_decimal_exprs,
     build_integer_exprs,
 )
-from shared.column_parsing.normalizer import build_value_candidate_expr
+from shared.parsing.dispatch import build_value_candidate_expr
 from shared.models.column import (
-    AccountingColumnConfig,
     BooleanColumnConfig,
     ColumnConfig,
-    CurrencyColumnConfig,
     DateColumnConfig,
-    DecimalColumnConfig,
+    DecimalFamilyColumnConfig,
     IntegerColumnConfig,
-    PercentageColumnConfig,
-    SignedColumnConfig,
     StringColumnConfig,
 )
 
@@ -68,14 +64,7 @@ def build_column_exprs(
     candidate = build_value_candidate_expr(raw_value, config)
     issue_label = f"INVALID_{config.type.upper()}"
 
-    if isinstance(
-        config,
-        DecimalColumnConfig
-        | CurrencyColumnConfig
-        | PercentageColumnConfig
-        | SignedColumnConfig
-        | AccountingColumnConfig,
-    ):
+    if isinstance(config, DecimalFamilyColumnConfig):
         return build_decimal_exprs(
             column_name,
             nullish_predicate,
