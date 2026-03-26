@@ -25,6 +25,8 @@ class _S3ClientProtocol(Protocol):
 
     def download_fileobj(self, *args: Any, **kwargs: Any) -> None: ...
 
+    def upload_fileobj(self, *args: Any, **kwargs: Any) -> None: ...
+
 
 def _build_s3_client() -> _S3ClientProtocol:
     settings = get_settings()
@@ -85,6 +87,13 @@ def download_s3_temp(obj: S3ObjectRef) -> Path:
     return temp_path
 
 
+def upload_s3_file(local_path: Path, obj: S3ObjectRef) -> None:
+    """Upload one local file to an S3-compatible object key."""
+    client = _build_s3_client()
+    with local_path.open("rb") as handle:
+        client.upload_fileobj(handle, obj.bucket, obj.key)
+
+
 def build_duckdb_s3_url(obj: S3ObjectRef) -> str:
     """Return the DuckDB-compatible `s3://bucket/key` URL for one object."""
     return f"s3://{obj.bucket}/{obj.key}"
@@ -96,4 +105,5 @@ __all__ = [
     "download_s3_temp",
     "fetch_s3_probe",
     "s3_ref",
+    "upload_s3_file",
 ]

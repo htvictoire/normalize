@@ -104,6 +104,7 @@ def run_pipeline(
             artifacts = ArtifactMaterializationStage().execute(
                 conn,
                 output_dir=output_root,
+                output_type="local",
                 fingerprint=fingerprint,
                 trace_mode=effective.trace_mode,
                 source_checksums=SourceChecksums(source_file=source_checksum),

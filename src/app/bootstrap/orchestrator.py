@@ -31,6 +31,11 @@ class MainOrchestrator:
         self._profiling_service = ProfilingService()
         self._conversion_service = ConversionService()
 
+
+    def _duckdb_cache_path(self, instance_id: UUID) -> Path:
+        settings = get_settings()
+        return Path(settings.duckdb_cache_dir) / f"{instance_id}.duckdb"
+
     def get_instance(self, instance_id: UUID) -> InstanceModel | None:
         return self._repository.get(instance_id)
 
@@ -56,11 +61,8 @@ class MainOrchestrator:
         instance.confirm(confirmed_config)
         self._repository.save(instance)
         return instance
-
-    def _duckdb_cache_path(self, instance_id: UUID) -> Path:
-        settings = get_settings()
-        return Path(settings.duckdb_cache_dir) / f"{instance_id}.duckdb"
-
+    
+    
     def profile(self, instance_id: UUID) -> InstanceModel:
         instance = self._repository.get_required(instance_id)
         if instance.status is not InstanceStatus.CONFIRMED:
@@ -108,8 +110,6 @@ class MainOrchestrator:
         self._repository.save(instance)
 
         settings = get_settings()
-        output_root = Path(settings.conversion_output_dir) / str(instance_id)
-
         confirmed = instance.confirmed_config
         db_cache_path = self._duckdb_cache_path(instance_id)
         result = self._conversion_service.convert(
@@ -124,7 +124,8 @@ class MainOrchestrator:
             confirmed_column_config=confirmed.column_config,
             operation_config=confirmed.operation_config,
             profiling_issues=list(instance.profiling_output.issues),
-            output_root=output_root,
+            output_root=settings.conversion_output_dir,
+            run_id=str(instance_id),
             persisted_db_path=db_cache_path,
         )
         if db_cache_path.exists():

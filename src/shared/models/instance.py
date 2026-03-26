@@ -14,7 +14,10 @@ from shared.models.suggestion import SuggestionDisplay
 
 
 class InstanceConfig(MainModel):
-    """Full configuration for one normalization instance — suggested at inference, confirmed by user."""
+    """Full configuration for one normalization instance.
+
+    Suggested at inference, confirmed by the user.
+    """
 
     source_format: SourceFormat
     column_config: dict[str, ColumnConfig]

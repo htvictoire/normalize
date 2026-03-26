@@ -51,7 +51,8 @@ def execute_conversion(
     confirmed_column_config: dict[str, ColumnConfig],
     operation_config: OperationConfig,
     profiling_issues: list[NormalizationIssue],
-    output_root: Path,
+    output_root: str | Path,
+    run_id: str | None,
     duckdb_memory_limit: str,
     persisted_db_path: Path,
 ) -> ConversionExecutionOutput:
@@ -131,12 +132,14 @@ def execute_conversion(
             artifacts = ArtifactMaterializationStage().execute(
                 conn,
                 output_dir=output_root,
+                output_type=source.source_type,
                 fingerprint=fingerprint,
                 trace_mode=operation_config.trace_mode,
                 source_checksums=SourceChecksums(source_file=source_checksum),
                 quality_output=quality_output,
                 issues=profiling_issues,
                 effective_config=replay_config,
+                run_id=run_id,
                 rules_version=_RULES_VERSION,
             )
     finally:

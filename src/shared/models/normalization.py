@@ -6,7 +6,11 @@ from shared.models.base import MainModel
 
 
 class ArtifactPaths(MainModel):
-    """Filesystem paths for artifacts written by ArtifactMaterializationStage."""
+    """Artifact locations written by normalization.
+
+    For local sources these are filesystem paths.
+    For S3 sources these are S3 keys.
+    """
 
     normalized_parquet: str
     manifest_json: str

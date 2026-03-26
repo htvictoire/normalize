@@ -27,7 +27,8 @@ class ConversionService:
         confirmed_column_config: dict[str, ColumnConfig],
         operation_config: OperationConfig,
         profiling_issues: list[NormalizationIssue],
-        output_root: Path,
+        output_root: str | Path,
+        run_id: str | None,
         persisted_db_path: Path,
     ) -> ConversionExecutionOutput:
         """Execute conversion phase with explicit inputs only."""
@@ -44,6 +45,7 @@ class ConversionService:
             operation_config=operation_config,
             profiling_issues=profiling_issues,
             output_root=output_root,
+            run_id=run_id,
             duckdb_memory_limit=settings.duckdb_memory_limit,
             persisted_db_path=persisted_db_path,
         )
