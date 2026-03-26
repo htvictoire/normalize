@@ -15,7 +15,7 @@ from conversion.stages.cell_normalization import CellNormalizationStage
 from conversion.stages.header_canonicalization import HeaderCanonicalizationStage
 from conversion.stages.quality_metrics.stage import QualityMetricsStage
 from conversion.stages.row_normalization import RowNormalizationStage
-from shared.db.duckdb import DuckDBManager
+from shared.db.duckdb import DuckDBManager, resolve_db_path
 from shared.db.sql import read_columns
 from shared.ingestion import (
     IngestionRequest,
@@ -53,22 +53,36 @@ def execute_conversion(
     profiling_issues: list[NormalizationIssue],
     output_root: Path,
     duckdb_memory_limit: str,
+    persisted_db_path: Path,
 ) -> ConversionExecutionOutput:
-    """Run deterministic conversion pipeline and return artifact payload."""
-    setup = resolve_ingestion_setup(source, source_format)
-    try:
-        with DuckDBManager(memory_limit=duckdb_memory_limit, threads=4) as conn:
-            run_ingestion(
-                IngestionRequest(
-                    conn=conn,
-                    source_url=setup.url,
-                    source_type=setup.source_type,
-                    source_format=source_format,
-                    table_name="raw_input",
-                )
-            )
+    """Run deterministic conversion pipeline and return artifact payload.
 
-            HeaderCanonicalizationStage().execute(conn)
+    If persisted_db_path exists (written by profiling), it is opened directly
+    and ingestion + header canonicalization are skipped. Otherwise falls back
+    to a fresh ingest from source.
+    """
+    use_cache = persisted_db_path.exists()
+
+    if use_cache:
+        db_arg = resolve_db_path(str(persisted_db_path))
+        setup = None
+    else:
+        setup = resolve_ingestion_setup(source, source_format)
+        db_arg = ":memory:"
+
+    try:
+        with DuckDBManager(memory_limit=duckdb_memory_limit, threads=4, database=db_arg) as conn:
+            if not use_cache:
+                run_ingestion(
+                    IngestionRequest(
+                        conn=conn,
+                        source_url=setup.url,  # type: ignore[union-attr]
+                        source_type=setup.source_type,  # type: ignore[union-attr]
+                        source_format=source_format,
+                        table_name="raw_input",
+                    )
+                )
+                HeaderCanonicalizationStage().execute(conn)
 
             raw_columns = read_columns(conn, "raw_input")
             resolved_column_config = resolve_column_config_by_canonical(
@@ -126,7 +140,8 @@ def execute_conversion(
                 rules_version=_RULES_VERSION,
             )
     finally:
-        cleanup_ingestion_setup(setup)
+        if setup is not None:
+            cleanup_ingestion_setup(setup)
 
     return ConversionExecutionOutput(
         status="READY",

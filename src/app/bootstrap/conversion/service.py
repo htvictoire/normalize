@@ -28,6 +28,7 @@ class ConversionService:
         operation_config: OperationConfig,
         profiling_issues: list[NormalizationIssue],
         output_root: Path,
+        persisted_db_path: Path,
     ) -> ConversionExecutionOutput:
         """Execute conversion phase with explicit inputs only."""
         if any(issue.severity is IssueSeverity.ERROR for issue in profiling_issues):
@@ -44,4 +45,5 @@ class ConversionService:
             profiling_issues=profiling_issues,
             output_root=output_root,
             duckdb_memory_limit=settings.duckdb_memory_limit,
+            persisted_db_path=persisted_db_path,
         )

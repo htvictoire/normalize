@@ -1,7 +1,8 @@
 """Profiling pipeline — measures the full dataset against the confirmed config.
 
 Phase 1  Resolve the ingestion source (local path or S3 URL, temp-file download
-         for S3 Excel) and ingest into a DuckDB in-memory table.
+         for S3 Excel) and ingest into a file-backed DuckDB table so the
+         conversion phase can reuse it without re-ingesting.
 
 Phase 2  Canonicalize headers and compute row/null counts for the live table.
 
@@ -12,10 +13,12 @@ Phase 4  Assemble and return the ProfilingOutput.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from conversion.stages.header_canonicalization import HeaderCanonicalizationStage
 from profiling.counts import compute_profiling_stats
 from profiling.profiles import compute_profile_results
-from shared.db.duckdb import DuckDBManager, configure_duckdb_s3
+from shared.db.duckdb import DuckDBManager, configure_duckdb_s3, resolve_db_path
 from shared.db.sql import read_columns
 from shared.ingestion import (
     IngestionRequest,
@@ -37,11 +40,17 @@ def run_profiling(
     source_format: SourceFormat,
     column_config: dict[str, ColumnConfig],
     operation_config: OperationConfig,
+    persisted_db_path: Path,
 ) -> ProfilingOutput:
-    """Run the full-dataset profiling phase using confirmed config."""
+    """Run the full-dataset profiling phase using confirmed config.
+
+    The DuckDB table is written to persisted_db_path so the conversion phase
+    can open it directly without re-ingesting the source file.
+    """
+    db_arg = resolve_db_path(str(persisted_db_path))
     setup = resolve_ingestion_setup(source, source_format)
     try:
-        with DuckDBManager() as conn:
+        with DuckDBManager(database=db_arg) as conn:
             if setup.source_type == "s3":
                 configure_duckdb_s3(conn)
             run_ingestion(
