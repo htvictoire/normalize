@@ -6,8 +6,8 @@ import json
 from typing import Any
 from uuid import UUID
 
-from app.models.instance import InstanceModel
 from app.persistence.serialization import instance_to_record, record_to_instance
+from shared.models.instance import InstanceModel
 
 _psycopg_module: Any
 
@@ -17,8 +17,15 @@ except ImportError:  # pragma: no cover - exercised when dependency is missing a
     _psycopg_module = None
 
 
+def _as_jsonb(value: Any) -> str | None:
+    """Serialize a dict to a JSON string for a JSONB column, or None for SQL NULL."""
+    if value is None:
+        return None
+    return json.dumps(value, separators=(",", ":"))
+
+
 class PostgresRunRepository:
-    """Persist normalization runs in PostgreSQL with one JSON payload column."""
+    """Persist normalization runs in PostgreSQL, one column per InstanceModel field."""
 
     def __init__(self, *, dsn: str) -> None:
         self._dsn = dsn
@@ -26,23 +33,41 @@ class PostgresRunRepository:
         self._ensure_schema()
 
     def save(self, instance: InstanceModel) -> InstanceModel:
-        payload = json.dumps(instance_to_record(instance), separators=(",", ":"))
+        r = instance_to_record(instance)
         with self._psycopg.connect(self._dsn, autocommit=True) as conn, conn.cursor() as cur:
             cur.execute(
                 """
-                INSERT INTO normalization_runs (id, tenant_id, status, payload)
-                VALUES (%s, %s, %s, %s::jsonb)
-                ON CONFLICT (id) DO UPDATE
-                SET tenant_id = EXCLUDED.tenant_id,
-                    status = EXCLUDED.status,
-                    payload = EXCLUDED.payload,
-                    updated_at = NOW()
+                INSERT INTO normalization_runs (
+                    id, tenant_id, status,
+                    source_file, source_file_name, source_file_format,
+                    source_type, source_checksum,
+                    suggested_config, suggestion_display, confirmed_config,
+                    profiling_output, normalization_output
+                ) VALUES (
+                    %s, %s, %s,
+                    %s, %s, %s,
+                    %s, %s,
+                    %s::jsonb, %s::jsonb, %s::jsonb,
+                    %s::jsonb, %s::jsonb
+                )
+                ON CONFLICT (id) DO UPDATE SET
+                    status               = EXCLUDED.status,
+                    suggested_config     = EXCLUDED.suggested_config,
+                    suggestion_display   = EXCLUDED.suggestion_display,
+                    confirmed_config     = EXCLUDED.confirmed_config,
+                    profiling_output     = EXCLUDED.profiling_output,
+                    normalization_output = EXCLUDED.normalization_output,
+                    updated_at           = NOW()
                 """,
                 (
-                    str(instance.id),
-                    instance.tenant_id,
-                    instance.status.value,
-                    payload,
+                    r["id"], r["tenant_id"], r["status"],
+                    r["source_file"], r["source_file_name"], r["source_file_format"],
+                    r["source_type"], r["source_checksum"],
+                    _as_jsonb(r["suggested_config"]),
+                    _as_jsonb(r["suggestion_display"]),
+                    _as_jsonb(r["confirmed_config"]),
+                    _as_jsonb(r["profiling_output"]),
+                    _as_jsonb(r["normalization_output"]),
                 ),
             )
         return instance
@@ -50,18 +75,35 @@ class PostgresRunRepository:
     def get(self, instance_id: UUID) -> InstanceModel | None:
         with self._psycopg.connect(self._dsn, autocommit=True) as conn, conn.cursor() as cur:
             cur.execute(
-                "SELECT payload FROM normalization_runs WHERE id = %s",
+                """
+                SELECT id, tenant_id, status,
+                       source_file, source_file_name, source_file_format,
+                       source_type, source_checksum,
+                       suggested_config, suggestion_display, confirmed_config,
+                       profiling_output, normalization_output
+                FROM normalization_runs
+                WHERE id = %s
+                """,
                 (str(instance_id),),
             )
             row = cur.fetchone()
         if row is None:
             return None
-        payload = row[0]
-        if isinstance(payload, str):
-            loaded: Any = json.loads(payload)
-        else:
-            loaded = payload
-        return record_to_instance(loaded)
+        return record_to_instance({
+            "id":                  row[0],
+            "tenant_id":           row[1],
+            "status":              row[2],
+            "source_file":         row[3],
+            "source_file_name":    row[4],
+            "source_file_format":  row[5],
+            "source_type":         row[6],
+            "source_checksum":     row[7],
+            "suggested_config":    row[8],
+            "suggestion_display":  row[9],
+            "confirmed_config":    row[10],
+            "profiling_output":    row[11],
+            "normalization_output": row[12],
+        })
 
     def get_required(self, instance_id: UUID) -> InstanceModel:
         instance = self.get(instance_id)
@@ -74,12 +116,21 @@ class PostgresRunRepository:
             cur.execute(
                 """
                 CREATE TABLE IF NOT EXISTS normalization_runs (
-                    id UUID PRIMARY KEY,
-                    tenant_id TEXT NOT NULL,
-                    status TEXT NOT NULL,
-                    payload JSONB NOT NULL,
-                    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-                    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                    id                   UUID        PRIMARY KEY,
+                    tenant_id            TEXT        NOT NULL,
+                    status               TEXT        NOT NULL,
+                    source_file          TEXT        NOT NULL,
+                    source_file_name     TEXT        NOT NULL,
+                    source_file_format   TEXT        NOT NULL,
+                    source_type          TEXT        NOT NULL,
+                    source_checksum      TEXT        NOT NULL,
+                    suggested_config     JSONB,
+                    suggestion_display   JSONB,
+                    confirmed_config     JSONB,
+                    profiling_output     JSONB,
+                    normalization_output JSONB,
+                    created_at           TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    updated_at           TIMESTAMPTZ NOT NULL DEFAULT NOW()
                 )
                 """
             )

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from shared.models.operation import TraceMode
 from suggestion.models import NumericCandidate
 
 # ---------------------------------------------------------------------------
@@ -109,6 +110,24 @@ GROUP_INDIAN_TWO_GROUP_CASE = 2
 # for the pattern to be recorded as intentional in the suggested config
 # (allow_leading_decimal_point).
 LEADING_DECIMAL_MIN_RATIO = 0.05
+
+# ---------------------------------------------------------------------------
+# Default operation config
+# ---------------------------------------------------------------------------
+# Pre-populate the suggested InstanceConfig after suggestion.
+# The user can override any of these at confirm time.
+
+DEFAULT_ASSIGN_INDICES: bool = False
+DEFAULT_DROP_EMPTY_ROWS: bool = True
+DEFAULT_EMIT_RAW_ROW: bool = False
+DEFAULT_FULL_RAW_ROW: bool = False
+DEFAULT_EMIT_PARSE_ISSUES: bool = False
+DEFAULT_INCLUDE_UNIQUE_RATIO: bool = True
+DEFAULT_INCLUDE_PER_COLUMN_PARSE_ERROR_COUNTS: bool = True
+DEFAULT_APPROXIMATE_UNIQUE: bool = False
+DEFAULT_TRACE_MODE: TraceMode = "sparse"
+DEFAULT_DECISION_READY: float = 95.0
+DEFAULT_DECISION_WARNING: float = 85.0
 
 # ---------------------------------------------------------------------------
 # Null tokens

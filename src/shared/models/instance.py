@@ -1,4 +1,4 @@
-"""Run-instance lifecycle models."""
+"""Instance models — config, status, and lifecycle model for a normalization run."""
 
 from __future__ import annotations
 
@@ -6,11 +6,19 @@ from enum import StrEnum
 from uuid import UUID, uuid4
 
 from shared.models.base import MainModel
-from shared.models.confirmation import ConfirmedConfig
+from shared.models.column import ColumnConfig
 from shared.models.normalization import NormalizationOutput
-from shared.models.operation import FileFormat, FileSource
+from shared.models.operation import FileFormat, FileSource, OperationConfig, SourceFormat
 from shared.models.profiling import ProfilingOutput
-from shared.models.suggestion import SuggestionOutput
+from shared.models.suggestion import SuggestionDisplay
+
+
+class InstanceConfig(MainModel):
+    """Full configuration for one normalization instance — suggested at inference, confirmed by user."""
+
+    source_format: SourceFormat
+    column_config: dict[str, ColumnConfig]
+    operation_config: OperationConfig
 
 
 class InstanceStatus(StrEnum):
@@ -39,8 +47,9 @@ class InstanceModel(MainModel):
     source_file: str
     source_type: FileSource
     source_checksum: str
-    suggested_config: SuggestionOutput | None = None
-    confirmed_config: ConfirmedConfig | None = None
+    suggested_config: InstanceConfig | None = None
+    suggestion_display: SuggestionDisplay | None = None
+    confirmed_config: InstanceConfig | None = None
     profiling_output: ProfilingOutput | None = None
     normalization_output: NormalizationOutput | None = None
 
@@ -68,12 +77,15 @@ class InstanceModel(MainModel):
             source_checksum=source_checksum,
         )
 
-    def set_suggestion_output(self, suggestion: SuggestionOutput) -> None:
-        """Write suggestion output and move status to awaiting confirmation."""
-        self.suggested_config = suggestion
+    def set_suggestion_output(
+        self, *, suggested_config: InstanceConfig, display: SuggestionDisplay
+    ) -> None:
+        """Store suggestion results and move status to awaiting confirmation."""
+        self.suggested_config = suggested_config
+        self.suggestion_display = display
         self.status = InstanceStatus.AWAITING_CONFIRMATION
 
-    def confirm(self, confirmed_config: ConfirmedConfig) -> None:
+    def confirm(self, confirmed_config: InstanceConfig) -> None:
         """Persist confirmed config and mark instance ready to profile."""
         self.confirmed_config = confirmed_config
         self.status = InstanceStatus.CONFIRMED

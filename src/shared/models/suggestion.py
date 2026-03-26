@@ -1,29 +1,30 @@
-"""Suggestion-phase output model shared between the suggestion pipeline and app layers."""
+"""Suggestion-phase output models."""
 
 from __future__ import annotations
 
-from pydantic import Field
-
 from shared.models.base import MainModel
-from shared.models.column import ColumnConfig
-from shared.models.operation import SourceFormat
+from shared.models.instance import InstanceConfig
 from shared.models.profiling import ColumnCounts
 
 
-class SuggestedColumn(MainModel):
-    """Per-column suggestion: label, inferred config, counts, and sample values."""
+class SuggestedColumnDisplay(MainModel):
+    """Display data for one column produced during suggestion."""
 
     label: str
-    config: ColumnConfig
     counts: ColumnCounts
-    sample_values: list[str] = Field(default_factory=list)
+    sample_values: list[str]
+
+
+class SuggestionDisplay(MainModel):
+    """Display-only output from the suggestion phase. Never read by any pipeline stage."""
+
+    row_count: int
+    columns: dict[str, SuggestedColumnDisplay]  # keyed by position
+    sample_rows: list[list[str]]
 
 
 class SuggestionOutput(MainModel):
-    """Suggestion-phase output. Provisional — all fields depend on inferred source format."""
+    """Full output of the suggestion pipeline."""
 
-    source_format: SourceFormat
-    null_tokens: tuple[str, ...]
-    row_count: int
-    columns: dict[str, SuggestedColumn]
-    sample_rows: list[list[str]] = Field(default_factory=list)
+    suggested_config: InstanceConfig
+    display: SuggestionDisplay

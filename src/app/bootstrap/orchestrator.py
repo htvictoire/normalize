@@ -16,8 +16,7 @@ from app.bootstrap.profiling import ProfilingService
 from app.bootstrap.suggestion import SuggestionService
 from app.bootstrap.validation import validate_file_format
 from app.infra.postgres.repository import PostgresRunRepository
-from app.models.instance import InstanceModel, InstanceStatus
-from shared.models.confirmation import ConfirmedConfig
+from shared.models.instance import InstanceConfig, InstanceModel, InstanceStatus
 from shared.models.issues import IssueSeverity
 from shared.models.normalization import NormalizationOutput
 from shared.models.source import SourceRef
@@ -37,7 +36,7 @@ class MainOrchestrator:
 
     def suggest(self, source: SourceRef, *, source_checksum: str) -> InstanceModel:
         validate_file_format(source)
-        suggestion = self._suggestion_service.suggest(source)
+        result = self._suggestion_service.suggest(source)
         instance = InstanceModel.create(
             source_file=source.source_file,
             source_file_name=source.source_file_name,
@@ -45,11 +44,14 @@ class MainOrchestrator:
             source_file_format=source.source_file_format,
             source_checksum=source_checksum,
         )
-        instance.set_suggestion_output(suggestion)
+        instance.set_suggestion_output(
+            suggested_config=result.suggested_config,
+            display=result.display,
+        )
         self._repository.save(instance)
         return instance
 
-    def confirm(self, instance_id: UUID, confirmed_config: ConfirmedConfig) -> InstanceModel:
+    def confirm(self, instance_id: UUID, confirmed_config: InstanceConfig) -> InstanceModel:
         instance = self._repository.get_required(instance_id)
         instance.confirm(confirmed_config)
         self._repository.save(instance)

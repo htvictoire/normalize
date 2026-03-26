@@ -8,7 +8,7 @@ from fastapi import APIRouter, HTTPException
 
 from app.api.models import ConfirmRequest, SuggestRequest
 from app.bootstrap import MainOrchestrator
-from app.models.instance import InstanceModel
+from shared.models.instance import InstanceModel
 
 router = APIRouter()
 

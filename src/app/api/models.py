@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pydantic import Field
 
-from shared.models.confirmation import ConfirmedConfig
+from shared.models.instance import InstanceConfig
 from shared.models.source import SourceRef
 
 
@@ -17,5 +17,5 @@ class SuggestRequest(SourceRef):
     )
 
 
-class ConfirmRequest(ConfirmedConfig):
+class ConfirmRequest(InstanceConfig):
     """Request payload for instance confirmation."""

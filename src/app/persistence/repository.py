@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Protocol
 from uuid import UUID
 
-from app.models.instance import InstanceModel
+from shared.models.instance import InstanceModel
 
 
 class NormalizationInstanceRepository(Protocol):

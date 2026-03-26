@@ -14,7 +14,7 @@ from app.cli.utils import (
     resolve_input_file,
     write_output,
 )
-from shared.models.confirmation import ConfirmedConfig
+from shared.models.instance import InstanceConfig
 
 _USAGE = "Usage: main.py confirm <instance_id> <config_filename> [output_name]"
 
@@ -32,7 +32,7 @@ def run(args: list[str]) -> None:
         instance_id = UUID(instance_id_str)
         config_path = resolve_input_file(config_filename)
         raw = json.loads(config_path.read_text(encoding="utf-8"))
-        confirmed_config = ConfirmedConfig.model_validate(raw)
+        confirmed_config = InstanceConfig.model_validate(raw)
         instance = MainOrchestrator().confirm(instance_id, confirmed_config)
     except (ValueError, FileNotFoundError, KeyError) as exc:
         die(str(exc))
