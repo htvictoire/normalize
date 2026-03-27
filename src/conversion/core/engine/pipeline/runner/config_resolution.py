@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 
 from shared.models.column import ColumnConfig
-from shared.utils.column import build_position_to_name
+from shared.db.column_index import build_position_to_name
 
 
 def resolve_column_config_by_canonical(

@@ -31,7 +31,6 @@ class MainOrchestrator:
         self._profiling_service = ProfilingService()
         self._conversion_service = ConversionService()
 
-
     def _duckdb_cache_path(self, instance_id: UUID) -> Path:
         settings = get_settings()
         return Path(settings.duckdb_cache_dir) / f"{instance_id}.duckdb"
@@ -61,8 +60,7 @@ class MainOrchestrator:
         instance.confirm(confirmed_config)
         self._repository.save(instance)
         return instance
-    
-    
+
     def profile(self, instance_id: UUID) -> InstanceModel:
         instance = self._repository.get_required(instance_id)
         if instance.status is not InstanceStatus.CONFIRMED:
@@ -82,9 +80,7 @@ class MainOrchestrator:
                 source_file_format=instance.source_file_format,
             ),
             source_checksum=instance.source_checksum,
-            source_format=confirmed.source_format,
-            confirmed_column_config=confirmed.column_config,
-            operation_config=confirmed.operation_config,
+            confirmed_config=confirmed,
             persisted_db_path=self._duckdb_cache_path(instance_id),
         )
         instance.set_profiling_output(profiling_output=profiling_output)

@@ -6,7 +6,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Final
 
-from shared.utils.column import normalize_position_key
+from shared.db.column_index import normalize_position_key
 
 GROUPING_STYLE_WESTERN: Final[str] = "western"
 GROUPING_STYLE_INDIAN: Final[str] = "indian"

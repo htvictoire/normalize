@@ -15,7 +15,7 @@ from shared.db.sql import validate_identifier
 from shared.models.issues import NormalizationIssue
 from shared.models.normalization import ArtifactPaths, QualityOutput, SourceChecksums
 from shared.models.operation import FileSource
-from shared.stages.base import Stage
+from shared.stage import Stage
 
 
 class ArtifactMaterializationStage(Stage):

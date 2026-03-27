@@ -16,7 +16,7 @@ from shared.ingestion.contracts import (
 )
 from shared.ingestion.service import run_ingestion
 from shared.models.operation import CsvSourceFormat, ExcelSourceFormat, FileSource, JsonSourceFormat
-from shared.stages.base import Stage
+from shared.stage import Stage
 
 
 class IngestionStage(Stage):

@@ -15,9 +15,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from conversion.stages.header_canonicalization import HeaderCanonicalizationStage
 from profiling.counts import compute_profiling_stats
 from profiling.profiles import compute_profile_results
+from shared.db.column_index import build_position_to_name
 from shared.db.duckdb import DuckDBManager, configure_duckdb_s3, resolve_db_path
 from shared.db.sql import read_columns
 from shared.ingestion import (
@@ -26,20 +26,17 @@ from shared.ingestion import (
     resolve_ingestion_setup,
     run_ingestion,
 )
-from shared.models.column import ColumnConfig
-from shared.models.operation import OperationConfig, SourceFormat
+from shared.ingestion.canonicalization import HeaderCanonicalizationStage
+from shared.models.instance import InstanceConfig
 from shared.models.profiling import ProfilingOutput
 from shared.models.source import SourceRef
-from shared.utils.column import build_position_to_name
 
 
 def run_profiling(
     source: SourceRef,
     *,
     source_checksum: str,
-    source_format: SourceFormat,
-    column_config: dict[str, ColumnConfig],
-    operation_config: OperationConfig,
+    confirmed_config: InstanceConfig,
     persisted_db_path: Path,
 ) -> ProfilingOutput:
     """Run the full-dataset profiling phase using confirmed config.
@@ -48,7 +45,7 @@ def run_profiling(
     can open it directly without re-ingesting the source file.
     """
     db_arg = resolve_db_path(str(persisted_db_path))
-    setup = resolve_ingestion_setup(source, source_format)
+    setup = resolve_ingestion_setup(source, confirmed_config.source_format)
     try:
         with DuckDBManager(database=db_arg) as conn:
             if setup.source_type == "s3":
@@ -58,7 +55,7 @@ def run_profiling(
                     conn=conn,
                     source_url=setup.url,
                     source_type=setup.source_type,
-                    source_format=source_format,
+                    source_format=confirmed_config.source_format,
                     table_name="raw_input",
                 )
             )
@@ -70,13 +67,13 @@ def run_profiling(
                 conn,
                 table_name="raw_input",
                 position_to_name=position_to_name,
-                null_tokens=operation_config.null_tokens,
+                null_tokens=confirmed_config.operation_config.null_tokens,
             )
             profile_results = compute_profile_results(
                 conn,
                 position_to_name=position_to_name,
-                column_config=column_config,
-                null_tokens=operation_config.null_tokens,
+                column_config=confirmed_config.column_config,
+                null_tokens=confirmed_config.operation_config.null_tokens,
                 counts_by_position=profiling_stats.column_counts,
                 row_count=profiling_stats.row_count,
             )

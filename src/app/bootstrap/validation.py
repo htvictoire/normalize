@@ -6,7 +6,7 @@ from pathlib import Path
 
 from shared.models.operation import FileFormat
 from shared.models.source import SourceRef
-from shared.source.access import read_source_probe
+from shared.storage.probe import read_source_probe
 
 _VALID_EXTENSION: dict[FileFormat, str] = {
     "csv": ".csv",

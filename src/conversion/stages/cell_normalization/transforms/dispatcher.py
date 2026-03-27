@@ -16,7 +16,7 @@ from shared.models.column import (
     IntegerColumnConfig,
     StringColumnConfig,
 )
-from shared.parsing.dispatch import build_value_candidate_expr
+from shared.parsing.normalizer import build_value_candidate_expr
 
 
 def build_column_exprs(

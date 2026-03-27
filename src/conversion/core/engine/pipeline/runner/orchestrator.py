@@ -14,11 +14,11 @@ from conversion.core.fingerprint import compute_fingerprint
 from conversion.core.transform import execute_combined_transform
 from conversion.stages.artifact_materialization import ArtifactMaterializationStage
 from conversion.stages.cell_normalization import CellNormalizationStage
-from conversion.stages.header_canonicalization import HeaderCanonicalizationStage
 from conversion.stages.quality_metrics.stage import QualityMetricsStage
 from conversion.stages.row_normalization import RowNormalizationStage
 from shared.db.duckdb import DuckDBManager, resolve_db_path
 from shared.db.sql import read_columns
+from shared.ingestion.canonicalization import HeaderCanonicalizationStage
 from shared.ingestion import HeaderMode, IngestionStage
 from shared.models.normalization import ArtifactPaths, NormalizationOutput, SourceChecksums
 from shared.models.operation import CsvSourceFormat

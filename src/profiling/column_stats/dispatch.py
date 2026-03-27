@@ -29,7 +29,7 @@ from shared.models.column import (
     StringColumnConfig,
 )
 from shared.models.profiling import ColumnCounts, ColumnProfile
-from shared.parsing.dispatch import build_value_candidate_expr
+from shared.parsing.normalizer import build_value_candidate_expr
 
 
 def compute_column_profile(  # noqa: PLR0911

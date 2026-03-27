@@ -1,4 +1,4 @@
-"""Scalar value normalization utilities."""
+"""Scalar cell value normalization."""
 
 from __future__ import annotations
 

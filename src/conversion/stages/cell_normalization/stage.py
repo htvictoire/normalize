@@ -21,7 +21,7 @@ from conversion.stages.cell_normalization.sql_helpers import (
 )
 from shared.db.sql import execute_scalar
 from shared.models.column import ColumnConfig
-from shared.stages.base import Stage
+from shared.stage import Stage
 
 
 class CellNormalizationStage(Stage):

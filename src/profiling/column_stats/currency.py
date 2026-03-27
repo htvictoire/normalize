@@ -8,7 +8,7 @@ from profiling.column_stats.numeric import decimal_parse_stats
 from shared.db.sql import nullish_predicate, quote_identifier
 from shared.models.column import CurrencyColumnConfig
 from shared.models.profiling import ColumnCounts, CurrencyColumnProfile
-from shared.utils.currency import build_currency_symbol_extract_expr
+from shared.parsing.currency import build_currency_symbol_extract_expr
 
 
 def compute_currency_column_profile(

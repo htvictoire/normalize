@@ -12,7 +12,7 @@ from shared.db.sql import (
     read_columns,
     validate_identifier,
 )
-from shared.stages.base import Stage
+from shared.stage import Stage
 
 
 class RowNormalizationStage(Stage):
