@@ -37,7 +37,7 @@ def compute_profile_results(
     """Return per-column profile stats, issues, and aggregate profiling ratios."""
     issues: list[NormalizationIssue] = []
     column_stats: dict[str, ColumnProfileStats] = {}
-    currency_ratios: list[float] = []
+    dominant_symbol_ratios: list[float] = []
     total_non_nullish_cells = 0
 
     for position, column_name in position_to_name.items():
@@ -54,14 +54,15 @@ def compute_profile_results(
             null_tokens=null_tokens,
             counts=counts,
         )
-        collect_column_issues(
-            column_name,
-            config,
-            type_profile,
-            issues,
-            currency_ratios,
+        col_issues, dominant_symbol_ratio = collect_column_issues(
+            column_name=column_name,
+            config=config,
+            profile=type_profile,
             numeric_threshold=NUMERIC_MISMATCH_THRESHOLD,
         )
+        issues.extend(col_issues)
+        if dominant_symbol_ratio is not None:
+            dominant_symbol_ratios.append(dominant_symbol_ratio)
 
         column_stats[position] = ColumnProfileStats(
             label=column_name,
@@ -76,7 +77,7 @@ def compute_profile_results(
     total_cells = row_count * column_count
     completeness_ratio = 1.0 if total_cells <= 0 else (total_non_nullish_cells / total_cells)
     pattern_consistency_ratio = (
-        1.0 if not currency_ratios else (sum(currency_ratios) / len(currency_ratios))
+        1.0 if not dominant_symbol_ratios else (sum(dominant_symbol_ratios) / len(dominant_symbol_ratios))
     )
     return ProfileResults(
         column_stats=column_stats,

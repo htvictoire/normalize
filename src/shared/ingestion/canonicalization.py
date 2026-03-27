@@ -9,7 +9,7 @@ from duckdb import DuckDBPyConnection
 
 from shared.constants import RAW_INPUT_TABLE_NAME
 from shared.db.column_index import build_position_to_name
-from shared.db.sql import quote_identifier, read_columns, validate_identifier
+from shared.db.sql import quote_identifier, read_columns
 from shared.stage import Stage
 
 
@@ -28,7 +28,6 @@ class HeaderCanonicalizationStage(Stage):
 
     def execute(self, conn: DuckDBPyConnection) -> dict[str, str]:
         start_time = perf_counter()
-        validate_identifier(RAW_INPUT_TABLE_NAME)
         columns = read_columns(conn)
         canonical_columns = canonicalize_header_sequence(columns)
         mapping = canonicalize_headers(columns)
@@ -81,7 +80,6 @@ def _apply_column_renames(
     raw_columns: list[str],
     canonical_columns: list[str],
 ) -> None:
-    validate_identifier(RAW_INPUT_TABLE_NAME)
     rename_pairs = [
         (raw, canonical)
         for raw, canonical in zip(raw_columns, canonical_columns, strict=False)

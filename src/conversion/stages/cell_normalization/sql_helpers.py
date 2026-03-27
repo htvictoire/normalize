@@ -6,12 +6,10 @@ from shared.db.sql import (
     quote_identifier,
     quote_string,
     read_columns,
-    validate_identifier,
 )
 
 __all__ = [
     "quote_identifier",
     "quote_string",
     "read_columns",
-    "validate_identifier",
 ]

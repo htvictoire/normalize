@@ -13,8 +13,6 @@ from shared.db.sql import (
     execute_scalar,
     nullish_predicate,
     quote_identifier,
-    read_columns,
-    validate_identifier,
 )
 from shared.models.profiling import ColumnCounts
 
@@ -34,12 +32,11 @@ def compute_profiling_stats(
     null_tokens: tuple[str, ...],
 ) -> ProfilingStats:
     """Return row-level profiling counts for the current DuckDB table."""
-    validate_identifier(RAW_INPUT_TABLE_NAME)
-    columns = read_columns(conn)
+    columns = list(position_to_name.values())
     row_count, column_counts = compute_column_counts(
         conn,
-        position_to_name,
-        null_tokens,
+        position_to_name=position_to_name,
+        null_tokens=null_tokens,
     )
     if not columns:
         return ProfilingStats(
@@ -58,4 +55,3 @@ def compute_profiling_stats(
         empty_row_count=empty_row_count,
         column_counts=column_counts,
     )
-

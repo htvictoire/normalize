@@ -8,7 +8,7 @@ from time import perf_counter
 from duckdb import DuckDBPyConnection
 
 from shared.constants import RAW_INPUT_TABLE_NAME
-from shared.db.sql import quote_identifier, validate_identifier
+from shared.db.sql import quote_identifier
 from shared.models.normalization import QualityOutput
 from shared.stage import Stage
 
@@ -31,7 +31,6 @@ class QualityMetricsStage(Stage):
     ) -> QualityOutput:
         """Return quality metrics derived from post-transform table state."""
         start = perf_counter()
-        validate_identifier(RAW_INPUT_TABLE_NAME)
 
         columns = list(data_columns)
 

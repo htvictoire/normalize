@@ -10,7 +10,6 @@ from shared.constants import RAW_INPUT_TABLE_NAME
 from shared.db.sql import (
     quote_identifier,
     read_columns,
-    validate_identifier,
 )
 from shared.stage import Stage
 
@@ -42,7 +41,6 @@ class RowNormalizationStage(Stage):
 
         Counts empty rows to enable the fast path (rowid+1 vs ROW_NUMBER).
         """
-        validate_identifier(RAW_INPUT_TABLE_NAME)
         rows_before_row = conn.execute(f"SELECT COUNT(*) FROM {RAW_INPUT_TABLE_NAME}").fetchone()
         if rows_before_row is None:
             raise RuntimeError("row count query returned no rows")
@@ -75,7 +73,6 @@ class RowNormalizationStage(Stage):
         self, conn: DuckDBPyConnection
     ) -> dict[str, int]:
         start_time = perf_counter()
-        validate_identifier(RAW_INPUT_TABLE_NAME)
 
         rows_before_row = conn.execute(f"SELECT COUNT(*) FROM {RAW_INPUT_TABLE_NAME}").fetchone()
         if rows_before_row is None:

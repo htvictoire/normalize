@@ -41,9 +41,7 @@ def compute_column_profile(  # noqa: PLR0911
     counts: ColumnCounts,
 ) -> ColumnProfile:
     """Dispatch to the correct per-type profiler and return the column profile."""
-    raw_col = f"TRIM(CAST({quote_identifier(column_name)} AS VARCHAR))"
-    candidate = build_value_candidate_expr(raw_col, config)
-
+    # Types that need no value preprocessing — return before building the candidate expr.
     if isinstance(config, StringColumnConfig):
         return compute_string_column_profile(
             conn, column_name=column_name, null_tokens=null_tokens, counts=counts
@@ -57,6 +55,19 @@ def compute_column_profile(  # noqa: PLR0911
             null_tokens=null_tokens,
             counts=counts,
         )
+    if isinstance(config, DateColumnConfig):
+        return compute_date_column_profile(
+            conn,
+            column_name=column_name,
+            date_format=config.date_format,
+            null_tokens=null_tokens,
+            counts=counts,
+        )
+
+    # All remaining types are numeric — build the preprocessed value expression once.
+    raw_col = f"TRIM(CAST({quote_identifier(column_name)} AS VARCHAR))"
+    candidate = build_value_candidate_expr(raw_col, config)
+
     if isinstance(config, IntegerColumnConfig):
         return compute_integer_column_profile(
             conn,
@@ -110,13 +121,5 @@ def compute_column_profile(  # noqa: PLR0911
             null_tokens=null_tokens,
             counts=counts,
             normalized_value_expr=candidate,
-        )
-    if isinstance(config, DateColumnConfig):
-        return compute_date_column_profile(
-            conn,
-            column_name=column_name,
-            date_format=config.date_format,
-            null_tokens=null_tokens,
-            counts=counts,
         )
     raise TypeError(f"Unsupported column config: {type(config).__name__}")

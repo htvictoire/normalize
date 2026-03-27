@@ -10,7 +10,7 @@ from __future__ import annotations
 from duckdb import DuckDBPyConnection
 
 from shared.constants import RAW_INPUT_TABLE_NAME
-from shared.db.sql import quote_identifier, read_columns, read_relation_columns, validate_identifier
+from shared.db.sql import quote_identifier, read_columns, read_relation_columns
 
 
 class DirectJsonIngestor:
@@ -31,9 +31,7 @@ class DirectJsonIngestor:
         Returns:
         - ordered list of destination column names
         """
-        validate_identifier(RAW_INPUT_TABLE_NAME)
         temp_table = "__json_input_raw"
-        validate_identifier(temp_table)
         conn.execute(
             f"CREATE OR REPLACE TABLE {temp_table} AS "
             "SELECT * FROM read_json_auto(?)",

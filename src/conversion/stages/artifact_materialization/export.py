@@ -7,7 +7,7 @@ from pathlib import Path
 from duckdb import DuckDBPyConnection
 
 from shared.constants import RAW_INPUT_TABLE_NAME
-from shared.db.sql import quote_identifier, quote_string, validate_identifier
+from shared.db.sql import quote_identifier, quote_string
 
 from conversion.stages.artifact_materialization.constants import (
     AUDIT_EXCLUDED_FROM_DATA,
@@ -31,7 +31,6 @@ def write_normalized_parquet(
 
     Skips temp table materialization - writes COPY query directly from source.
     """
-    validate_identifier(RAW_INPUT_TABLE_NAME)
     selected = ", ".join(quote_identifier(col) for col in export_columns)
     query = f"SELECT {selected} FROM {RAW_INPUT_TABLE_NAME}"
     conn.execute(

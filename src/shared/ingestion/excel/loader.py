@@ -11,7 +11,7 @@ import openpyxl
 from duckdb import DuckDBPyConnection
 
 from shared.constants import RAW_INPUT_TABLE_NAME
-from shared.db.sql import quote_identifier, validate_identifier
+from shared.db.sql import quote_identifier
 from shared.ingestion.contracts import HeaderMode
 
 
@@ -39,7 +39,6 @@ class DirectExcelIngestor:
         Returns:
         - ordered list of destination column names
         """
-        validate_identifier(RAW_INPUT_TABLE_NAME)
 
         wb = openpyxl.load_workbook(source_url, read_only=True, data_only=True)
         ws = wb[sheet_name] if sheet_name is not None else wb.worksheets[0]

@@ -10,7 +10,6 @@ from shared.constants import RAW_INPUT_TABLE_NAME
 from shared.db.sql import (
     quote_identifier,
     quote_string,
-    validate_identifier,
 )
 
 
@@ -43,7 +42,6 @@ def build_trace_query(
             "WHERE FALSE"
         )
 
-    validate_identifier(RAW_INPUT_TABLE_NAME)
     row_index_expr = "_row_index" if has_row_index else "(rowid + 1)::BIGINT"
     casted_columns = ", ".join(
         f"CAST({quote_identifier(column_name)} AS VARCHAR) AS {quote_identifier(column_name)}"

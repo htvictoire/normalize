@@ -20,10 +20,7 @@ from conversion.stages.cell_normalization.fragments import (
 )
 from conversion.stages.cell_normalization.planning import build_cell_plan
 from conversion.stages.cell_normalization.schema import AUDIT_COLUMNS
-from conversion.stages.cell_normalization.sql_helpers import (
-    read_columns,
-    validate_identifier,
-)
+from conversion.stages.cell_normalization.sql_helpers import read_columns
 
 
 class CellNormalizationStage(Stage):
@@ -47,7 +44,6 @@ class CellNormalizationStage(Stage):
         emit_parse_issues: bool = True,
     ) -> CellPlan:
         """Build a CellPlan with SQL fragments, without executing anything."""
-        validate_identifier(RAW_INPUT_TABLE_NAME)
         token_policy = TokenPolicy.from_user_inputs(null_tokens)
 
         columns = read_columns(conn)
@@ -78,7 +74,6 @@ class CellNormalizationStage(Stage):
         emit_parse_issues: bool = True,
     ) -> dict[str, int]:
         start_time = perf_counter()
-        validate_identifier(RAW_INPUT_TABLE_NAME)
         token_policy = TokenPolicy.from_user_inputs(null_tokens)
 
         columns = read_columns(conn)

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from shared.constants import RAW_INPUT_TABLE_NAME
-from shared.db.sql import quote_identifier, validate_identifier
+from shared.db.sql import quote_identifier
 
 from conversion.core.transform.models import CellPlan, RowPlan
 
@@ -19,7 +19,6 @@ def compose_transform_sql(
     - General path: ``ROW_NUMBER() OVER (ORDER BY rowid)`` with outer ORDER BY
       for deterministic gap-free indices after filtering.
     """
-    validate_identifier(RAW_INPUT_TABLE_NAME)
 
     needs_window = row_plan.assign_indices and row_plan.rows_dropped > 0
     needs_rowid_index = row_plan.assign_indices and row_plan.rows_dropped == 0

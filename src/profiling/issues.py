@@ -17,13 +17,18 @@ def collect_column_issues(
     column_name: str,
     config: ColumnConfig,
     profile: ColumnProfile,
-    issues: list[NormalizationIssue],
-    currency_ratios: list[float],
     numeric_threshold: float,
-) -> None:
-    """Append any data-quality issues detected from the column profile."""
+) -> tuple[list[NormalizationIssue], float | None]:
+    """Return issues detected from the column profile and the dominant symbol ratio if applicable.
+
+    The float return is the dominant_symbol_ratio for symbol-bearing columns, or None otherwise.
+    Callers accumulate this ratio separately to compute the aggregate pattern_consistency_ratio.
+    """
+    issues: list[NormalizationIssue] = []
+    dominant_symbol_ratio: float | None = None
+
     if isinstance(profile, SymbolDistributionProfile):
-        currency_ratios.append(profile.dominant_symbol_ratio)
+        dominant_symbol_ratio = profile.dominant_symbol_ratio
         if profile.has_mixed_symbols:
             issues.append(
                 build_mixed_currency_issue(
@@ -50,6 +55,8 @@ def collect_column_issues(
                 swapped_decimal_ratio=profile.swapped_match_ratio,
             )
         )
+
+    return issues, dominant_symbol_ratio
 
 
 def build_mixed_currency_issue(

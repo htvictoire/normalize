@@ -41,7 +41,7 @@ def compute_boolean_column_profile(
     )
 
     non_nullish = counts.non_nullish_count
-    unrecognized_count = max(non_nullish - true_token_count - false_token_count, 0)
+    unrecognized_count = non_nullish - true_token_count - false_token_count
     recognized_ratio = 1.0 if non_nullish <= 0 else (
         (true_token_count + false_token_count) / non_nullish
     )
