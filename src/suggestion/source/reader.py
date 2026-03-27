@@ -9,6 +9,7 @@ from shared.models.operation import FileSource, SourceFormat
 from shared.models.source import SourceRef
 from shared.storage.probe import read_source_probe
 from shared.storage.s3 import build_duckdb_s3_url, download_s3_temp, s3_ref
+
 from suggestion.constants import FILE_SAMPLE_BYTES, JSON_FIRST_OBJECT_MAX_BYTES
 from suggestion.source.csv import (
     infer_csv_source_format,

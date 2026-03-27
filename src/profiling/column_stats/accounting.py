@@ -4,12 +4,13 @@ from __future__ import annotations
 
 from duckdb import DuckDBPyConnection
 
-from profiling.column_stats.numeric import decimal_parse_stats
 from shared.constants import RAW_INPUT_TABLE_NAME
 from shared.db.sql import nullish_predicate, quote_identifier
 from shared.models.column import AccountingColumnConfig
 from shared.models.profiling import AccountingColumnProfile, ColumnCounts
 from shared.parsing.currency import build_currency_symbol_extract_expr
+
+from profiling.column_stats.numeric import decimal_parse_stats
 
 
 def compute_accounting_column_profile(

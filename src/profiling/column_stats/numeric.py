@@ -4,10 +4,6 @@ from __future__ import annotations
 
 from duckdb import DuckDBPyConnection
 
-from conversion.stages.cell_normalization.transforms.numeric import (
-    decimal_pattern_regex,
-    integer_pattern_regex,
-)
 from shared.constants import RAW_INPUT_TABLE_NAME
 from shared.db.sql import execute_scalar, nullish_predicate, quote_identifier, quote_string
 from shared.models.column import (
@@ -23,6 +19,11 @@ from shared.models.profiling import (
     IntegerColumnProfile,
     PercentageColumnProfile,
     SignedColumnProfile,
+)
+
+from conversion.stages.cell_normalization.transforms.numeric import (
+    decimal_pattern_regex,
+    integer_pattern_regex,
 )
 
 

@@ -4,17 +4,6 @@ from __future__ import annotations
 
 from duckdb import DuckDBPyConnection
 
-from profiling.column_stats.accounting import compute_accounting_column_profile
-from profiling.column_stats.boolean import compute_boolean_column_profile
-from profiling.column_stats.currency import compute_currency_column_profile
-from profiling.column_stats.date import compute_date_column_profile
-from profiling.column_stats.numeric import (
-    compute_decimal_column_profile,
-    compute_integer_column_profile,
-    compute_percentage_column_profile,
-    compute_signed_column_profile,
-)
-from profiling.column_stats.string import compute_string_column_profile
 from shared.db.sql import quote_identifier
 from shared.models.column import (
     AccountingColumnConfig,
@@ -30,6 +19,18 @@ from shared.models.column import (
 )
 from shared.models.profiling import ColumnCounts, ColumnProfile
 from shared.parsing.normalizer import build_value_candidate_expr
+
+from profiling.column_stats.accounting import compute_accounting_column_profile
+from profiling.column_stats.boolean import compute_boolean_column_profile
+from profiling.column_stats.currency import compute_currency_column_profile
+from profiling.column_stats.date import compute_date_column_profile
+from profiling.column_stats.numeric import (
+    compute_decimal_column_profile,
+    compute_integer_column_profile,
+    compute_percentage_column_profile,
+    compute_signed_column_profile,
+)
+from profiling.column_stats.string import compute_string_column_profile
 
 
 def compute_column_profile(  # noqa: PLR0911

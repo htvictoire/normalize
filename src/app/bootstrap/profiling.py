@@ -4,10 +4,11 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from profiling import run_profiling
-from shared.models.instance import InstanceConfig
+from shared.models.instance_config import InstanceConfig
 from shared.models.profiling import ProfilingOutput
 from shared.models.source import SourceRef
+
+from profiling import run_profiling
 
 
 class ProfilingService:

@@ -7,12 +7,13 @@ from dataclasses import dataclass
 
 from duckdb import DuckDBPyConnection
 
-from profiling.column_stats import compute_column_profile
-from profiling.constants import NUMERIC_MISMATCH_THRESHOLD
-from profiling.issues import collect_column_issues
 from shared.models.column import ColumnConfig, column_config_type
 from shared.models.issues import NormalizationIssue
 from shared.models.profiling import ColumnCounts, ColumnProfileStats
+
+from profiling.column_stats import compute_column_profile
+from profiling.constants import NUMERIC_MISMATCH_THRESHOLD
+from profiling.issues import collect_column_issues
 
 
 @dataclass(frozen=True)

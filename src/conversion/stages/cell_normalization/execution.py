@@ -6,8 +6,9 @@ from collections.abc import Sequence
 
 from duckdb import DuckDBPyConnection
 
-from conversion.stages.cell_normalization.sql_helpers import quote_identifier
 from shared.constants import RAW_INPUT_TABLE_NAME
+
+from conversion.stages.cell_normalization.sql_helpers import quote_identifier
 
 _INDEX_AUDIT_COLUMNS = ("_row_index", "_global_row_index")
 

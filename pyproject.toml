@@ -101,6 +101,21 @@ extend-ignore = [
     "PLR6301",
 ]
 
+[tool.ruff.lint.isort]
+sections = { shared = ["shared"], app = ["app"], suggestion = ["suggestion"], profiling = ["profiling"], conversion = ["conversion"] }
+section-order = [
+    "future",
+    "standard-library",
+    "third-party",
+    "shared",
+    "app",
+    "suggestion",
+    "profiling",
+    "conversion",
+    "first-party",
+    "local-folder",
+]
+
 [tool.ruff.lint.per-file-ignores]
 "tests/**/*.py" = [
     "S101",

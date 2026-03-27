@@ -10,6 +10,7 @@ from shared.models.column import (
     DateColumnConfig,
     StringColumnConfig,
 )
+
 from suggestion.column_config.boolean import is_boolean
 from suggestion.column_config.date import best_date_format
 from suggestion.column_config.numeric import infer_numeric_type

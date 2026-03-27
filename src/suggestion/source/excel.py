@@ -8,6 +8,7 @@ from typing import Any
 import openpyxl
 
 from shared.models.operation import ExcelSourceFormat
+
 from suggestion.constants import DISPLAY_RAW_ROWS, HEADER_SCAN_ROWS
 from suggestion.source.heuristics import looks_numeric
 

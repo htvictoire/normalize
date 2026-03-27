@@ -15,8 +15,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from profiling.counts import compute_profiling_stats
-from profiling.profiles import compute_profile_results
 from shared.db.column_index import build_position_to_name
 from shared.db.duckdb import DuckDBManager, configure_duckdb_s3, resolve_db_path
 from shared.db.sql import read_columns
@@ -27,9 +25,12 @@ from shared.ingestion import (
     run_ingestion,
 )
 from shared.ingestion.canonicalization import HeaderCanonicalizationStage
-from shared.models.instance import InstanceConfig
+from shared.models.instance_config import InstanceConfig
 from shared.models.profiling import ProfilingOutput
 from shared.models.source import SourceRef
+
+from profiling.counts import compute_profiling_stats
+from profiling.profiles import compute_profile_results
 
 
 def run_profiling(

@@ -6,6 +6,7 @@ import json
 from collections.abc import Iterator
 
 from shared.models.operation import JsonSourceFormat
+
 from suggestion.constants import DISPLAY_RAW_ROWS
 
 

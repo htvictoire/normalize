@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 
 from shared.ingestion.cell import normalize_cell_value
+
 from suggestion.constants import INFERENCE_SAMPLES_PER_COLUMN
 
 

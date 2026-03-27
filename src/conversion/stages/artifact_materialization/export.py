@@ -6,12 +6,13 @@ from pathlib import Path
 
 from duckdb import DuckDBPyConnection
 
+from shared.constants import RAW_INPUT_TABLE_NAME
+from shared.db.sql import quote_identifier, quote_string, validate_identifier
+
 from conversion.stages.artifact_materialization.constants import (
     AUDIT_EXCLUDED_FROM_DATA,
     AUDIT_OUTPUT_COLUMNS,
 )
-from shared.constants import RAW_INPUT_TABLE_NAME
-from shared.db.sql import quote_identifier, quote_string, validate_identifier
 
 
 def build_export_columns(columns: list[str]) -> list[str]:

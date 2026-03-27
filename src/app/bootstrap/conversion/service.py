@@ -4,15 +4,16 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from app.bootstrap.conversion.execution import (
-    ConversionExecutionOutput,
-    execute_conversion,
-)
 from shared.models.column import ColumnConfig
 from shared.models.issues import IssueSeverity, NormalizationIssue
 from shared.models.operation import OperationConfig, SourceFormat
 from shared.models.source import SourceRef
 from shared.settings import get_settings
+
+from app.bootstrap.conversion.execution import (
+    ConversionExecutionOutput,
+    execute_conversion,
+)
 
 
 class ConversionService:

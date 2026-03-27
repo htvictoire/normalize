@@ -6,9 +6,10 @@ from uuid import UUID
 
 from fastapi import APIRouter, HTTPException
 
+from shared.models.instance import InstanceModel
+
 from app.api.models import ConfirmRequest, SuggestRequest
 from app.bootstrap import MainOrchestrator
-from shared.models.instance import InstanceModel
 
 router = APIRouter()
 

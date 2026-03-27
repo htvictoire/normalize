@@ -2,12 +2,6 @@
 
 from __future__ import annotations
 
-from conversion.stages.cell_normalization.transforms.boolean import build_boolean_exprs
-from conversion.stages.cell_normalization.transforms.date import build_date_exprs
-from conversion.stages.cell_normalization.transforms.numeric import (
-    build_decimal_exprs,
-    build_integer_exprs,
-)
 from shared.models.column import (
     BooleanColumnConfig,
     ColumnConfig,
@@ -17,6 +11,13 @@ from shared.models.column import (
     StringColumnConfig,
 )
 from shared.parsing.normalizer import build_value_candidate_expr
+
+from conversion.stages.cell_normalization.transforms.boolean import build_boolean_exprs
+from conversion.stages.cell_normalization.transforms.date import build_date_exprs
+from conversion.stages.cell_normalization.transforms.numeric import (
+    build_decimal_exprs,
+    build_integer_exprs,
+)
 
 
 def build_column_exprs(

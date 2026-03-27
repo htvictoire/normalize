@@ -5,7 +5,8 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
-from shared.models.instance import InstanceConfig, InstanceModel
+from shared.models.instance import InstanceModel
+from shared.models.instance_config import InstanceConfig
 from shared.models.normalization import NormalizationOutput
 from shared.models.profiling import ProfilingOutput
 from shared.models.suggestion import SuggestionDisplay

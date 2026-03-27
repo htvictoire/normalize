@@ -5,6 +5,13 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from shared.db.duckdb import DuckDBManager, resolve_db_path
+from shared.db.sql import read_columns
+from shared.ingestion import HeaderMode, IngestionStage
+from shared.ingestion.canonicalization import HeaderCanonicalizationStage
+from shared.models.normalization import ArtifactPaths, NormalizationOutput, SourceChecksums
+from shared.models.operation import CsvSourceFormat
+
 from conversion.core.engine.config import EngineConfig
 from conversion.core.engine.pipeline.replay import build_replay_config
 from conversion.core.engine.pipeline.runner.config_resolution import (
@@ -16,12 +23,6 @@ from conversion.stages.artifact_materialization import ArtifactMaterializationSt
 from conversion.stages.cell_normalization import CellNormalizationStage
 from conversion.stages.quality_metrics.stage import QualityMetricsStage
 from conversion.stages.row_normalization import RowNormalizationStage
-from shared.db.duckdb import DuckDBManager, resolve_db_path
-from shared.db.sql import read_columns
-from shared.ingestion import HeaderMode, IngestionStage
-from shared.ingestion.canonicalization import HeaderCanonicalizationStage
-from shared.models.normalization import ArtifactPaths, NormalizationOutput, SourceChecksums
-from shared.models.operation import CsvSourceFormat
 
 
 def run_pipeline(

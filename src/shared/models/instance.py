@@ -1,4 +1,4 @@
-"""Instance models — config, status, and lifecycle model for a normalization run."""
+"""Instance models — status and lifecycle model for a normalization run."""
 
 from __future__ import annotations
 
@@ -6,22 +6,11 @@ from enum import StrEnum
 from uuid import UUID, uuid4
 
 from shared.models.base import MainModel
-from shared.models.column import ColumnConfig
+from shared.models.instance_config import InstanceConfig
 from shared.models.normalization import NormalizationOutput
-from shared.models.operation import FileFormat, FileSource, OperationConfig, SourceFormat
+from shared.models.operation import FileFormat, FileSource
 from shared.models.profiling import ProfilingOutput
 from shared.models.suggestion import SuggestionDisplay
-
-
-class InstanceConfig(MainModel):
-    """Full configuration for one normalization instance.
-
-    Suggested at inference, confirmed by the user.
-    """
-
-    source_format: SourceFormat
-    column_config: dict[str, ColumnConfig]
-    operation_config: OperationConfig
 
 
 class InstanceStatus(StrEnum):

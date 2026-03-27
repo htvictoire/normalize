@@ -8,10 +8,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from conversion.stages.artifact_materialization.bundle import StagedArtifacts
 from shared.models.normalization import ArtifactPaths
 from shared.models.operation import FileSource
 from shared.storage.s3 import s3_ref, upload_s3_file
+
+from conversion.stages.artifact_materialization.bundle import StagedArtifacts
 
 
 @dataclass(frozen=True)

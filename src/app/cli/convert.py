@@ -6,9 +6,10 @@ import sys
 from pathlib import Path
 from uuid import UUID
 
+from shared.settings import get_settings
+
 from app.bootstrap.orchestrator import MainOrchestrator
 from app.cli.utils import die, write_output
-from shared.settings import get_settings
 
 _USAGE = "Usage: main.py convert <instance_id>"
 

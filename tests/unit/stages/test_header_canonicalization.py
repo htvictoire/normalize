@@ -1,9 +1,10 @@
+from shared.db.duckdb import DuckDBManager
+
 from conversion.stages.header_canonicalization import (
     HeaderCanonicalizationStage,
     canonicalize_header_sequence,
     canonicalize_headers,
 )
-from shared.db.duckdb import DuckDBManager
 
 
 def test_header_canonicalization_rules_and_uniqueness() -> None:

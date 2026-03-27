@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from shared.models.operation import TraceMode
+
 from suggestion.models import NumericCandidate
 
 # ---------------------------------------------------------------------------

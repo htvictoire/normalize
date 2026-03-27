@@ -4,8 +4,9 @@ from __future__ import annotations
 
 from typing import Any
 
-from conversion.core.engine.config import EngineConfig
 from shared.models.column import serialize_column_config_map
+
+from conversion.core.engine.config import EngineConfig
 
 
 def build_replay_config(effective: EngineConfig) -> dict[str, Any]:

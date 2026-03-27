@@ -7,6 +7,11 @@ from time import perf_counter
 
 from duckdb import DuckDBPyConnection
 
+from shared.constants import RAW_INPUT_TABLE_NAME
+from shared.db.sql import execute_scalar
+from shared.models.column import ColumnConfig
+from shared.stage import Stage
+
 from conversion.core.token_policy import TokenPolicy
 from conversion.core.transform.models import CellPlan
 from conversion.stages.cell_normalization.execution import execute_cell_rewrite
@@ -19,10 +24,6 @@ from conversion.stages.cell_normalization.sql_helpers import (
     read_columns,
     validate_identifier,
 )
-from shared.constants import RAW_INPUT_TABLE_NAME
-from shared.db.sql import execute_scalar
-from shared.models.column import ColumnConfig
-from shared.stage import Stage
 
 
 class CellNormalizationStage(Stage):

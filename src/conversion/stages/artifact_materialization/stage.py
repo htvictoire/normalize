@@ -9,12 +9,13 @@ from typing import Any
 
 from duckdb import DuckDBPyConnection
 
-from conversion.stages.artifact_materialization.bundle import stage_artifacts
-from conversion.stages.artifact_materialization.publish import build_artifact_publisher
 from shared.models.issues import NormalizationIssue
 from shared.models.normalization import ArtifactPaths, QualityOutput, SourceChecksums
 from shared.models.operation import FileSource
 from shared.stage import Stage
+
+from conversion.stages.artifact_materialization.bundle import stage_artifacts
+from conversion.stages.artifact_materialization.publish import build_artifact_publisher
 
 
 class ArtifactMaterializationStage(Stage):

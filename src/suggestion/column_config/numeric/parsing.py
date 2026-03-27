@@ -5,6 +5,7 @@ from __future__ import annotations
 from shared.models.column import GroupingStyle
 from shared.parsing.currency import CURRENCY_DETECTION_RE
 from shared.parsing.markers import SIGN_MARKER_DETECTION_RE
+
 from suggestion.constants import (
     GROUP_FIRST_MAX_DIGITS,
     GROUP_INDIAN_MIDDLE_SIZE,

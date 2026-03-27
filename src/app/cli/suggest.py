@@ -6,6 +6,8 @@ import hashlib
 import sys
 from pathlib import Path
 
+from shared.models.source import SourceRef
+
 from app.bootstrap.orchestrator import MainOrchestrator
 from app.cli.utils import (
     OUTPUTS_DIR,
@@ -15,7 +17,6 @@ from app.cli.utils import (
     resolve_input_file,
     write_output,
 )
-from shared.models.source import SourceRef
 
 _USAGE = "Usage: main.py suggest <filename> [output_name]"
 

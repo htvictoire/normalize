@@ -10,6 +10,10 @@ from typing import Any
 
 from duckdb import DuckDBPyConnection
 
+from shared.db.sql import read_columns
+from shared.models.issues import NormalizationIssue
+from shared.models.normalization import QualityOutput, SourceChecksums
+
 from conversion.stages.artifact_materialization.constants import AUDIT_OUTPUT_COLUMNS
 from conversion.stages.artifact_materialization.export import (
     build_export_columns,
@@ -21,9 +25,6 @@ from conversion.stages.artifact_materialization.manifest import (
 )
 from conversion.stages.artifact_materialization.trace import write_trace_parquet
 from conversion.utils.checksums import sha256_file
-from shared.db.sql import read_columns
-from shared.models.issues import NormalizationIssue
-from shared.models.normalization import QualityOutput, SourceChecksums
 
 
 @dataclass(frozen=True)

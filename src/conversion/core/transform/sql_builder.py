@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
-from conversion.core.transform.models import CellPlan, RowPlan
 from shared.constants import RAW_INPUT_TABLE_NAME
 from shared.db.sql import quote_identifier, validate_identifier
+
+from conversion.core.transform.models import CellPlan, RowPlan
 
 
 def compose_transform_sql(

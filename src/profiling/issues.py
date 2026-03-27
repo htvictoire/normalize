@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from profiling.constants import ISSUE_CODE_MIXED_CURRENCY, ISSUE_CODE_SEPARATOR_MISMATCH
 from shared.models.column import ColumnConfig, DecimalFamilyColumnConfig
 from shared.models.issues import IssueSeverity, NormalizationIssue
 from shared.models.profiling import (
@@ -10,6 +9,8 @@ from shared.models.profiling import (
     SeparatorMismatchProfile,
     SymbolDistributionProfile,
 )
+
+from profiling.constants import ISSUE_CODE_MIXED_CURRENCY, ISSUE_CODE_SEPARATOR_MISMATCH
 
 
 def collect_column_issues(

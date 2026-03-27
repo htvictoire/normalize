@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from shared.models.base import MainModel
-from shared.models.instance import InstanceConfig
+from shared.models.instance_config import InstanceConfig
 from shared.models.profiling import ColumnCounts
 
 

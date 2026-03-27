@@ -6,7 +6,6 @@ from time import perf_counter
 
 from duckdb import DuckDBPyConnection
 
-from conversion.core.transform.models import RowPlan
 from shared.constants import RAW_INPUT_TABLE_NAME
 from shared.db.sql import (
     quote_identifier,
@@ -14,6 +13,8 @@ from shared.db.sql import (
     validate_identifier,
 )
 from shared.stage import Stage
+
+from conversion.core.transform.models import RowPlan
 
 
 class RowNormalizationStage(Stage):

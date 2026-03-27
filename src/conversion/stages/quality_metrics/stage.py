@@ -7,11 +7,12 @@ from time import perf_counter
 
 from duckdb import DuckDBPyConnection
 
-from conversion.core.quality import compute_quality_score
 from shared.constants import RAW_INPUT_TABLE_NAME
 from shared.db.sql import quote_identifier, validate_identifier
 from shared.models.normalization import QualityOutput
 from shared.stage import Stage
+
+from conversion.core.quality import compute_quality_score
 
 
 class QualityMetricsStage(Stage):

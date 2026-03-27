@@ -6,14 +6,6 @@ import json
 from dataclasses import dataclass
 from pathlib import Path
 
-from app.bootstrap.conversion.replay import build_replay_config
-from conversion.core.engine.pipeline.runner import resolve_column_config_by_canonical
-from conversion.core.fingerprint import compute_fingerprint
-from conversion.core.transform import execute_combined_transform
-from conversion.stages.artifact_materialization import ArtifactMaterializationStage
-from conversion.stages.cell_normalization import CellNormalizationStage
-from conversion.stages.quality_metrics.stage import QualityMetricsStage
-from conversion.stages.row_normalization import RowNormalizationStage
 from shared.db.duckdb import DuckDBManager, resolve_db_path
 from shared.db.sql import read_columns
 from shared.ingestion import (
@@ -28,6 +20,16 @@ from shared.models.issues import NormalizationIssue
 from shared.models.normalization import ArtifactPaths, QualityOutput, SourceChecksums
 from shared.models.operation import OperationConfig, SourceFormat
 from shared.models.source import SourceRef
+
+from app.bootstrap.conversion.replay import build_replay_config
+
+from conversion.core.engine.pipeline.runner import resolve_column_config_by_canonical
+from conversion.core.fingerprint import compute_fingerprint
+from conversion.core.transform import execute_combined_transform
+from conversion.stages.artifact_materialization import ArtifactMaterializationStage
+from conversion.stages.cell_normalization import CellNormalizationStage
+from conversion.stages.quality_metrics.stage import QualityMetricsStage
+from conversion.stages.row_normalization import RowNormalizationStage
 
 
 @dataclass(frozen=True)

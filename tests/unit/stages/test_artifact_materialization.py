@@ -3,11 +3,12 @@ from pathlib import Path
 
 import pyarrow.parquet as pq
 
-from conversion.stages.artifact_materialization import ArtifactMaterializationStage
-from conversion.utils.checksums import sha256_file
 from shared.db.duckdb import DuckDBManager
 from shared.models.issues import IssueSeverity, NormalizationIssue
 from shared.models.normalization import ArtifactPaths, QualityOutput, SourceChecksums
+
+from conversion.stages.artifact_materialization import ArtifactMaterializationStage
+from conversion.utils.checksums import sha256_file
 
 
 def test_artifact_materialization_writes_expected_outputs(tmp_path: Path) -> None:

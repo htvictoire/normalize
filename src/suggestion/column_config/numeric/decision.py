@@ -15,6 +15,7 @@ from shared.models.column import (
 )
 from shared.parsing.currency import CURRENCY_DETECTION_RE
 from shared.parsing.markers import POSITIVE_SIGN_MARKERS, SIGN_MARKER_DETECTION_RE
+
 from suggestion.column_config.numeric.scoring import infer_best_numeric_fits
 from suggestion.constants import (
     CURRENCY_MATCH_MIN_RATIO,

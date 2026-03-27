@@ -6,8 +6,9 @@ import json
 from typing import Any
 from uuid import UUID
 
-from app.persistence.serialization import instance_to_record, record_to_instance
 from shared.models.instance import InstanceModel
+
+from app.persistence.serialization import instance_to_record, record_to_instance
 
 _psycopg_module: Any
 

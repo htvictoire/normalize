@@ -1,6 +1,5 @@
 import json
 
-from conversion.stages.cell_normalization import CellNormalizationStage
 from shared.db.duckdb import DuckDBManager
 from shared.models.column import (
     BooleanColumnConfig,
@@ -10,6 +9,8 @@ from shared.models.column import (
     IntegerColumnConfig,
     StringColumnConfig,
 )
+
+from conversion.stages.cell_normalization import CellNormalizationStage
 
 COMMON_ARGS = {
     "null_tokens": ["", "null", "none", "n/a", "-"],

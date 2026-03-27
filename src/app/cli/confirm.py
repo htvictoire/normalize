@@ -6,6 +6,8 @@ import json
 import sys
 from uuid import UUID
 
+from shared.models.instance_config import InstanceConfig
+
 from app.bootstrap.orchestrator import MainOrchestrator
 from app.cli.utils import (
     OUTPUTS_DIR,
@@ -14,7 +16,6 @@ from app.cli.utils import (
     resolve_input_file,
     write_output,
 )
-from shared.models.instance import InstanceConfig
 
 _USAGE = "Usage: main.py confirm <instance_id> <config_filename> [output_name]"
 

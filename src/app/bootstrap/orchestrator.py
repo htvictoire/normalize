@@ -11,16 +11,18 @@ from __future__ import annotations
 from pathlib import Path
 from uuid import UUID
 
+from shared.models.instance import InstanceModel, InstanceStatus
+from shared.models.instance_config import InstanceConfig
+from shared.models.issues import IssueSeverity
+from shared.models.normalization import NormalizationOutput
+from shared.models.source import SourceRef
+from shared.settings import get_settings
+
 from app.bootstrap.conversion import ConversionService
 from app.bootstrap.profiling import ProfilingService
 from app.bootstrap.suggestion import SuggestionService
 from app.bootstrap.validation import validate_file_format
 from app.infra.postgres.repository import PostgresRunRepository
-from shared.models.instance import InstanceConfig, InstanceModel, InstanceStatus
-from shared.models.issues import IssueSeverity
-from shared.models.normalization import NormalizationOutput
-from shared.models.source import SourceRef
-from shared.settings import get_settings
 
 
 class MainOrchestrator:

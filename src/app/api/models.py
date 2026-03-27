@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pydantic import Field
 
-from shared.models.instance import InstanceConfig
+from shared.models.instance_config import InstanceConfig
 from shared.models.source import SourceRef
 
 

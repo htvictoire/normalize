@@ -5,6 +5,8 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 
+from shared.models.column import ColumnConfig
+
 from conversion.core.token_policy import TokenPolicy
 from conversion.stages.cell_normalization.naming import (
     issue_alias,
@@ -15,7 +17,6 @@ from conversion.stages.cell_normalization.naming import (
 from conversion.stages.cell_normalization.sql_helpers import quote_identifier
 from conversion.stages.cell_normalization.transforms.dispatcher import build_column_exprs
 from conversion.stages.cell_normalization.transforms.nullish import build_nullish_predicate
-from shared.models.column import ColumnConfig
 
 
 @dataclass(frozen=True)

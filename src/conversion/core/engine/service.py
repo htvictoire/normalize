@@ -4,10 +4,11 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from conversion.core.engine.config import EngineConfig
-from conversion.core.engine.pipeline import run_pipeline
 from shared.models.normalization import NormalizationOutput
 from shared.settings import get_settings
+
+from conversion.core.engine.config import EngineConfig
+from conversion.core.engine.pipeline import run_pipeline
 
 
 class ConversionEngine:

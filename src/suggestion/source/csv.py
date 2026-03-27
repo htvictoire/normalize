@@ -6,6 +6,7 @@ import csv
 from collections import Counter
 
 from shared.models.operation import CsvSourceFormat
+
 from suggestion.constants import (
     DELIMITER_CANDIDATES,
     DISPLAY_RAW_ROWS,
