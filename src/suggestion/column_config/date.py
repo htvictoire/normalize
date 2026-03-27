@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from datetime import datetime
 
-from suggestion.constants import DATE_FORMAT_CANDIDATES
+from suggestion.constants import DATE_FORMAT_CANDIDATES, DATE_FORMAT_RANK
 
 
 def match_date_format(value: str) -> str | None:
@@ -26,5 +26,7 @@ def best_date_format(values: Sequence[str]) -> tuple[str | None, int]:
         fmt = match_date_format(value)
         if fmt is not None:
             counts[fmt] += 1
-    best_fmt, best_count = max(counts.items(), key=lambda item: item[1])
+    best_fmt, best_count = max(
+        counts.items(), key=lambda item: (item[1], -DATE_FORMAT_RANK[item[0]])
+    )
     return (best_fmt, best_count) if best_count > 0 else (None, 0)

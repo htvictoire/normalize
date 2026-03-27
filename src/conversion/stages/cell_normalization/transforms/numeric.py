@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import re
 
+from shared.db.sql import quote_identifier, quote_string
+
 from conversion.core.numeric_formats import GROUPING_STYLE_INDIAN
 from conversion.stages.cell_normalization.naming import parse_cast_alias, parse_match_alias
-from conversion.stages.cell_normalization.sql_helpers import quote_identifier, quote_string
+from conversion.stages.cell_normalization.transforms.column_exprs import ColumnExprs
 
 
 def build_integer_exprs(
@@ -15,8 +17,8 @@ def build_integer_exprs(
     raw_value: str,
     thousand_separator: str,
     grouping_style: str,
-) -> tuple[list[tuple[str, str]], str, str]:
-    """Build (parse_cte_entries, normalized_expr, issue_expr) for an integer column."""
+) -> ColumnExprs:
+    """Build ColumnExprs for an integer column."""
     trimmed = f"TRIM({raw_value})"
     integer_value = _normalize_integer_value(trimmed, thousand_separator=thousand_separator)
     integer_pattern = _integer_pattern_regex(
@@ -37,7 +39,11 @@ def build_integer_exprs(
         f"WHEN {match_alias} AND {cast_alias} IS NOT NULL THEN NULL "
         "ELSE 'INVALID_INTEGER' END"
     )
-    return ([(match_alias, match_expr), (cast_alias, cast_expr)], normalized, issue)
+    return ColumnExprs(
+        parse_cte_entries=((match_alias, match_expr), (cast_alias, cast_expr)),
+        normalized_expr=normalized,
+        issue_expr=issue,
+    )
 
 
 def build_decimal_exprs(
@@ -49,8 +55,8 @@ def build_decimal_exprs(
     grouping_style: str,
     allow_leading_decimal_point: bool,
     issue_label: str = "INVALID_DECIMAL",
-) -> tuple[list[tuple[str, str]], str, str]:
-    """Build (parse_cte_entries, normalized_expr, issue_expr) for a decimal column."""
+) -> ColumnExprs:
+    """Build ColumnExprs for a decimal column."""
     trimmed = f"TRIM({raw_value})"
     numeric_value = _normalize_numeric_value(
         trimmed,
@@ -77,7 +83,11 @@ def build_decimal_exprs(
         f"WHEN {match_alias} AND {cast_alias} IS NOT NULL THEN NULL "
         f"ELSE '{issue_label}' END"
     )
-    return ([(match_alias, match_expr), (cast_alias, cast_expr)], normalized, issue)
+    return ColumnExprs(
+        parse_cte_entries=((match_alias, match_expr), (cast_alias, cast_expr)),
+        normalized_expr=normalized,
+        issue_expr=issue,
+    )
 
 
 def _normalize_numeric_value(

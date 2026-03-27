@@ -81,7 +81,7 @@ def run_suggestion(source: SourceRef) -> SuggestionOutput:
                 compute_source_stats, reading, null_tokens, position_to_name
             )
             core_future = executor.submit(_run_core, reading, position_to_name)
-            row_count, column_counts = stats_future.result()
+            stats = stats_future.result()
             core = core_future.result()
     finally:
         if reading.cleanup_path is not None:
@@ -108,11 +108,11 @@ def run_suggestion(source: SourceRef) -> SuggestionOutput:
         ),
     )
     display = SuggestionDisplay(
-        row_count=row_count,
+        row_count=stats.row_count,
         columns={
             pos: SuggestedColumnDisplay(
                 label=position_to_name[pos],
-                counts=column_counts[pos],
+                counts=stats.column_counts[pos],
                 sample_values=core.sample_values_by_position[pos],
             )
             for pos in position_to_name

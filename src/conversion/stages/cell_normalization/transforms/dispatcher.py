@@ -13,6 +13,7 @@ from shared.models.column import (
 from shared.parsing.normalizer import build_value_candidate_expr
 
 from conversion.stages.cell_normalization.transforms.boolean import build_boolean_exprs
+from conversion.stages.cell_normalization.transforms.column_exprs import ColumnExprs
 from conversion.stages.cell_normalization.transforms.date import build_date_exprs
 from conversion.stages.cell_normalization.transforms.numeric import (
     build_decimal_exprs,
@@ -26,14 +27,11 @@ def build_column_exprs(
     nullish_predicate: str,
     raw_value: str,
     normalized_raw_value: str,
-) -> tuple[list[tuple[str, str]], str, str]:
-    """Route to the appropriate type-specific expression builder.
-
-    Returns (parse_cte_entries, normalized_expr, issue_expr).
-    """
+) -> ColumnExprs:
+    """Route to the appropriate type-specific expression builder."""
     if isinstance(config, StringColumnConfig):
         normalized = f"CASE WHEN {nullish_predicate} THEN NULL ELSE {raw_value} END"
-        return ([], normalized, "NULL")
+        return ColumnExprs(parse_cte_entries=(), normalized_expr=normalized, issue_expr="NULL")
 
     if isinstance(config, BooleanColumnConfig):
         return build_boolean_exprs(

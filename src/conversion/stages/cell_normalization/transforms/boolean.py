@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
+from conversion.stages.cell_normalization.transforms.column_exprs import ColumnExprs
 from conversion.stages.cell_normalization.transforms.nullish import token_in_clause
 
 
@@ -12,8 +13,8 @@ def build_boolean_exprs(
     normalized_raw_value: str,
     true_tokens: Sequence[str],
     false_tokens: Sequence[str],
-) -> tuple[list[tuple[str, str]], str, str]:
-    """Build (parse_cte_entries, normalized_expr, issue_expr) for a boolean column."""
+) -> ColumnExprs:
+    """Build ColumnExprs for a boolean column."""
     true_in = token_in_clause(true_tokens)
     false_in = token_in_clause(false_tokens)
     true_match = f"{normalized_raw_value} IN ({true_in})"
@@ -29,4 +30,4 @@ def build_boolean_exprs(
         f"WHEN {true_match} OR {false_match} THEN NULL "
         "ELSE 'INVALID_BOOLEAN' END"
     )
-    return ([], normalized, issue)
+    return ColumnExprs(parse_cte_entries=(), normalized_expr=normalized, issue_expr=issue)

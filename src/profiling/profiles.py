@@ -23,7 +23,7 @@ class ProfileResults:
     column_stats: dict[str, ColumnProfileStats]
     issues: list[NormalizationIssue]
     completeness_ratio: float
-    pattern_consistency_ratio: float
+    mean_dominant_symbol_ratio: float
 
 
 def compute_profile_results(
@@ -76,12 +76,14 @@ def compute_profile_results(
     column_count = len(position_to_name)
     total_cells = row_count * column_count
     completeness_ratio = 1.0 if total_cells <= 0 else (total_non_nullish_cells / total_cells)
-    pattern_consistency_ratio = (
-        1.0 if not dominant_symbol_ratios else (sum(dominant_symbol_ratios) / len(dominant_symbol_ratios))
+    mean_dominant_symbol_ratio = (
+        1.0
+        if not dominant_symbol_ratios
+        else (sum(dominant_symbol_ratios) / len(dominant_symbol_ratios))
     )
     return ProfileResults(
         column_stats=column_stats,
         issues=issues,
         completeness_ratio=completeness_ratio,
-        pattern_consistency_ratio=pattern_consistency_ratio,
+        mean_dominant_symbol_ratio=mean_dominant_symbol_ratio,
     )

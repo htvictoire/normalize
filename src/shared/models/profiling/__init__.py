@@ -1,4 +1,5 @@
 from shared.models.profiling.base import (
+    ColumnCountResult,
     ColumnCounts,
     ParseMatchProfile,
     SeparatorMismatchProfile,
@@ -21,6 +22,7 @@ from shared.models.profiling.profiles import (
 __all__ = [
     "AccountingColumnProfile",
     "BooleanColumnProfile",
+    "ColumnCountResult",
     "ColumnCounts",
     "ColumnProfile",
     "ColumnProfileStats",

@@ -17,13 +17,10 @@ def build_cell_plan(
     row_error_expr = "0" if not fragments.row_error_terms else " + ".join(fragments.row_error_terms)
 
     if emit_raw_row:
-        full_raw_row_expr = "__raw_json"
         if full_raw_row:
-            raw_row_expr = full_raw_row_expr
+            raw_row_expr = "__raw_json"
         else:
-            raw_row_expr = (
-                f"CASE WHEN _parse_error_count = 0 THEN NULL ELSE {full_raw_row_expr} END"
-            )
+            raw_row_expr = "CASE WHEN _parse_error_count = 0 THEN NULL ELSE __raw_json END"
     else:
         raw_row_expr = "NULL::VARCHAR"
 

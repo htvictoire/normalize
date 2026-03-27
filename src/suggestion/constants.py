@@ -95,6 +95,10 @@ DATE_FORMAT_CANDIDATES = (
     "%d-%m-%Y",
 )
 
+# Maps each format to its index in DATE_FORMAT_CANDIDATES — used as a tiebreaker
+# so that equal-count formats resolve deterministically to the highest-priority format.
+DATE_FORMAT_RANK: dict[str, int] = {fmt: i for i, fmt in enumerate(DATE_FORMAT_CANDIDATES)}
+
 # ---------------------------------------------------------------------------
 # Numeric grouping
 # ---------------------------------------------------------------------------

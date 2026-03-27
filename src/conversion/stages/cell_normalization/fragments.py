@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 
+from shared.db.sql import quote_identifier
 from shared.models.column import ColumnConfig
 
 from conversion.core.token_policy import TokenPolicy
@@ -14,7 +15,6 @@ from conversion.stages.cell_normalization.naming import (
     parse_nullish_alias,
     parse_raw_alias,
 )
-from conversion.stages.cell_normalization.sql_helpers import quote_identifier
 from conversion.stages.cell_normalization.transforms.dispatcher import build_column_exprs
 from conversion.stages.cell_normalization.transforms.nullish import build_nullish_predicate
 
@@ -58,17 +58,17 @@ def build_cell_expression_fragments(
                 build_nullish_predicate(raw_alias, lower_alias, token_policy.null_tokens),
             )
         )
-        col_parse_entries, normalized_expr, issue_expr = build_column_exprs(
+        col_exprs = build_column_exprs(
             column_name,
             spec,
             nullish_alias,
             raw_value=raw_alias,
             normalized_raw_value=lower_alias,
         )
-        parse_cte_entries.extend(col_parse_entries)
+        parse_cte_entries.extend(col_exprs.parse_cte_entries)
         issue_col = issue_alias(column_name)
-        base_exprs.append(f"{normalized_expr} AS {quote_identifier(column_name)}")
-        base_exprs.append(f"{issue_expr} AS {quote_identifier(issue_col)}")
+        base_exprs.append(f"{col_exprs.normalized_expr} AS {quote_identifier(column_name)}")
+        base_exprs.append(f"{col_exprs.issue_expr} AS {quote_identifier(issue_col)}")
         row_error_terms.append(f"CASE WHEN {quote_identifier(issue_col)} IS NULL THEN 0 ELSE 1 END")
         if emit_raw_row:
             raw_source_pairs.append(

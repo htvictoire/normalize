@@ -5,7 +5,9 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 from pathlib import Path
+from typing import cast
 
+from shared.db.column_index import resolve_column_config_by_canonical
 from shared.db.duckdb import DuckDBManager, resolve_db_path
 from shared.db.sql import read_columns
 from shared.ingestion import (
@@ -23,7 +25,6 @@ from shared.models.source import SourceRef
 
 from app.bootstrap.conversion.replay import build_replay_config
 
-from conversion.core.engine.pipeline.runner import resolve_column_config_by_canonical
 from conversion.core.fingerprint import compute_fingerprint
 from conversion.core.transform import execute_combined_transform
 from conversion.stages.artifact_materialization import ArtifactMaterializationStage
@@ -94,12 +95,12 @@ def execute_conversion(
             row_plan = RowNormalizationStage(
                 assign_indices=operation_config.assign_indices,
                 drop_empty_rows=operation_config.drop_empty_rows,
-            ).plan(conn)
+            ).plan(conn, columns=raw_columns)
 
             cell_plan = CellNormalizationStage().plan(
-                conn,
                 column_config=resolved_column_config,
                 null_tokens=list(operation_config.null_tokens),
+                columns=raw_columns,
                 full_raw_row=operation_config.full_raw_row,
                 emit_raw_row=operation_config.emit_raw_row,
                 emit_parse_issues=operation_config.emit_parse_issues,
@@ -112,10 +113,8 @@ def execute_conversion(
                 cell_plan.data_columns,
             )
 
-            duckdb_version_row = conn.execute("SELECT version()").fetchone()
-            if duckdb_version_row is None:
-                raise RuntimeError("duckdb version query returned no rows")
-            duckdb_version = str(duckdb_version_row[0])
+            version_row = cast("tuple[object, ...]", conn.execute("SELECT version()").fetchone())
+            duckdb_version = str(version_row[0])
             replay_config = build_replay_config(
                 source_format,
                 operation_config,
@@ -142,13 +141,12 @@ def execute_conversion(
                 run_id=run_id,
                 rules_version=_RULES_VERSION,
             )
+            return ConversionExecutionOutput(
+                status="READY",
+                fingerprint=fingerprint,
+                quality_output=quality_output,
+                artifacts=artifacts,
+            )
     finally:
         if setup is not None:
             cleanup_ingestion_setup(setup)
-
-    return ConversionExecutionOutput(
-        status="READY",
-        fingerprint=fingerprint,
-        quality_output=quality_output,
-        artifacts=artifacts,
-    )

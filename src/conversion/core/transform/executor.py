@@ -22,13 +22,11 @@ def execute_combined_transform(
     conn.execute(sql)
     sql_seconds = perf_counter() - start
 
-    rows_after = row_plan.rows_before - row_plan.rows_dropped
-
     return {
         "duration_seconds": perf_counter() - start,
         "sql_seconds": sql_seconds,
         "rows_before": row_plan.rows_before,
-        "rows_after": rows_after,
-        "rows_dropped": row_plan.rows_before - rows_after,
+        "rows_after": row_plan.rows_before - row_plan.rows_dropped,
+        "rows_dropped": row_plan.rows_dropped,
         "column_count": len(cell_plan.data_columns),
     }

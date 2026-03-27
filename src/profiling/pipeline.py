@@ -80,7 +80,7 @@ def run_profiling(
                 row_count=profiling_stats.row_count,
                 empty_row_count=profiling_stats.empty_row_count,
                 column_count=len(canonical_columns),
-                pattern_consistency_ratio=profile_results.pattern_consistency_ratio,
+                pattern_consistency_ratio=profile_results.mean_dominant_symbol_ratio,
                 completeness_ratio=profile_results.completeness_ratio,
                 column_stats=profile_results.column_stats,
                 issues=profile_results.issues,

@@ -6,7 +6,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from time import perf_counter
-from typing import Any
+from typing import Any, cast
 
 from duckdb import DuckDBPyConnection
 
@@ -92,10 +92,7 @@ def stage_artifacts(
     timing["checksum_seconds"] = perf_counter() - section_start
 
     section_start = perf_counter()
-    duckdb_version_row = conn.execute("SELECT version()").fetchone()
-    if duckdb_version_row is None:
-        raise RuntimeError("duckdb version query returned no rows")
-    duckdb_version = str(duckdb_version_row[0])
+    duckdb_version = str(cast("tuple[object, ...]", conn.execute("SELECT version()").fetchone())[0])
     timing["duckdb_version_read_seconds"] = perf_counter() - section_start
 
     section_start = perf_counter()

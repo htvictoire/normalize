@@ -9,7 +9,7 @@ from typing import cast
 from duckdb import DuckDBPyConnection
 
 from shared.constants import RAW_INPUT_TABLE_NAME
-from shared.models.profiling import ColumnCounts
+from shared.models.profiling import ColumnCountResult, ColumnCounts
 
 
 def validate_identifier(identifier: str) -> None:
@@ -35,7 +35,6 @@ def execute_scalar(conn: DuckDBPyConnection, sql: str) -> int:
 
 def read_relation_columns(conn: DuckDBPyConnection, table_name: str) -> list[str]:
     """Read ordered column names from one explicit DuckDB relation."""
-    validate_identifier(table_name)
     rows = conn.execute(f"PRAGMA table_info('{table_name}')").fetchall()
     return [str(row[1]) for row in rows]
 
@@ -81,7 +80,7 @@ def _build_column_count_query(
 def _column_counts_from_row(
     row: Sequence[object],
     position_to_name: Mapping[str, str],
-) -> tuple[int, dict[str, ColumnCounts]]:
+) -> ColumnCountResult:
     row_count = cast(int, row[0])
     counts: dict[str, ColumnCounts] = {}
     for index, position_key in enumerate(position_to_name.keys()):
@@ -90,10 +89,10 @@ def _column_counts_from_row(
         counts[position_key] = ColumnCounts(
             null_count=null_count,
             nullish_count=nullish_count,
-            non_null_count=max(row_count - null_count, 0),
-            non_nullish_count=max(row_count - nullish_count, 0),
+            non_null_count=row_count - null_count,
+            non_nullish_count=row_count - nullish_count,
         )
-    return row_count, counts
+    return ColumnCountResult(row_count=row_count, column_counts=counts)
 
 
 def compute_column_counts_from_relation(
@@ -102,16 +101,14 @@ def compute_column_counts_from_relation(
     position_to_name: Mapping[str, str],
     null_tokens: tuple[str, ...] = (),
     params: Sequence[object] = (),
-) -> tuple[int, dict[str, ColumnCounts]]:
-    """Return (row_count, {position_key: ColumnCounts}) from any DuckDB relation expression."""
+) -> ColumnCountResult:
+    """Return ColumnCountResult from any DuckDB relation expression."""
     query = _build_column_count_query(
         relation_expr,
         position_to_name,
         null_tokens,
     )
-    row = conn.execute(query, params).fetchone()
-    if row is None:
-        return 0, {}
+    row = cast("tuple[object, ...]", conn.execute(query, params).fetchone())
     return _column_counts_from_row(row, position_to_name)
 
 
@@ -119,8 +116,8 @@ def compute_column_counts(
     conn: DuckDBPyConnection,
     position_to_name: Mapping[str, str],
     null_tokens: tuple[str, ...] = (),
-) -> tuple[int, dict[str, ColumnCounts]]:
-    """Return (row_count, {position_key: ColumnCounts}) from the working raw-input table."""
+) -> ColumnCountResult:
+    """Return ColumnCountResult from the working raw-input table."""
     return compute_column_counts_from_relation(
         conn,
         RAW_INPUT_TABLE_NAME,

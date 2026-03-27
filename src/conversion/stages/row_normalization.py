@@ -8,6 +8,7 @@ from duckdb import DuckDBPyConnection
 
 from shared.constants import RAW_INPUT_TABLE_NAME
 from shared.db.sql import (
+    execute_scalar,
     quote_identifier,
     read_columns,
 )
@@ -36,30 +37,25 @@ class RowNormalizationStage(Stage):
         self._assign_indices = assign_indices
         self._drop_empty_rows = drop_empty_rows
 
-    def plan(self, conn: DuckDBPyConnection) -> RowPlan:
+    def plan(self, conn: DuckDBPyConnection, columns: list[str]) -> RowPlan:
         """Build a RowPlan without executing any table mutations.
 
         Counts empty rows to enable the fast path (rowid+1 vs ROW_NUMBER).
+        `columns` is the full ordered column list as read after header canonicalization.
         """
-        rows_before_row = conn.execute(f"SELECT COUNT(*) FROM {RAW_INPUT_TABLE_NAME}").fetchone()
-        if rows_before_row is None:
-            raise RuntimeError("row count query returned no rows")
-        rows_before = int(rows_before_row[0])
+        rows_before = execute_scalar(conn, f"SELECT COUNT(*) FROM {RAW_INPUT_TABLE_NAME}")
 
         filter_predicate: str | None = None
         rows_dropped = 0
         if self._drop_empty_rows:
-            columns = read_columns(conn)
             data_columns = [
                 col for col in columns if col not in {"_row_index", "_global_row_index"}
             ]
             filter_predicate = _build_non_empty_predicate(data_columns)
-            non_empty_row = conn.execute(
-                f"SELECT COUNT(*) FROM {RAW_INPUT_TABLE_NAME} WHERE {filter_predicate}"
-            ).fetchone()
-            if non_empty_row is None:
-                raise RuntimeError("non-empty row count query returned no rows")
-            non_empty = int(non_empty_row[0])
+            non_empty = execute_scalar(
+                conn,
+                f"SELECT COUNT(*) FROM {RAW_INPUT_TABLE_NAME} WHERE {filter_predicate}",
+            )
             rows_dropped = rows_before - non_empty
 
         return RowPlan(
@@ -74,10 +70,7 @@ class RowNormalizationStage(Stage):
     ) -> dict[str, int]:
         start_time = perf_counter()
 
-        rows_before_row = conn.execute(f"SELECT COUNT(*) FROM {RAW_INPUT_TABLE_NAME}").fetchone()
-        if rows_before_row is None:
-            raise RuntimeError("row count query returned no rows")
-        rows_before = int(rows_before_row[0])
+        rows_before = execute_scalar(conn, f"SELECT COUNT(*) FROM {RAW_INPUT_TABLE_NAME}")
         if self._drop_empty_rows:
             columns = read_columns(conn)
             data_columns = [
@@ -90,6 +83,7 @@ class RowNormalizationStage(Stage):
                     f"""
                     CREATE OR REPLACE TABLE {RAW_INPUT_TABLE_NAME} AS
                     SELECT
+                        *,
                         (ROW_NUMBER() OVER (ORDER BY rowid))::BIGINT AS _row_index,
                         (ROW_NUMBER() OVER (ORDER BY rowid))::BIGINT AS _global_row_index
                     FROM {RAW_INPUT_TABLE_NAME}
@@ -112,6 +106,7 @@ class RowNormalizationStage(Stage):
                 f"""
                 CREATE OR REPLACE TABLE {RAW_INPUT_TABLE_NAME} AS
                 SELECT
+                    *,
                     (ROW_NUMBER() OVER (ORDER BY rowid))::BIGINT AS _row_index,
                     (ROW_NUMBER() OVER (ORDER BY rowid))::BIGINT AS _global_row_index
                 FROM {RAW_INPUT_TABLE_NAME}
@@ -119,10 +114,7 @@ class RowNormalizationStage(Stage):
                 """
             )
 
-        rows_after_row = conn.execute(f"SELECT COUNT(*) FROM {RAW_INPUT_TABLE_NAME}").fetchone()
-        if rows_after_row is None:
-            raise RuntimeError("row count query returned no rows")
-        rows_after = int(rows_after_row[0])
+        rows_after = execute_scalar(conn, f"SELECT COUNT(*) FROM {RAW_INPUT_TABLE_NAME}")
         rows_dropped = rows_before - rows_after
         self.metrics = {
             "duration_seconds": perf_counter() - start_time,

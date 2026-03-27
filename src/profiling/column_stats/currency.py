@@ -7,7 +7,7 @@ from duckdb import DuckDBPyConnection
 from shared.models.column import CurrencyColumnConfig
 from shared.models.profiling import ColumnCounts, CurrencyColumnProfile
 
-from profiling.column_stats.numeric import compute_symbol_distribution, decimal_parse_stats
+from profiling.column_stats.numeric import compute_symbol_family_stats
 
 
 def compute_currency_column_profile(
@@ -19,30 +19,17 @@ def compute_currency_column_profile(
     normalized_value_expr: str,
 ) -> CurrencyColumnProfile:
     """Compute symbol distribution and parse match metrics for a currency column."""
-    distribution = compute_symbol_distribution(conn, column_name=column_name, null_tokens=null_tokens)
-
-    dominant_symbol: str | None = next(iter(distribution), None)
-    dominant_count = distribution[dominant_symbol] if dominant_symbol is not None else 0
-    non_nullish = counts.non_nullish_count
-    dominant_symbol_ratio = 1.0 if non_nullish <= 0 else (dominant_count / non_nullish)
-
-    stats = decimal_parse_stats(
-        conn,
-        column_name=column_name,
-        config=config,
-        null_tokens=null_tokens,
-        counts=counts,
-        normalized_value_expr=normalized_value_expr,
+    stats = compute_symbol_family_stats(
+        conn, column_name, config, null_tokens, counts, normalized_value_expr
     )
-
     return CurrencyColumnProfile(
-        symbol_distribution=distribution,
-        dominant_symbol=dominant_symbol,
-        dominant_symbol_ratio=dominant_symbol_ratio,
-        has_mixed_symbols=len(distribution) > 1,
+        symbol_distribution=stats.symbol_distribution,
+        dominant_symbol=stats.dominant_symbol,
+        dominant_symbol_ratio=stats.dominant_symbol_ratio,
+        has_mixed_symbols=stats.has_mixed_symbols,
         parse_match_count=stats.parse_match_count,
         parse_match_ratio=stats.parse_match_ratio,
         swapped_match_count=stats.swapped_match_count,
         swapped_match_ratio=stats.swapped_match_ratio,
-        separator_mismatch_detected=stats.swapped_match_count > stats.parse_match_count,
+        separator_mismatch_detected=stats.separator_mismatch_detected,
     )

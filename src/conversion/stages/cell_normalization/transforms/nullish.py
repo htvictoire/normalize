@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
-from conversion.stages.cell_normalization.sql_helpers import quote_string
+from shared.db.sql import quote_string
 
 
 def build_nullish_predicate(

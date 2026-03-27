@@ -101,9 +101,6 @@ class MainOrchestrator:
             issue.severity is IssueSeverity.ERROR for issue in instance.profiling_output.issues
         ):
             raise ValueError("instance has blocking profiling issues")
-        if instance.source_checksum is None:
-            raise ValueError("instance is missing source checksum")
-
         instance.status = InstanceStatus.NORMALIZING
         self._repository.save(instance)
 

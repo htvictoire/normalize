@@ -8,7 +8,7 @@ from time import perf_counter
 from duckdb import DuckDBPyConnection
 
 from shared.constants import RAW_INPUT_TABLE_NAME
-from shared.db.sql import quote_identifier
+from shared.db.sql import execute_scalar, quote_identifier
 from shared.models.normalization import QualityOutput
 from shared.stage import Stage
 
@@ -55,28 +55,23 @@ class QualityMetricsStage(Stage):
         ]
         null_query = f"SELECT COUNT(*), {', '.join(null_exprs)} FROM {RAW_INPUT_TABLE_NAME}"
         row = conn.execute(null_query).fetchone()
-        if row is None:
-            raise RuntimeError("quality metrics query returned no rows")
 
-        row_count = int(row[0])
-        column_null_counts = {col: int(row[i + 1]) for i, col in enumerate(columns)}
+        row_count = int(row[0])  # type: ignore[index]
+        column_null_counts = {col: int(row[i + 1]) for i, col in enumerate(columns)}  # type: ignore[index]
         total_nullish_cells = sum(column_null_counts.values())
         total_cells = row_count * len(columns)
 
-        # Parse error total from audit column
-        error_row = conn.execute(
-            f"SELECT COALESCE(SUM(_parse_error_count), 0) FROM {RAW_INPUT_TABLE_NAME}"
-        ).fetchone()
-        if error_row is None:
-            raise RuntimeError("parse error count query returned no rows")
-        total_parse_error_cells = int(error_row[0])
+        total_parse_error_cells = execute_scalar(
+            conn,
+            f"SELECT COALESCE(SUM(_parse_error_count), 0) FROM {RAW_INPUT_TABLE_NAME}",
+        )
 
-        total_non_null_cells = max(total_cells - total_nullish_cells, 0)
+        total_non_null_cells = total_cells - total_nullish_cells
         completeness_ratio = 1.0 if total_cells <= 0 else (total_non_null_cells / total_cells)
         parse_success_ratio = (
             1.0
             if total_non_null_cells <= 0
-            else max(0.0, 1.0 - (total_parse_error_cells / total_non_null_cells))
+            else 1.0 - (total_parse_error_cells / total_non_null_cells)
         )
         quality_score = compute_quality_score(parse_success_ratio, completeness_ratio)
 

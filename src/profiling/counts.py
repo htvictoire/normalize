@@ -33,16 +33,16 @@ def compute_profiling_stats(
 ) -> ProfilingStats:
     """Return row-level profiling counts for the current DuckDB table."""
     columns = list(position_to_name.values())
-    row_count, column_counts = compute_column_counts(
+    result = compute_column_counts(
         conn,
         position_to_name=position_to_name,
         null_tokens=null_tokens,
     )
     if not columns:
         return ProfilingStats(
-            row_count=row_count,
-            empty_row_count=row_count,
-            column_counts=column_counts,
+            row_count=result.row_count,
+            empty_row_count=result.row_count,
+            column_counts=result.column_counts,
         )
 
     predicates = [nullish_predicate(quote_identifier(column), null_tokens) for column in columns]
@@ -51,7 +51,7 @@ def compute_profiling_stats(
         f"SELECT COUNT(*) FROM {RAW_INPUT_TABLE_NAME} WHERE {' AND '.join(predicates)}",
     )
     return ProfilingStats(
-        row_count=row_count,
+        row_count=result.row_count,
         empty_row_count=empty_row_count,
-        column_counts=column_counts,
+        column_counts=result.column_counts,
     )

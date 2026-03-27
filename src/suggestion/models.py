@@ -58,6 +58,15 @@ class NumericTypeFit:
 
 
 @dataclass(frozen=True)
+class SignedMarkers:
+    """Sign markers detected in sampled numeric values."""
+
+    negative: tuple[str, ...]
+    positive: tuple[str, ...]
+    parentheses_as_negative: bool
+
+
+@dataclass(frozen=True)
 class NumericFits:
     """Best-fit result for each numeric type family."""
 

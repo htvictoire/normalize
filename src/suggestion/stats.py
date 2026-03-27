@@ -11,7 +11,7 @@ from shared.ingestion.csv.options import (
     resolve_header_options,
 )
 from shared.models.operation import CsvSourceFormat, ExcelSourceFormat, JsonSourceFormat
-from shared.models.profiling import ColumnCounts
+from shared.models.profiling import ColumnCountResult, ColumnCounts
 
 from suggestion.source import SourceReading
 
@@ -20,7 +20,7 @@ def compute_source_stats(
     reading: SourceReading,
     null_tokens: tuple[str, ...],
     position_to_name: dict[str, str],
-) -> tuple[int, dict[str, ColumnCounts]]:
+) -> ColumnCountResult:
     """Return exact (row_count, column_counts) without materializing a table."""
     if isinstance(reading.source_format, ExcelSourceFormat):
         return _excel_stats(reading, null_tokens, position_to_name)
@@ -56,7 +56,7 @@ def _scan_stats(
     position_to_name: dict[str, str],
     relation_expr: str,
     extra_params: list[object],
-) -> tuple[int, dict[str, ColumnCounts]]:
+) -> ColumnCountResult:
     params = [reading.ingestion_source_url, *extra_params]
 
     with DuckDBManager() as conn:
@@ -75,7 +75,7 @@ def _excel_stats(
     reading: SourceReading,
     null_tokens: tuple[str, ...],
     position_to_name: dict[str, str],
-) -> tuple[int, dict[str, ColumnCounts]]:
+) -> ColumnCountResult:
     row_count = len(reading.inference_rows)
     null_token_set = set(null_tokens)
     positions = list(position_to_name.keys())
@@ -89,12 +89,15 @@ def _excel_stats(
                 nullish_counts[pos] += 1
             elif raw.lower() in null_token_set:
                 nullish_counts[pos] += 1
-    return row_count, {
-        pos: ColumnCounts(
-            null_count=null_counts[pos],
-            nullish_count=nullish_counts[pos],
-            non_null_count=row_count - null_counts[pos],
-            non_nullish_count=row_count - nullish_counts[pos],
-        )
-        for pos in positions
-    }
+    return ColumnCountResult(
+        row_count=row_count,
+        column_counts={
+            pos: ColumnCounts(
+                null_count=null_counts[pos],
+                nullish_count=nullish_counts[pos],
+                non_null_count=row_count - null_counts[pos],
+                non_nullish_count=row_count - nullish_counts[pos],
+            )
+            for pos in positions
+        },
+    )

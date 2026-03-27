@@ -22,7 +22,7 @@ from suggestion.constants import (
     SIGNED_MATCH_MIN_RATIO,
     TYPE_MATCH_MIN_RATIO,
 )
-from suggestion.models import NumericFits
+from suggestion.models import NumericFits, SignedMarkers
 
 
 def infer_numeric_type(values: Sequence[str], sample_count: int) -> ColumnConfig | None:
@@ -63,37 +63,37 @@ def _infer_currency_like(
 ) -> ColumnConfig | None:
     if fits.accounting.matches / sample_count >= CURRENCY_MATCH_MIN_RATIO:
         c = fits.accounting.candidate
-        negative_markers, positive_markers, parentheses_as_negative = _detect_signed_markers(values)
+        markers = _detect_signed_markers(values)
         return AccountingColumnConfig(
             decimal_separator=c.decimal_separator,
             thousand_separator=c.thousand_separator,
             grouping_style=c.grouping_style,
             allow_leading_decimal_point=fits.accounting.allow_leading_decimal_point,
-            positive_markers=positive_markers,
-            negative_markers=negative_markers,
-            parentheses_as_negative=parentheses_as_negative,
+            positive_markers=markers.positive,
+            negative_markers=markers.negative,
+            parentheses_as_negative=markers.parentheses_as_negative,
         )
     if fits.signed.matches / sample_count >= SIGNED_MATCH_MIN_RATIO:
         c = fits.signed.candidate
-        negative_markers, positive_markers, parentheses_as_negative = _detect_signed_markers(values)
+        markers = _detect_signed_markers(values)
         if any(CURRENCY_DETECTION_RE.search(v) for v in values):
             return AccountingColumnConfig(
                 decimal_separator=c.decimal_separator,
                 thousand_separator=c.thousand_separator,
                 grouping_style=c.grouping_style,
                 allow_leading_decimal_point=fits.signed.allow_leading_decimal_point,
-                positive_markers=positive_markers,
-                negative_markers=negative_markers,
-                parentheses_as_negative=parentheses_as_negative,
+                positive_markers=markers.positive,
+                negative_markers=markers.negative,
+                parentheses_as_negative=markers.parentheses_as_negative,
             )
         return SignedColumnConfig(
             decimal_separator=c.decimal_separator,
             thousand_separator=c.thousand_separator,
             grouping_style=c.grouping_style,
             allow_leading_decimal_point=fits.signed.allow_leading_decimal_point,
-            positive_markers=positive_markers,
-            negative_markers=negative_markers,
-            parentheses_as_negative=parentheses_as_negative,
+            positive_markers=markers.positive,
+            negative_markers=markers.negative,
+            parentheses_as_negative=markers.parentheses_as_negative,
         )
     if fits.currency.matches / sample_count >= CURRENCY_MATCH_MIN_RATIO:
         c = fits.currency.candidate
@@ -108,7 +108,7 @@ def _infer_currency_like(
 
 def _detect_signed_markers(
     values: Sequence[str],
-) -> tuple[tuple[str, ...], tuple[str, ...], bool]:
+) -> SignedMarkers:
     """Scan sample values to find which sign markers and notations are present."""
     found_negative: set[str] = set()
     found_positive: set[str] = set()
@@ -125,4 +125,8 @@ def _detect_signed_markers(
         stripped = clean.strip()
         if not has_parens and stripped.startswith("(") and stripped.endswith(")"):
             has_parens = True
-    return tuple(sorted(found_negative)), tuple(sorted(found_positive)), has_parens
+    return SignedMarkers(
+        negative=tuple(sorted(found_negative)),
+        positive=tuple(sorted(found_positive)),
+        parentheses_as_negative=has_parens,
+    )
