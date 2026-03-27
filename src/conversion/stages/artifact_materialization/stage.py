@@ -11,7 +11,6 @@ from duckdb import DuckDBPyConnection
 
 from conversion.stages.artifact_materialization.bundle import stage_artifacts
 from conversion.stages.artifact_materialization.publish import build_artifact_publisher
-from shared.db.sql import validate_identifier
 from shared.models.issues import NormalizationIssue
 from shared.models.normalization import ArtifactPaths, QualityOutput, SourceChecksums
 from shared.models.operation import FileSource
@@ -34,14 +33,12 @@ class ArtifactMaterializationStage(Stage):
         effective_config: Mapping[str, Any],
         run_id: str | None = None,
         trace_mode: str = "full",
-        table_name: str = "raw_input",
         stage_metrics: Mapping[str, Mapping[str, Any]] | None = None,
         rules_version: str = "v1",
     ) -> ArtifactPaths:
         """Write normalized parquet, trace parquet, and manifest JSON."""
         start_time = perf_counter()
         timing: dict[str, float] = {}
-        validate_identifier(table_name)
         if trace_mode not in {"full", "sparse"}:
             raise ValueError("trace_mode must be one of: full, sparse")
 
@@ -60,7 +57,6 @@ class ArtifactMaterializationStage(Stage):
                 issues=issues,
                 effective_config=effective_config,
                 trace_mode=trace_mode,
-                table_name=table_name,
                 stage_metrics=stage_metrics,
                 rules_version=rules_version,
                 timing=timing,

@@ -22,12 +22,12 @@ from __future__ import annotations
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 
+from shared.db.column_index import build_position_to_name
 from shared.models.column import ColumnConfig
 from shared.models.instance import InstanceConfig
 from shared.models.operation import DecisionThresholds, OperationConfig
 from shared.models.source import SourceRef
 from shared.models.suggestion import SuggestedColumnDisplay, SuggestionDisplay, SuggestionOutput
-from shared.db.column_index import build_position_to_name
 from suggestion.column_config import infer_column_type, sample_column_values
 from suggestion.constants import (
     DEFAULT_APPROXIMATE_UNIQUE,

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from duckdb import DuckDBPyConnection
 
+from shared.constants import RAW_INPUT_TABLE_NAME
 from shared.db.sql import execute_scalar, nullish_predicate, quote_identifier
 from shared.models.profiling import ColumnCounts, StringColumnProfile
 
@@ -22,15 +23,24 @@ def compute_string_column_profile(
 
     distinct_count = execute_scalar(
         conn,
-        f"SELECT COUNT(DISTINCT {value_expr}) FROM raw_input WHERE NOT ({nullish})",
+        (
+            f"SELECT COUNT(DISTINCT {value_expr}) FROM {RAW_INPUT_TABLE_NAME} "
+            f"WHERE NOT ({nullish})"
+        ),
     )
     min_length = execute_scalar(
         conn,
-        f"SELECT COALESCE(MIN(LENGTH({value_expr})), 0) FROM raw_input WHERE NOT ({nullish})",
+        (
+            f"SELECT COALESCE(MIN(LENGTH({value_expr})), 0) FROM {RAW_INPUT_TABLE_NAME} "
+            f"WHERE NOT ({nullish})"
+        ),
     )
     max_length = execute_scalar(
         conn,
-        f"SELECT COALESCE(MAX(LENGTH({value_expr})), 0) FROM raw_input WHERE NOT ({nullish})",
+        (
+            f"SELECT COALESCE(MAX(LENGTH({value_expr})), 0) FROM {RAW_INPUT_TABLE_NAME} "
+            f"WHERE NOT ({nullish})"
+        ),
     )
 
     non_nullish = counts.non_nullish_count

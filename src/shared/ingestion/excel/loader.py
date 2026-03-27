@@ -10,6 +10,7 @@ from __future__ import annotations
 import openpyxl
 from duckdb import DuckDBPyConnection
 
+from shared.constants import RAW_INPUT_TABLE_NAME
 from shared.db.sql import quote_identifier, validate_identifier
 from shared.ingestion.contracts import HeaderMode
 
@@ -29,7 +30,6 @@ class DirectExcelIngestor:
         conn: DuckDBPyConnection,
         source_url: str,
         *,
-        table_name: str,
         sheet_name: str | None,
         header_mode: HeaderMode,
         header_row_index: int | None,
@@ -40,7 +40,7 @@ class DirectExcelIngestor:
         Returns:
         - ordered list of destination column names
         """
-        validate_identifier(table_name)
+        validate_identifier(RAW_INPUT_TABLE_NAME)
 
         wb = openpyxl.load_workbook(source_url, read_only=True, data_only=True)
         ws = wb[sheet_name] if sheet_name is not None else wb.worksheets[0]
@@ -67,16 +67,16 @@ class DirectExcelIngestor:
             column_names = [f"col_{i}" for i in range(col_count)]
 
         if not column_names:
-            conn.execute(f"CREATE OR REPLACE TABLE {table_name} (dummy VARCHAR)")
+            conn.execute(f"CREATE OR REPLACE TABLE {RAW_INPUT_TABLE_NAME} (dummy VARCHAR)")
             return []
 
         quoted_cols = ", ".join(f"{quote_identifier(c)} VARCHAR" for c in column_names)
-        conn.execute(f"CREATE OR REPLACE TABLE {table_name} ({quoted_cols})")
+        conn.execute(f"CREATE OR REPLACE TABLE {RAW_INPUT_TABLE_NAME} ({quoted_cols})")
 
         if rows:
             placeholders = ", ".join(["?"] * len(column_names))
             conn.executemany(
-                f"INSERT INTO {table_name} VALUES ({placeholders})",
+                f"INSERT INTO {RAW_INPUT_TABLE_NAME} VALUES ({placeholders})",
                 rows,
             )
 

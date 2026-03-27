@@ -10,10 +10,7 @@ from __future__ import annotations
 
 from duckdb import DuckDBPyConnection
 
-from shared.ingestion.contracts import (
-    IngestionRequest,
-    IngestionResult,
-)
+from shared.ingestion.contracts import IngestionRequest, IngestionResult
 from shared.ingestion.service import run_ingestion
 from shared.models.operation import CsvSourceFormat, ExcelSourceFormat, FileSource, JsonSourceFormat
 from shared.stage import Stage
@@ -27,10 +24,6 @@ class IngestionStage(Stage):
     - enforce explicit parse configuration via source format
     - map ingestion result into standard stage metrics
     """
-
-    def __init__(self, *, table_name: str = "raw_input") -> None:
-        super().__init__()
-        self._table_name = table_name
 
     def execute(
         self,
@@ -52,7 +45,6 @@ class IngestionStage(Stage):
                 source_url=source_url,
                 source_type=source_type,
                 source_format=source_format,
-                table_name=self._table_name,
             )
         )
         self.metrics = {

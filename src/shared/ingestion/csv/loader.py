@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from duckdb import DuckDBPyConnection
 
+from shared.constants import RAW_INPUT_TABLE_NAME
 from shared.db.sql import read_columns, validate_identifier
 from shared.ingestion.contracts import HeaderMode
 from shared.ingestion.csv.options import resolve_header_options
@@ -30,7 +31,6 @@ class DirectCsvIngestor:
         conn: DuckDBPyConnection,
         source_url: str,
         *,
-        table_name: str,
         encoding: str,
         delimiter: str,
         header_mode: HeaderMode,
@@ -42,13 +42,13 @@ class DirectCsvIngestor:
         Returns:
         - ordered list of destination column names
         """
-        validate_identifier(table_name)
+        validate_identifier(RAW_INPUT_TABLE_NAME)
         header, skip = resolve_header_options(header_mode, header_row_index)
         conn.execute(
-            f"CREATE OR REPLACE TABLE {table_name} AS "
+            f"CREATE OR REPLACE TABLE {RAW_INPUT_TABLE_NAME} AS "
             "SELECT * FROM read_csv("
             "?, header=?, skip=?, delim=?, encoding=?, all_varchar=true"
             ")",
             [source_url, header, skip, delimiter, encoding],
         )
-        return read_columns(conn, table_name)
+        return read_columns(conn)

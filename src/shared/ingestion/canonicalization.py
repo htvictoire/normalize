@@ -7,18 +7,15 @@ from time import perf_counter
 
 from duckdb import DuckDBPyConnection
 
+from shared.constants import RAW_INPUT_TABLE_NAME
 from shared.db.column_index import build_position_to_name
-from shared.db.sql import (
-    quote_identifier,
-    read_columns,
-    validate_identifier,
-)
+from shared.db.sql import quote_identifier, read_columns, validate_identifier
 from shared.stage import Stage
 
 
 class HeaderCanonicalizationStage(Stage):
     """
-    Canonicalize `raw_input` column names and apply deterministic uniqueness.
+    Canonicalize ingested column names and apply deterministic uniqueness.
 
     Rules:
     1. trim
@@ -29,14 +26,14 @@ class HeaderCanonicalizationStage(Stage):
     6. enforce uniqueness with `_2`, `_3`, ...
     """
 
-    def execute(self, conn: DuckDBPyConnection, table_name: str = "raw_input") -> dict[str, str]:
+    def execute(self, conn: DuckDBPyConnection) -> dict[str, str]:
         start_time = perf_counter()
-        validate_identifier(table_name)
-        columns = read_columns(conn, table_name)
+        validate_identifier(RAW_INPUT_TABLE_NAME)
+        columns = read_columns(conn)
         canonical_columns = canonicalize_header_sequence(columns)
         mapping = canonicalize_headers(columns)
         self.position_to_canonical = build_position_to_name(canonical_columns)
-        _apply_column_renames(conn, table_name, columns, canonical_columns)
+        _apply_column_renames(conn, columns, canonical_columns)
 
         renamed_count = sum(
             1
@@ -81,11 +78,10 @@ def _canonical_base(header: str) -> str:
 
 def _apply_column_renames(
     conn: DuckDBPyConnection,
-    table_name: str,
     raw_columns: list[str],
     canonical_columns: list[str],
 ) -> None:
-    validate_identifier(table_name)
+    validate_identifier(RAW_INPUT_TABLE_NAME)
     rename_pairs = [
         (raw, canonical)
         for raw, canonical in zip(raw_columns, canonical_columns, strict=False)
@@ -94,13 +90,11 @@ def _apply_column_renames(
     if not rename_pairs:
         return
 
-    # Batch metadata-only renames in one transaction to reduce statement
-    # overhead while keeping behavior row-count independent.
     conn.execute("BEGIN TRANSACTION")
     try:
         for raw, canonical in rename_pairs:
             conn.execute(
-                f"ALTER TABLE {table_name} RENAME COLUMN "
+                f"ALTER TABLE {RAW_INPUT_TABLE_NAME} RENAME COLUMN "
                 f"{quote_identifier(raw)} TO {quote_identifier(canonical)}"
             )
         conn.execute("COMMIT")

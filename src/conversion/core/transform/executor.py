@@ -14,13 +14,11 @@ def execute_combined_transform(
     conn: DuckDBPyConnection,
     row_plan: RowPlan,
     cell_plan: CellPlan,
-    *,
-    table_name: str = "raw_input",
 ) -> dict[str, object]:
     """Execute the composed transform SQL."""
     start = perf_counter()
 
-    sql = compose_transform_sql(row_plan, cell_plan, table_name=table_name)
+    sql = compose_transform_sql(row_plan, cell_plan)
     conn.execute(sql)
     sql_seconds = perf_counter() - start
 

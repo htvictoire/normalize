@@ -56,16 +56,14 @@ def run_profiling(
                     source_url=setup.url,
                     source_type=setup.source_type,
                     source_format=confirmed_config.source_format,
-                    table_name="raw_input",
                 )
             )
 
             HeaderCanonicalizationStage().execute(conn)
-            canonical_columns = read_columns(conn, "raw_input")
+            canonical_columns = read_columns(conn)
             position_to_name = build_position_to_name(canonical_columns)
             profiling_stats = compute_profiling_stats(
                 conn,
-                table_name="raw_input",
                 position_to_name=position_to_name,
                 null_tokens=confirmed_config.operation_config.null_tokens,
             )

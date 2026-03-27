@@ -9,7 +9,8 @@ from __future__ import annotations
 
 from duckdb import DuckDBPyConnection
 
-from shared.db.sql import quote_identifier, read_columns, validate_identifier
+from shared.constants import RAW_INPUT_TABLE_NAME
+from shared.db.sql import quote_identifier, read_columns, read_relation_columns, validate_identifier
 
 
 class DirectJsonIngestor:
@@ -23,8 +24,6 @@ class DirectJsonIngestor:
         self,
         conn: DuckDBPyConnection,
         source_url: str,
-        *,
-        table_name: str,
     ) -> list[str]:
         """
         Execute direct JSON ingestion.
@@ -32,7 +31,7 @@ class DirectJsonIngestor:
         Returns:
         - ordered list of destination column names
         """
-        validate_identifier(table_name)
+        validate_identifier(RAW_INPUT_TABLE_NAME)
         temp_table = "__json_input_raw"
         validate_identifier(temp_table)
         conn.execute(
@@ -40,17 +39,19 @@ class DirectJsonIngestor:
             "SELECT * FROM read_json_auto(?)",
             [source_url],
         )
-        columns = read_columns(conn, temp_table)
+        columns = read_relation_columns(conn, temp_table)
         if columns:
             cast_expr = ", ".join(
                 f"CAST({quote_identifier(column)} AS VARCHAR) AS {quote_identifier(column)}"
                 for column in columns
             )
             conn.execute(
-                f"CREATE OR REPLACE TABLE {table_name} AS "
+                f"CREATE OR REPLACE TABLE {RAW_INPUT_TABLE_NAME} AS "
                 f"SELECT {cast_expr} FROM {temp_table}"
             )
         else:
-            conn.execute(f"CREATE OR REPLACE TABLE {table_name} AS SELECT * FROM {temp_table}")
+            conn.execute(
+                f"CREATE OR REPLACE TABLE {RAW_INPUT_TABLE_NAME} AS SELECT * FROM {temp_table}"
+            )
         conn.execute(f"DROP TABLE IF EXISTS {temp_table}")
-        return read_columns(conn, table_name)
+        return read_columns(conn)

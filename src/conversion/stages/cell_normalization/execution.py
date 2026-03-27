@@ -7,6 +7,7 @@ from collections.abc import Sequence
 from duckdb import DuckDBPyConnection
 
 from conversion.stages.cell_normalization.sql_helpers import quote_identifier
+from shared.constants import RAW_INPUT_TABLE_NAME
 
 _INDEX_AUDIT_COLUMNS = ("_row_index", "_global_row_index")
 
@@ -14,7 +15,6 @@ _INDEX_AUDIT_COLUMNS = ("_row_index", "_global_row_index")
 def execute_cell_rewrite(
     conn: DuckDBPyConnection,
     *,
-    table_name: str,
     data_columns: Sequence[str],
     parse_cte_entries: Sequence[tuple[str, str]],
     base_exprs: Sequence[str],
@@ -80,7 +80,7 @@ def execute_cell_rewrite(
     else:
         parse_issues_expr = "NULL::VARCHAR"
 
-    base_source = "stage_parsed" if use_parse_cte else table_name
+    base_source = "stage_parsed" if use_parse_cte else RAW_INPUT_TABLE_NAME
 
     if use_parse_cte:
         rowid_passthrough = (
@@ -99,7 +99,7 @@ def execute_cell_rewrite(
             f"    SELECT\n"
             f"        *,\n"
             f"        {',\n        '.join(parsed_extras)}\n"
-            f"    FROM {table_name}\n"
+            f"    FROM {RAW_INPUT_TABLE_NAME}\n"
             f"),\n"
         )
     else:
@@ -107,7 +107,7 @@ def execute_cell_rewrite(
 
     conn.execute(
         f"""
-        CREATE OR REPLACE TABLE {table_name} AS
+        CREATE OR REPLACE TABLE {RAW_INPUT_TABLE_NAME} AS
         WITH {parse_cte_sql}stage_base AS (
             SELECT
                 {", ".join(base_select_exprs)}

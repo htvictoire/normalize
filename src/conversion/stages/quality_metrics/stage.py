@@ -8,6 +8,7 @@ from time import perf_counter
 from duckdb import DuckDBPyConnection
 
 from conversion.core.quality import compute_quality_score
+from shared.constants import RAW_INPUT_TABLE_NAME
 from shared.db.sql import quote_identifier, validate_identifier
 from shared.models.normalization import QualityOutput
 from shared.stage import Stage
@@ -27,11 +28,10 @@ class QualityMetricsStage(Stage):
         conn: DuckDBPyConnection,
         *,
         data_columns: Sequence[str],
-        table_name: str = "raw_input",
     ) -> QualityOutput:
         """Return quality metrics derived from post-transform table state."""
         start = perf_counter()
-        validate_identifier(table_name)
+        validate_identifier(RAW_INPUT_TABLE_NAME)
 
         columns = list(data_columns)
 
@@ -54,7 +54,7 @@ class QualityMetricsStage(Stage):
             f" AS {quote_identifier(col + '__nulls')}"
             for col in columns
         ]
-        null_query = f"SELECT COUNT(*), {', '.join(null_exprs)} FROM {table_name}"
+        null_query = f"SELECT COUNT(*), {', '.join(null_exprs)} FROM {RAW_INPUT_TABLE_NAME}"
         row = conn.execute(null_query).fetchone()
         if row is None:
             raise RuntimeError("quality metrics query returned no rows")
@@ -66,7 +66,7 @@ class QualityMetricsStage(Stage):
 
         # Parse error total from audit column
         error_row = conn.execute(
-            f"SELECT COALESCE(SUM(_parse_error_count), 0) FROM {table_name}"
+            f"SELECT COALESCE(SUM(_parse_error_count), 0) FROM {RAW_INPUT_TABLE_NAME}"
         ).fetchone()
         if error_row is None:
             raise RuntimeError("parse error count query returned no rows")

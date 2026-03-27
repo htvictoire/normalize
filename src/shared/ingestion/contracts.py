@@ -42,16 +42,12 @@ class IngestionRequest:
     - `source_url`: source file URL or local path (CSV, Excel, or JSON).
     - `source_type`: whether the source is a local file or S3-compatible object.
     - `source_format`: format-specific settings controlling how the file is read.
-
-    Loading behavior:
-    - `table_name`: destination DuckDB table.
     """
 
     conn: DuckDBPyConnection
     source_url: str
     source_type: FileSource
     source_format: CsvSourceFormat | ExcelSourceFormat | JsonSourceFormat
-    table_name: str = "raw_input"
 
 
 @dataclass(frozen=True)
@@ -66,5 +62,4 @@ class IngestionResult:
 
     column_names: list[str]
     file_size_bytes: int | None
-    table_name: str
     duration_seconds: float

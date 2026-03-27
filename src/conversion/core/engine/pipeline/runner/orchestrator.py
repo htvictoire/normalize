@@ -18,8 +18,8 @@ from conversion.stages.quality_metrics.stage import QualityMetricsStage
 from conversion.stages.row_normalization import RowNormalizationStage
 from shared.db.duckdb import DuckDBManager, resolve_db_path
 from shared.db.sql import read_columns
-from shared.ingestion.canonicalization import HeaderCanonicalizationStage
 from shared.ingestion import HeaderMode, IngestionStage
+from shared.ingestion.canonicalization import HeaderCanonicalizationStage
 from shared.models.normalization import ArtifactPaths, NormalizationOutput, SourceChecksums
 from shared.models.operation import CsvSourceFormat
 
@@ -59,7 +59,7 @@ def run_pipeline(
 
         HeaderCanonicalizationStage().execute(conn)
 
-        raw_columns = read_columns(conn, "raw_input")
+        raw_columns = read_columns(conn)
         resolved_column_config = resolve_column_config_by_canonical(
             data_columns=raw_columns,
             column_config=effective.column_config,

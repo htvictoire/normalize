@@ -13,16 +13,9 @@ from pathlib import Path
 from time import perf_counter
 
 from shared.db.duckdb import configure_duckdb_s3
-from shared.ingestion.contracts import (
-    HeaderMode,
-    IngestionRequest,
-    IngestionResult,
-)
+from shared.ingestion.contracts import HeaderMode, IngestionRequest, IngestionResult
 from shared.ingestion.csv.loader import DirectCsvIngestor
-from shared.ingestion.csv.options import (
-    resolve_delimiter_option,
-    resolve_encoding_option,
-)
+from shared.ingestion.csv.options import resolve_delimiter_option, resolve_encoding_option
 from shared.ingestion.excel.loader import DirectExcelIngestor
 from shared.ingestion.json.loader import DirectJsonIngestor
 from shared.models.operation import CsvSourceFormat, ExcelSourceFormat
@@ -45,7 +38,6 @@ def run_ingestion(request: IngestionRequest) -> IngestionResult:
         column_names = DirectCsvIngestor().run(
             request.conn,
             request.source_url,
-            table_name=request.table_name,
             encoding=load_encoding,
             delimiter=delimiter,
             header_mode=HeaderMode(fmt.header_mode),
@@ -56,7 +48,6 @@ def run_ingestion(request: IngestionRequest) -> IngestionResult:
         column_names = DirectExcelIngestor().run(
             request.conn,
             request.source_url,
-            table_name=request.table_name,
             sheet_name=excel_fmt.sheet_name,
             header_mode=HeaderMode(excel_fmt.header_mode),
             header_row_index=excel_fmt.header_row_index,
@@ -65,12 +56,10 @@ def run_ingestion(request: IngestionRequest) -> IngestionResult:
         column_names = DirectJsonIngestor().run(
             request.conn,
             request.source_url,
-            table_name=request.table_name,
         )
 
     return IngestionResult(
         column_names=column_names,
         file_size_bytes=file_size_bytes,
-        table_name=request.table_name,
         duration_seconds=perf_counter() - start_time,
     )

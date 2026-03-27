@@ -19,6 +19,7 @@ from conversion.stages.cell_normalization.sql_helpers import (
     read_columns,
     validate_identifier,
 )
+from shared.constants import RAW_INPUT_TABLE_NAME
 from shared.db.sql import execute_scalar
 from shared.models.column import ColumnConfig
 from shared.stage import Stage
@@ -26,7 +27,7 @@ from shared.stage import Stage
 
 class CellNormalizationStage(Stage):
     """
-    Rewrite the raw_input table with typed, normalized values.
+    Rewrite the working table with typed, normalized values.
 
     - Null tokens and empty/whitespace cells are replaced with SQL NULL.
     - Each column is cast to its declared type.
@@ -40,17 +41,16 @@ class CellNormalizationStage(Stage):
         conn: DuckDBPyConnection,
         *,
         column_config: Mapping[str, ColumnConfig],
-        table_name: str = "raw_input",
         null_tokens: Sequence[str] | None,
         full_raw_row: bool = False,
         emit_raw_row: bool = True,
         emit_parse_issues: bool = True,
     ) -> CellPlan:
         """Build a CellPlan with SQL fragments, without executing anything."""
-        validate_identifier(table_name)
+        validate_identifier(RAW_INPUT_TABLE_NAME)
         token_policy = TokenPolicy.from_user_inputs(null_tokens=null_tokens)
 
-        columns = read_columns(conn, table_name)
+        columns = read_columns(conn)
         data_columns = [column for column in columns if column not in AUDIT_COLUMNS]
 
         fragments = build_cell_expression_fragments(
@@ -73,17 +73,16 @@ class CellNormalizationStage(Stage):
         conn: DuckDBPyConnection,
         *,
         column_config: Mapping[str, ColumnConfig],
-        table_name: str = "raw_input",
         null_tokens: Sequence[str] | None,
         full_raw_row: bool = False,
         emit_raw_row: bool = True,
         emit_parse_issues: bool = True,
     ) -> dict[str, int]:
         start_time = perf_counter()
-        validate_identifier(table_name)
+        validate_identifier(RAW_INPUT_TABLE_NAME)
         token_policy = TokenPolicy.from_user_inputs(null_tokens=null_tokens)
 
-        columns = read_columns(conn, table_name)
+        columns = read_columns(conn)
         data_columns = [column for column in columns if column not in AUDIT_COLUMNS]
 
         fragments = build_cell_expression_fragments(
@@ -96,8 +95,7 @@ class CellNormalizationStage(Stage):
 
         execute_cell_rewrite(
             conn,
-            table_name=table_name,
-            data_columns=data_columns,
+                data_columns=data_columns,
             parse_cte_entries=fragments.parse_cte_entries,
             base_exprs=fragments.base_exprs,
             raw_source_pairs=fragments.raw_source_pairs,
@@ -109,7 +107,7 @@ class CellNormalizationStage(Stage):
             emit_parse_issues=emit_parse_issues,
         )
 
-        row_count = execute_scalar(conn, f"SELECT COUNT(*) FROM {table_name}")
+        row_count = execute_scalar(conn, f"SELECT COUNT(*) FROM {RAW_INPUT_TABLE_NAME}")
         self.metrics = {
             "duration_seconds": perf_counter() - start_time,
             "rows_processed": row_count,

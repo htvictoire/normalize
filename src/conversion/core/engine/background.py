@@ -18,7 +18,6 @@ def write_parquets_background(
     output_root: Path,
     fingerprint: str,
     trace_mode: str,
-    table_name: str,
     export_columns: list[str],
     data_columns: list[str],
     table_columns: list[str],
@@ -39,7 +38,6 @@ def write_parquets_background(
         write_normalized_parquet(
             conn,
             normalized_path=normalized_path,
-            table_name=table_name,
             export_columns=export_columns,
         )
         timing["write_normalized_parquet_seconds"] = perf_counter() - section_start
@@ -52,7 +50,6 @@ def write_parquets_background(
         write_trace_parquet(
             conn,
             trace_path=trace_path,
-            table_name=table_name,
             data_columns=data_columns,
             table_columns=table_columns,
             sparse=sparse,

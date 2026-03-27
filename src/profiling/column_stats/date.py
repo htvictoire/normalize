@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from duckdb import DuckDBPyConnection
 
+from shared.constants import RAW_INPUT_TABLE_NAME
 from shared.db.sql import execute_scalar, nullish_predicate, quote_identifier, quote_string
 from shared.models.profiling import ColumnCounts, DateColumnProfile
 
@@ -26,7 +27,10 @@ def compute_date_column_profile(
     nullish = nullish_predicate(quoted, null_tokens)
     format_match_count = execute_scalar(
         conn,
-        f"SELECT COUNT(*) FROM raw_input WHERE NOT ({nullish}) AND {date_expr} IS NOT NULL",
+        (
+            f"SELECT COUNT(*) FROM {RAW_INPUT_TABLE_NAME} WHERE NOT ({nullish}) "
+            f"AND {date_expr} IS NOT NULL"
+        ),
     )
 
     non_nullish = counts.non_nullish_count

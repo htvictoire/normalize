@@ -8,6 +8,7 @@ from typing import cast
 
 from duckdb import DuckDBPyConnection
 
+from shared.constants import RAW_INPUT_TABLE_NAME
 from shared.models.profiling import ColumnCounts
 
 
@@ -32,11 +33,16 @@ def execute_scalar(conn: DuckDBPyConnection, sql: str) -> int:
     return int(conn.execute(sql).fetchall()[0][0])
 
 
-def read_columns(conn: DuckDBPyConnection, table_name: str) -> list[str]:
-    """Read ordered table column names from DuckDB."""
+def read_relation_columns(conn: DuckDBPyConnection, table_name: str) -> list[str]:
+    """Read ordered column names from one explicit DuckDB relation."""
     validate_identifier(table_name)
     rows = conn.execute(f"PRAGMA table_info('{table_name}')").fetchall()
     return [str(row[1]) for row in rows]
+
+
+def read_columns(conn: DuckDBPyConnection) -> list[str]:
+    """Read ordered column names from the working raw-input table."""
+    return read_relation_columns(conn, RAW_INPUT_TABLE_NAME)
 
 
 def nullish_predicate(value_expr: str, null_tokens: tuple[str, ...]) -> str:
@@ -115,19 +121,15 @@ def compute_column_counts_from_relation(
 def compute_column_counts(
     conn: DuckDBPyConnection,
     *,
-    table_name: str,
     position_to_name: Mapping[str, str],
     null_tokens: tuple[str, ...] = (),
 ) -> tuple[int, dict[str, ColumnCounts]]:
-    """Return (row_count, {position_key: ColumnCounts}) in a single query.
-
-    null_tokens drives the nullish count — pass inferred tokens at suggestion
-    time, confirmed tokens at profiling time.
-    """
-    validate_identifier(table_name)
+    """Return (row_count, {position_key: ColumnCounts}) from the working raw-input table."""
     return compute_column_counts_from_relation(
         conn,
-        relation_expr=table_name,
+        relation_expr=RAW_INPUT_TABLE_NAME,
         position_to_name=position_to_name,
         null_tokens=null_tokens,
     )
+
+

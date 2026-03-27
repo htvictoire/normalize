@@ -7,6 +7,7 @@ from dataclasses import dataclass
 
 from duckdb import DuckDBPyConnection
 
+from shared.constants import RAW_INPUT_TABLE_NAME
 from shared.db.sql import (
     compute_column_counts,
     execute_scalar,
@@ -30,16 +31,14 @@ class ProfilingStats:
 def compute_profiling_stats(
     conn: DuckDBPyConnection,
     *,
-    table_name: str,
     position_to_name: Mapping[str, str],
     null_tokens: tuple[str, ...],
 ) -> ProfilingStats:
     """Return row-level profiling counts for the current DuckDB table."""
-    validate_identifier(table_name)
-    columns = read_columns(conn, table_name)
+    validate_identifier(RAW_INPUT_TABLE_NAME)
+    columns = read_columns(conn)
     row_count, column_counts = compute_column_counts(
         conn,
-        table_name=table_name,
         position_to_name=position_to_name,
         null_tokens=null_tokens,
     )
@@ -53,7 +52,7 @@ def compute_profiling_stats(
     predicates = [nullish_predicate(quote_identifier(column), null_tokens) for column in columns]
     empty_row_count = execute_scalar(
         conn,
-        f"SELECT COUNT(*) FROM {table_name} WHERE {' AND '.join(predicates)}",
+        f"SELECT COUNT(*) FROM {RAW_INPUT_TABLE_NAME} WHERE {' AND '.join(predicates)}",
     )
     return ProfilingStats(
         row_count=row_count,

@@ -3,14 +3,13 @@
 from __future__ import annotations
 
 from conversion.core.transform.models import CellPlan, RowPlan
+from shared.constants import RAW_INPUT_TABLE_NAME
 from shared.db.sql import quote_identifier, validate_identifier
 
 
 def compose_transform_sql(
     row_plan: RowPlan,
     cell_plan: CellPlan,
-    *,
-    table_name: str = "raw_input",
 ) -> str:
     """Compose a single CREATE OR REPLACE TABLE merging row filter + cell normalization.
 
@@ -19,7 +18,7 @@ def compose_transform_sql(
     - General path: ``ROW_NUMBER() OVER (ORDER BY rowid)`` with outer ORDER BY
       for deterministic gap-free indices after filtering.
     """
-    validate_identifier(table_name)
+    validate_identifier(RAW_INPUT_TABLE_NAME)
 
     needs_window = row_plan.assign_indices and row_plan.rows_dropped > 0
     needs_rowid_index = row_plan.assign_indices and row_plan.rows_dropped == 0
@@ -112,12 +111,12 @@ def compose_transform_sql(
             else parse_intermediate_exprs
         )
         return (
-            f"CREATE OR REPLACE TABLE {table_name} AS\n"
+            f"CREATE OR REPLACE TABLE {RAW_INPUT_TABLE_NAME} AS\n"
             f"WITH parsed AS (\n"
             f"    SELECT\n"
             f"        *,\n"
             f"        {',\n        '.join(parsed_select_extras)}\n"
-            f"    FROM {table_name}\n"
+            f"    FROM {RAW_INPUT_TABLE_NAME}\n"
             f"    {filter_clause}\n"
             f"),\n"
             f"base AS (\n"
@@ -135,11 +134,11 @@ def compose_transform_sql(
         )
 
     return (
-        f"CREATE OR REPLACE TABLE {table_name} AS\n"
+        f"CREATE OR REPLACE TABLE {RAW_INPUT_TABLE_NAME} AS\n"
         f"WITH base AS (\n"
         f"    SELECT\n"
         f"        {',\n        '.join(base_parts)}\n"
-        f"    FROM {table_name}\n"
+        f"    FROM {RAW_INPUT_TABLE_NAME}\n"
         f"    {filter_clause}\n"
         f"    {outer_order}\n"
         f")\n"

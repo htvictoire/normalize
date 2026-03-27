@@ -46,7 +46,6 @@ def stage_artifacts(
     issues: Sequence[NormalizationIssue],
     effective_config: Mapping[str, Any],
     trace_mode: str,
-    table_name: str,
     stage_metrics: Mapping[str, Mapping[str, Any]] | None,
     rules_version: str,
     timing: dict[str, float],
@@ -59,7 +58,7 @@ def stage_artifacts(
     trace_path = output_root / f"{fingerprint}.trace.parquet"
 
     section_start = perf_counter()
-    table_columns = read_columns(conn, table_name)
+    table_columns = read_columns(conn)
     export_columns = build_export_columns(table_columns)
     data_columns = [col for col in export_columns if col not in AUDIT_OUTPUT_COLUMNS]
     timing["prepare_columns_seconds"] = perf_counter() - section_start
@@ -68,7 +67,6 @@ def stage_artifacts(
     write_normalized_parquet(
         conn,
         normalized_path=normalized_path,
-        table_name=table_name,
         export_columns=export_columns,
     )
     timing["write_normalized_parquet_seconds"] = perf_counter() - section_start
@@ -81,7 +79,6 @@ def stage_artifacts(
     write_trace_parquet(
         conn,
         trace_path=trace_path,
-        table_name=table_name,
         data_columns=data_columns,
         table_columns=table_columns,
         sparse=sparse,

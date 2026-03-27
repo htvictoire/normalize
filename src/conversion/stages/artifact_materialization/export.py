@@ -10,11 +10,8 @@ from conversion.stages.artifact_materialization.constants import (
     AUDIT_EXCLUDED_FROM_DATA,
     AUDIT_OUTPUT_COLUMNS,
 )
-from shared.db.sql import (
-    quote_identifier,
-    quote_string,
-    validate_identifier,
-)
+from shared.constants import RAW_INPUT_TABLE_NAME
+from shared.db.sql import quote_identifier, quote_string, validate_identifier
 
 
 def build_export_columns(columns: list[str]) -> list[str]:
@@ -28,16 +25,15 @@ def write_normalized_parquet(
     conn: DuckDBPyConnection,
     *,
     normalized_path: Path,
-    table_name: str,
     export_columns: list[str],
 ) -> None:
     """Export table directly to parquet with selected columns in order.
 
-    Skips temp table materialization — writes COPY query directly from source.
+    Skips temp table materialization - writes COPY query directly from source.
     """
-    validate_identifier(table_name)
+    validate_identifier(RAW_INPUT_TABLE_NAME)
     selected = ", ".join(quote_identifier(col) for col in export_columns)
-    query = f"SELECT {selected} FROM {table_name}"
+    query = f"SELECT {selected} FROM {RAW_INPUT_TABLE_NAME}"
     conn.execute(
         "COPY ("
         + query

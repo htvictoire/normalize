@@ -6,6 +6,7 @@ from pathlib import Path
 
 from duckdb import DuckDBPyConnection
 
+from shared.constants import RAW_INPUT_TABLE_NAME
 from shared.db.sql import (
     quote_identifier,
     quote_string,
@@ -15,7 +16,6 @@ from shared.db.sql import (
 
 def build_trace_query(
     *,
-    table_name: str,
     data_columns: list[str],
     has_row_index: bool,
     has_raw_row: bool,
@@ -44,7 +44,7 @@ def build_trace_query(
             "WHERE FALSE"
         )
 
-    validate_identifier(table_name)
+    validate_identifier(RAW_INPUT_TABLE_NAME)
     row_index_expr = "_row_index" if has_row_index else "(rowid + 1)::BIGINT"
     casted_columns = ", ".join(
         f"CAST({quote_identifier(column_name)} AS VARCHAR) AS {quote_identifier(column_name)}"
@@ -96,7 +96,7 @@ def build_trace_query(
         "SELECT "
         f"{row_index_expr} AS row_index, "
         f"{casted_columns}{extra_base_projection} "
-        f"FROM {table_name}{base_where}"
+        f"FROM {RAW_INPUT_TABLE_NAME}{base_where}"
         "), unpivoted AS ("
         "SELECT row_index, column_name, normalized_value"
         f"{extra_unpivot_projection} "
@@ -119,7 +119,6 @@ def write_trace_parquet(
     conn: DuckDBPyConnection,
     *,
     trace_path: Path,
-    table_name: str,
     data_columns: list[str],
     table_columns: list[str],
     sparse: bool = False,
@@ -127,7 +126,6 @@ def write_trace_parquet(
 ) -> None:
     """Export cell-level trace parquet."""
     trace_query = build_trace_query(
-        table_name=table_name,
         data_columns=data_columns,
         has_row_index="_row_index" in table_columns,
         has_raw_row="_raw_row" in table_columns,

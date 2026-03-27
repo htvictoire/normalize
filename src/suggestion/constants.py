@@ -9,9 +9,6 @@ from suggestion.models import NumericCandidate
 # Source format inference
 # ---------------------------------------------------------------------------
 
-# DuckDB table name used throughout the suggestion pipeline.
-SUGGESTION_TABLE_NAME = "raw_input"
-
 # Maximum bytes read from the file. All inference runs on this prefix.
 FILE_SAMPLE_BYTES = 4 * 1024 * 1024
 

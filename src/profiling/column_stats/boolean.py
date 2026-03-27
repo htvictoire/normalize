@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from duckdb import DuckDBPyConnection
 
+from shared.constants import RAW_INPUT_TABLE_NAME
 from shared.db.sql import execute_scalar, nullish_predicate, quote_identifier, quote_string
 from shared.models.profiling import BooleanColumnProfile, ColumnCounts
 
@@ -27,11 +28,17 @@ def compute_boolean_column_profile(
 
     true_token_count = execute_scalar(
         conn,
-        f"SELECT COUNT(*) FROM raw_input WHERE NOT ({nullish}) AND {normalized} IN ({true_in})",
+        (
+            f"SELECT COUNT(*) FROM {RAW_INPUT_TABLE_NAME} WHERE NOT ({nullish}) "
+            f"AND {normalized} IN ({true_in})"
+        ),
     )
     false_token_count = execute_scalar(
         conn,
-        f"SELECT COUNT(*) FROM raw_input WHERE NOT ({nullish}) AND {normalized} IN ({false_in})",
+        (
+            f"SELECT COUNT(*) FROM {RAW_INPUT_TABLE_NAME} WHERE NOT ({nullish}) "
+            f"AND {normalized} IN ({false_in})"
+        ),
     )
 
     non_nullish = counts.non_nullish_count

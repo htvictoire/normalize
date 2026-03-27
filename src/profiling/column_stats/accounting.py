@@ -5,6 +5,7 @@ from __future__ import annotations
 from duckdb import DuckDBPyConnection
 
 from profiling.column_stats.numeric import decimal_parse_stats
+from shared.constants import RAW_INPUT_TABLE_NAME
 from shared.db.sql import nullish_predicate, quote_identifier
 from shared.models.column import AccountingColumnConfig
 from shared.models.profiling import AccountingColumnProfile, ColumnCounts
@@ -27,7 +28,7 @@ def compute_accounting_column_profile(
 
     rows = conn.execute(
         "SELECT symbol, COUNT(*) AS c FROM ("
-        f"SELECT {symbol_expr} AS symbol FROM raw_input WHERE NOT ({nullish})"
+        f"SELECT {symbol_expr} AS symbol FROM {RAW_INPUT_TABLE_NAME} WHERE NOT ({nullish})"
         ") t WHERE symbol IS NOT NULL GROUP BY symbol ORDER BY c DESC, symbol ASC"
     ).fetchall()
     distribution = {str(symbol): int(count) for symbol, count in rows}

@@ -8,6 +8,7 @@ from conversion.stages.cell_normalization.transforms.numeric import (
     decimal_pattern_regex,
     integer_pattern_regex,
 )
+from shared.constants import RAW_INPUT_TABLE_NAME
 from shared.db.sql import execute_scalar, nullish_predicate, quote_identifier, quote_string
 from shared.models.column import (
     DecimalColumnConfig,
@@ -46,7 +47,7 @@ def compute_integer_column_profile(
     )
     parse_match_count = execute_scalar(
         conn,
-        f"SELECT COUNT(*) FROM raw_input WHERE NOT ({nullish}) "
+        f"SELECT COUNT(*) FROM {RAW_INPUT_TABLE_NAME} WHERE NOT ({nullish}) "
         f"AND REGEXP_FULL_MATCH({match_value}, {quote_string(pattern)})",
     )
     parse_match_ratio = 1.0 if non_nullish <= 0 else (parse_match_count / non_nullish)
@@ -170,12 +171,12 @@ def decimal_parse_stats(
 
     parse_match_count = execute_scalar(
         conn,
-        f"SELECT COUNT(*) FROM raw_input WHERE NOT ({nullish}) "
+        f"SELECT COUNT(*) FROM {RAW_INPUT_TABLE_NAME} WHERE NOT ({nullish}) "
         f"AND REGEXP_FULL_MATCH({match_value}, {quote_string(declared_pattern)})",
     )
     swapped_match_count = execute_scalar(
         conn,
-        f"SELECT COUNT(*) FROM raw_input WHERE NOT ({nullish}) "
+        f"SELECT COUNT(*) FROM {RAW_INPUT_TABLE_NAME} WHERE NOT ({nullish}) "
         f"AND REGEXP_FULL_MATCH({match_value}, {quote_string(swapped_pattern)})",
     )
 
