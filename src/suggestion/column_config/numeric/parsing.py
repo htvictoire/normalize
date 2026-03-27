@@ -27,7 +27,6 @@ def _valid_group_sizes(groups: list[str], grouping_style: GroupingStyle) -> bool
 
 def _valid_grouping(
     integer_part: str,
-    *,
     thousand_separator: str,
     grouping_style: GroupingStyle,
 ) -> bool:
@@ -65,7 +64,6 @@ def _strip_numeric_sign(value: str) -> tuple[str, bool] | None:
 
 def parse_numeric_token(
     value: str,
-    *,
     candidate: NumericCandidate,
 ) -> NumericParseResult | None:
     """Parse one raw value under one candidate format.
@@ -101,8 +99,8 @@ def parse_numeric_token(
 
     if parse_ok and not _valid_grouping(
         integer_part_raw,
-        thousand_separator=thousand_separator,
-        grouping_style=candidate.grouping_style,
+        thousand_separator,
+        candidate.grouping_style,
     ):
         parse_ok = False
 

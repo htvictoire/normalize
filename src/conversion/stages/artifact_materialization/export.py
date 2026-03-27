@@ -24,7 +24,6 @@ def build_export_columns(columns: list[str]) -> list[str]:
 
 def write_normalized_parquet(
     conn: DuckDBPyConnection,
-    *,
     normalized_path: Path,
     export_columns: list[str],
 ) -> None:

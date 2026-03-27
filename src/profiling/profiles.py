@@ -28,7 +28,6 @@ class ProfileResults:
 
 def compute_profile_results(
     conn: DuckDBPyConnection,
-    *,
     position_to_name: Mapping[str, str],
     column_config: Mapping[str, ColumnConfig],
     null_tokens: tuple[str, ...],

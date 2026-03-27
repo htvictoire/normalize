@@ -24,7 +24,6 @@ class ArtifactMaterializationStage(Stage):
     def execute(
         self,
         conn: DuckDBPyConnection,
-        *,
         output_dir: str | Path,
         output_type: FileSource,
         fingerprint: str,

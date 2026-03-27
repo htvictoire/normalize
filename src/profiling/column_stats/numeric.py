@@ -29,7 +29,6 @@ from conversion.stages.cell_normalization.transforms.numeric import (
 
 def compute_integer_column_profile(
     conn: DuckDBPyConnection,
-    *,
     column_name: str,
     config: IntegerColumnConfig,
     null_tokens: tuple[str, ...],
@@ -60,7 +59,6 @@ def compute_integer_column_profile(
 
 def compute_decimal_column_profile(
     conn: DuckDBPyConnection,
-    *,
     column_name: str,
     config: DecimalColumnConfig,
     null_tokens: tuple[str, ...],
@@ -87,7 +85,6 @@ def compute_decimal_column_profile(
 
 def compute_percentage_column_profile(
     conn: DuckDBPyConnection,
-    *,
     column_name: str,
     config: PercentageColumnConfig,
     null_tokens: tuple[str, ...],
@@ -114,7 +111,6 @@ def compute_percentage_column_profile(
 
 def compute_signed_column_profile(
     conn: DuckDBPyConnection,
-    *,
     column_name: str,
     config: SignedColumnConfig,
     null_tokens: tuple[str, ...],
@@ -141,7 +137,6 @@ def compute_signed_column_profile(
 
 def decimal_parse_stats(
     conn: DuckDBPyConnection,
-    *,
     column_name: str,
     config: DecimalFamilyColumnConfig,
     null_tokens: tuple[str, ...],

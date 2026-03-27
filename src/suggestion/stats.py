@@ -54,7 +54,6 @@ def _scan_stats(
     reading: SourceReading,
     null_tokens: tuple[str, ...],
     position_to_name: dict[str, str],
-    *,
     relation_expr: str,
     extra_params: list[object],
 ) -> tuple[int, dict[str, ColumnCounts]]:
@@ -65,10 +64,10 @@ def _scan_stats(
             configure_duckdb_s3(conn)
         return compute_column_counts_from_relation(
             conn,
-            relation_expr=relation_expr,
-            position_to_name=position_to_name,
-            null_tokens=null_tokens,
-            params=params,
+            relation_expr,
+            position_to_name,
+            null_tokens,
+            params,
         )
 
 

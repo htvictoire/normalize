@@ -24,7 +24,7 @@ class NumericFormat:
     grouping_style: str
 
 
-def validate_grouping_style(grouping_style: str, *, field_name: str) -> str:
+def validate_grouping_style(grouping_style: str, field_name: str) -> str:
     """Normalize and validate one grouping style value."""
     normalized = grouping_style.strip().lower()
     if normalized not in ALLOWED_GROUPING_STYLES:
@@ -36,7 +36,6 @@ def validate_grouping_style(grouping_style: str, *, field_name: str) -> str:
 def validate_separator_pair(
     decimal_separator: str,
     thousand_separator: str,
-    *,
     field_prefix: str,
 ) -> None:
     """Validate decimal/thousand separator contract."""
@@ -121,7 +120,6 @@ def normalize_numeric_formats_config(
 
 
 def resolve_numeric_formats_by_canonical(
-    *,
     numeric_formats: Mapping[str, NumericFormat] | None,
     position_to_canonical: Mapping[str, str],
 ) -> dict[str, NumericFormat]:

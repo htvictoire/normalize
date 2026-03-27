@@ -17,7 +17,6 @@ def infer_json_source_format() -> JsonSourceFormat:
 
 def _iter_json_array_objects(
     sample: bytes,
-    *,
     require_first_object: bool = False,
 ) -> Iterator[dict[str, object]]:
     decoder = json.JSONDecoder()
@@ -49,7 +48,7 @@ def _iter_json_array_objects(
 
 def ensure_json_first_object_within_limit(sample: bytes) -> None:
     """Fail fast if the first JSON object does not fit inside the configured byte budget."""
-    next(_iter_json_array_objects(sample, require_first_object=True), None)
+    next(_iter_json_array_objects(sample, True), None)
 
 
 def _ordered_json_row(obj: dict[str, object], column_names: list[str]) -> list[str]:

@@ -23,7 +23,6 @@ class ConversionEngine:
         csv_path: str | Path,
         output_dir: str | Path,
         config: EngineConfig,
-        *,
         source_checksum: str,
         mode: str = "APPLY",
     ) -> NormalizationOutput:

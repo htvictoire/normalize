@@ -11,7 +11,6 @@ from shared.models.profiling import ColumnCounts, DateColumnProfile
 
 def compute_date_column_profile(
     conn: DuckDBPyConnection,
-    *,
     column_name: str,
     date_format: str,
     null_tokens: tuple[str, ...],

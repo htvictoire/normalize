@@ -9,7 +9,6 @@ from conversion.stages.cell_normalization.sql_helpers import quote_identifier, q
 def build_date_exprs(
     column_name: str,
     nullish_predicate: str,
-    *,
     raw_value: str,
     date_format: str,
 ) -> tuple[list[tuple[str, str]], str, str]:

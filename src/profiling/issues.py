@@ -19,7 +19,6 @@ def collect_column_issues(
     profile: ColumnProfile,
     issues: list[NormalizationIssue],
     currency_ratios: list[float],
-    *,
     numeric_threshold: float,
 ) -> None:
     """Append any data-quality issues detected from the column profile."""
@@ -54,7 +53,6 @@ def collect_column_issues(
 
 
 def build_mixed_currency_issue(
-    *,
     column_name: str,
     symbols: list[str],
     dominant_symbol: str | None,
@@ -74,7 +72,6 @@ def build_mixed_currency_issue(
 
 
 def build_separator_mismatch_issue(
-    *,
     column_name: str,
     decimal_separator: str,
     thousand_separator: str,

@@ -10,7 +10,6 @@ from conversion.stages.cell_normalization.transforms.nullish import token_in_cla
 def build_boolean_exprs(
     nullish_predicate: str,
     normalized_raw_value: str,
-    *,
     true_tokens: Sequence[str],
     false_tokens: Sequence[str],
 ) -> tuple[list[tuple[str, str]], str, str]:

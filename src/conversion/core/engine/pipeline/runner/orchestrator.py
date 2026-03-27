@@ -26,7 +26,6 @@ from conversion.stages.row_normalization import RowNormalizationStage
 
 
 def run_pipeline(
-    *,
     source_csv: Path,
     source_checksum: str,
     output_root: Path,
@@ -84,7 +83,7 @@ def run_pipeline(
 
         quality_output = QualityMetricsStage().execute(
             conn,
-            data_columns=cell_plan.data_columns,
+            cell_plan.data_columns,
         )
 
         duckdb_version_row = conn.execute("SELECT version()").fetchone()

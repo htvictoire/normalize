@@ -35,7 +35,6 @@ from profiling.profiles import compute_profile_results
 
 def run_profiling(
     source: SourceRef,
-    *,
     source_checksum: str,
     confirmed_config: InstanceConfig,
     persisted_db_path: Path,
@@ -65,8 +64,8 @@ def run_profiling(
             position_to_name = build_position_to_name(canonical_columns)
             profiling_stats = compute_profiling_stats(
                 conn,
-                position_to_name=position_to_name,
-                null_tokens=confirmed_config.operation_config.null_tokens,
+                position_to_name,
+                confirmed_config.operation_config.null_tokens,
             )
             profile_results = compute_profile_results(
                 conn,

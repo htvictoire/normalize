@@ -28,7 +28,7 @@ def _as_jsonb(value: Any) -> str | None:
 class PostgresRunRepository:
     """Persist normalization runs in PostgreSQL, one column per InstanceModel field."""
 
-    def __init__(self, *, dsn: str) -> None:
+    def __init__(self, dsn: str) -> None:
         self._dsn = dsn
         self._psycopg = _load_psycopg()
         self._ensure_schema()

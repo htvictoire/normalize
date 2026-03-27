@@ -71,7 +71,6 @@ ArtifactPublisher = LocalArtifactPublisher | S3ArtifactPublisher
 
 
 def build_artifact_publisher(
-    *,
     output_type: FileSource,
     output_root: str | Path,
     run_id: str | None = None,

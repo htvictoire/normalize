@@ -15,7 +15,6 @@ from profiling.column_stats.numeric import decimal_parse_stats
 
 def compute_accounting_column_profile(
     conn: DuckDBPyConnection,
-    *,
     column_name: str,
     config: AccountingColumnConfig,
     null_tokens: tuple[str, ...],

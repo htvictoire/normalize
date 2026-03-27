@@ -35,7 +35,6 @@ from profiling.column_stats.string import compute_string_column_profile
 
 def compute_column_profile(  # noqa: PLR0911
     conn: DuckDBPyConnection,
-    *,
     column_name: str,
     config: ColumnConfig,
     null_tokens: tuple[str, ...],

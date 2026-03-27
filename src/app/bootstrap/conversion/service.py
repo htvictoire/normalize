@@ -21,7 +21,6 @@ class ConversionService:
 
     def convert(
         self,
-        *,
         source: SourceRef,
         source_format: SourceFormat,
         source_checksum: str,

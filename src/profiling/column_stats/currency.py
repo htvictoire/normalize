@@ -15,7 +15,6 @@ from profiling.column_stats.numeric import decimal_parse_stats
 
 def compute_currency_column_profile(
     conn: DuckDBPyConnection,
-    *,
     column_name: str,
     config: CurrencyColumnConfig,
     null_tokens: tuple[str, ...],

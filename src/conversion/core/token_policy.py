@@ -28,7 +28,6 @@ class TokenPolicy:
     @classmethod
     def from_user_inputs(
         cls,
-        *,
         null_tokens: Sequence[str] | None,
     ) -> TokenPolicy:
         """Build a TokenPolicy from caller-supplied null tokens, rejecting None."""
@@ -41,7 +40,6 @@ class TokenPolicy:
 
 def _normalize_tokens(
     values: Sequence[str],
-    *,
     allow_empty: bool,
     empty_error_code: str | None,
 ) -> tuple[str, ...]:

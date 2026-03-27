@@ -29,7 +29,6 @@ class IngestionStage(Stage):
         self,
         conn: DuckDBPyConnection,
         source_url: str,
-        *,
         source_type: FileSource,
         source_format: CsvSourceFormat | ExcelSourceFormat | JsonSourceFormat,
     ) -> IngestionResult:

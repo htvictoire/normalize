@@ -30,7 +30,6 @@ class DirectCsvIngestor:
         self,
         conn: DuckDBPyConnection,
         source_url: str,
-        *,
         encoding: str,
         delimiter: str,
         header_mode: HeaderMode,

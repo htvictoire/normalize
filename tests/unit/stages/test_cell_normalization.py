@@ -23,7 +23,6 @@ _BOOL_CONFIG = BooleanColumnConfig(
 
 
 def _integer_config(
-    *,
     thousand_separator: str = ",",
     grouping_style: str = "western",
 ) -> IntegerColumnConfig:
@@ -34,7 +33,6 @@ def _integer_config(
 
 
 def _decimal_config(
-    *,
     decimal_separator: str = ".",
     thousand_separator: str = ",",
     grouping_style: str = "western",
@@ -49,7 +47,6 @@ def _decimal_config(
 
 
 def _currency_config(
-    *,
     decimal_separator: str = ".",
     thousand_separator: str = ",",
     grouping_style: str = "western",

@@ -11,7 +11,6 @@ from shared.models.profiling import BooleanColumnProfile, ColumnCounts
 
 def compute_boolean_column_profile(
     conn: DuckDBPyConnection,
-    *,
     column_name: str,
     true_tokens: tuple[str, ...],
     false_tokens: tuple[str, ...],

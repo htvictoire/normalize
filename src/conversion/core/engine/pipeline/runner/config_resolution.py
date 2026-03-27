@@ -9,7 +9,6 @@ from shared.models.column import ColumnConfig
 
 
 def resolve_column_config_by_canonical(
-    *,
     data_columns: list[str],
     column_config: dict[str, ColumnConfig] | Mapping[str, ColumnConfig],
 ) -> dict[str, ColumnConfig]:

@@ -16,7 +16,6 @@ class ProfilingService:
 
     def profile(
         self,
-        *,
         source: SourceRef,
         source_checksum: str,
         confirmed_config: InstanceConfig,
@@ -25,7 +24,7 @@ class ProfilingService:
         """Execute full-dataset profiling and return profiling output only."""
         return run_profiling(
             source,
-            source_checksum=source_checksum,
-            confirmed_config=confirmed_config,
-            persisted_db_path=persisted_db_path,
+            source_checksum,
+            confirmed_config,
+            persisted_db_path,
         )

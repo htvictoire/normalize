@@ -30,7 +30,6 @@ class ProfilingStats:
 
 def compute_profiling_stats(
     conn: DuckDBPyConnection,
-    *,
     position_to_name: Mapping[str, str],
     null_tokens: tuple[str, ...],
 ) -> ProfilingStats:
@@ -39,8 +38,8 @@ def compute_profiling_stats(
     columns = read_columns(conn)
     row_count, column_counts = compute_column_counts(
         conn,
-        position_to_name=position_to_name,
-        null_tokens=null_tokens,
+        position_to_name,
+        null_tokens,
     )
     if not columns:
         return ProfilingStats(

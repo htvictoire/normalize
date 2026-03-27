@@ -15,7 +15,6 @@ from shared.db.sql import (
 
 
 def build_trace_query(
-    *,
     data_columns: list[str],
     has_row_index: bool,
     has_raw_row: bool,
@@ -117,7 +116,6 @@ def build_trace_query(
 
 def write_trace_parquet(
     conn: DuckDBPyConnection,
-    *,
     trace_path: Path,
     data_columns: list[str],
     table_columns: list[str],

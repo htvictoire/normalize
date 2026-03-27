@@ -48,7 +48,6 @@ class InstanceModel(MainModel):
     @classmethod
     def create(
         cls,
-        *,
         source_file: str,
         source_file_name: str,
         source_type: FileSource,
@@ -70,7 +69,7 @@ class InstanceModel(MainModel):
         )
 
     def set_suggestion_output(
-        self, *, suggested_config: InstanceConfig, display: SuggestionDisplay
+        self, suggested_config: InstanceConfig, display: SuggestionDisplay
     ) -> None:
         """Store suggestion results and move status to awaiting confirmation."""
         self.suggested_config = suggested_config
@@ -82,12 +81,12 @@ class InstanceModel(MainModel):
         self.confirmed_config = confirmed_config
         self.status = InstanceStatus.CONFIRMED
 
-    def set_profiling_output(self, *, profiling_output: ProfilingOutput) -> None:
+    def set_profiling_output(self, profiling_output: ProfilingOutput) -> None:
         """Store full-dataset profiling output and advance status to PROFILED."""
         self.profiling_output = profiling_output
         self.status = InstanceStatus.PROFILED
 
-    def set_normalization_output(self, *, normalization_output: NormalizationOutput) -> None:
+    def set_normalization_output(self, normalization_output: NormalizationOutput) -> None:
         """Store normalization output and advance status to terminal state."""
         self.normalization_output = normalization_output
         self.status = InstanceStatus.READY

@@ -52,7 +52,7 @@ def run(args: list[str]) -> None:
         )
         instance = MainOrchestrator().suggest(
             source,
-            source_checksum=_sha256_stream(input_path),
+            _sha256_stream(input_path),
         )
     except (ValueError, FileNotFoundError) as exc:
         die(str(exc))

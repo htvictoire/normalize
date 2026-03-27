@@ -6,7 +6,6 @@ from collections.abc import Mapping
 
 
 def resolve_date_formats_by_canonical(
-    *,
     date_formats: Mapping[str, str] | None,
     position_to_canonical: Mapping[str, str],
 ) -> dict[str, str]:

@@ -28,7 +28,7 @@ from app.infra.postgres.repository import PostgresRunRepository
 class MainOrchestrator:
     def __init__(self) -> None:
         settings = get_settings()
-        self._repository = PostgresRunRepository(dsn=settings.postgres_dsn)
+        self._repository = PostgresRunRepository(settings.postgres_dsn)
         self._suggestion_service = SuggestionService()
         self._profiling_service = ProfilingService()
         self._conversion_service = ConversionService()
@@ -40,7 +40,7 @@ class MainOrchestrator:
     def get_instance(self, instance_id: UUID) -> InstanceModel | None:
         return self._repository.get(instance_id)
 
-    def suggest(self, source: SourceRef, *, source_checksum: str) -> InstanceModel:
+    def suggest(self, source: SourceRef, source_checksum: str) -> InstanceModel:
         validate_file_format(source)
         result = self._suggestion_service.suggest(source)
         instance = InstanceModel.create(
@@ -85,7 +85,7 @@ class MainOrchestrator:
             confirmed_config=confirmed,
             persisted_db_path=self._duckdb_cache_path(instance_id),
         )
-        instance.set_profiling_output(profiling_output=profiling_output)
+        instance.set_profiling_output(profiling_output)
         self._repository.save(instance)
         return instance
 
@@ -129,7 +129,7 @@ class MainOrchestrator:
         if db_cache_path.exists():
             db_cache_path.unlink()
         instance.set_normalization_output(
-            normalization_output=NormalizationOutput(
+            NormalizationOutput(
                 fingerprint=result.fingerprint,
                 quality_output=result.quality_output,
                 artifacts=result.artifacts,

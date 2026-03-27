@@ -16,7 +16,7 @@ from suggestion.constants import (
 from suggestion.source.heuristics import looks_numeric
 
 
-def _read_rows(text: str, *, delimiter: str, limit: int) -> list[list[str]]:
+def _read_rows(text: str, delimiter: str, limit: int) -> list[list[str]]:
     rows: list[list[str]] = []
     reader = csv.reader(text.splitlines(), delimiter=delimiter)
     for index, row in enumerate(reader):
@@ -27,7 +27,7 @@ def _read_rows(text: str, *, delimiter: str, limit: int) -> list[list[str]]:
 
 
 def _scan_for_header_row(text: str, delimiter: str) -> int | None:
-    rows = _read_rows(text, delimiter=delimiter, limit=HEADER_SCAN_ROWS)
+    rows = _read_rows(text, delimiter, HEADER_SCAN_ROWS)
     if not rows:
         return None
 
@@ -133,7 +133,6 @@ def _infer_delimiter(text: str) -> str:
 
 def read_csv_column_names_and_inference_rows(
     text: str,
-    *,
     delimiter: str,
     header_mode: str,
     header_row_index: int | None,
@@ -161,7 +160,7 @@ def read_csv_column_names_and_inference_rows(
     return column_names, [row for row in rows[data_start:] if len(row) == col_count]
 
 
-def read_csv_sample_rows(text: str, *, delimiter: str) -> list[list[str]]:
+def read_csv_sample_rows(text: str, delimiter: str) -> list[list[str]]:
     """Return the first DISPLAY_RAW_ROWS rows from decoded CSV text as raw string lists."""
     rows: list[list[str]] = []
     reader = csv.reader(text.splitlines(), delimiter=delimiter)

@@ -27,7 +27,6 @@ class QualityMetricsStage(Stage):
     def execute(
         self,
         conn: DuckDBPyConnection,
-        *,
         data_columns: Sequence[str],
     ) -> QualityOutput:
         """Return quality metrics derived from post-transform table state."""

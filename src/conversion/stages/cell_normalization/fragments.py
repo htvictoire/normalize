@@ -31,7 +31,6 @@ class CellExpressionFragments:
 
 
 def build_cell_expression_fragments(
-    *,
     data_columns: Sequence[str],
     column_config: Mapping[str, ColumnConfig],
     token_policy: TokenPolicy,

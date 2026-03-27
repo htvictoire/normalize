@@ -24,7 +24,6 @@ def build_column_exprs(
     column_name: str,
     config: ColumnConfig,
     nullish_predicate: str,
-    *,
     raw_value: str,
     normalized_raw_value: str,
 ) -> tuple[list[tuple[str, str]], str, str]:

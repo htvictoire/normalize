@@ -15,7 +15,6 @@ _INDEX_AUDIT_COLUMNS = ("_row_index", "_global_row_index")
 
 def execute_cell_rewrite(
     conn: DuckDBPyConnection,
-    *,
     data_columns: Sequence[str],
     parse_cte_entries: Sequence[tuple[str, str]],
     base_exprs: Sequence[str],
@@ -116,7 +115,6 @@ def execute_cell_rewrite(
         ),
         stage_enriched AS (
             SELECT
-                *,
                 ({row_error_expr})::INTEGER AS _parse_error_count
             FROM stage_base
         )

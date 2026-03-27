@@ -20,7 +20,6 @@ def build_issue_summary(issues: Sequence[NormalizationIssue]) -> dict[str, Any]:
 
 
 def build_manifest_payload(
-    *,
     fingerprint: str,
     source_checksums: SourceChecksums,
     stage_metrics: Mapping[str, Mapping[str, Any]],

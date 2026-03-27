@@ -32,7 +32,7 @@ class RowNormalizationStage(Stage):
     - `plan()` — returns a RowPlan for use with the combined transform engine
     """
 
-    def __init__(self, *, assign_indices: bool = True, drop_empty_rows: bool = True) -> None:
+    def __init__(self, assign_indices: bool = True, drop_empty_rows: bool = True) -> None:
         super().__init__()
         self._assign_indices = assign_indices
         self._drop_empty_rows = drop_empty_rows
@@ -93,7 +93,6 @@ class RowNormalizationStage(Stage):
                     f"""
                     CREATE OR REPLACE TABLE {RAW_INPUT_TABLE_NAME} AS
                     SELECT
-                        *,
                         (ROW_NUMBER() OVER (ORDER BY rowid))::BIGINT AS _row_index,
                         (ROW_NUMBER() OVER (ORDER BY rowid))::BIGINT AS _global_row_index
                     FROM {RAW_INPUT_TABLE_NAME}
@@ -116,7 +115,6 @@ class RowNormalizationStage(Stage):
                 f"""
                 CREATE OR REPLACE TABLE {RAW_INPUT_TABLE_NAME} AS
                 SELECT
-                    *,
                     (ROW_NUMBER() OVER (ORDER BY rowid))::BIGINT AS _row_index,
                     (ROW_NUMBER() OVER (ORDER BY rowid))::BIGINT AS _global_row_index
                 FROM {RAW_INPUT_TABLE_NAME}

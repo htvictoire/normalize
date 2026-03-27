@@ -12,7 +12,6 @@ from conversion.stages.cell_normalization.sql_helpers import quote_identifier, q
 def build_integer_exprs(
     column_name: str,
     nullish_predicate: str,
-    *,
     raw_value: str,
     thousand_separator: str,
     grouping_style: str,
@@ -44,7 +43,6 @@ def build_integer_exprs(
 def build_decimal_exprs(
     column_name: str,
     nullish_predicate: str,
-    *,
     raw_value: str,
     decimal_separator: str,
     thousand_separator: str,
@@ -84,7 +82,6 @@ def build_decimal_exprs(
 
 def _normalize_numeric_value(
     value_expr: str,
-    *,
     decimal_separator: str,
     thousand_separator: str,
 ) -> str:
@@ -98,7 +95,6 @@ def _normalize_numeric_value(
 
 def _normalize_integer_value(
     value_expr: str,
-    *,
     thousand_separator: str,
 ) -> str:
     if not thousand_separator:
@@ -107,7 +103,6 @@ def _normalize_integer_value(
 
 
 def _decimal_pattern_regex(
-    *,
     decimal_separator: str,
     thousand_separator: str,
     grouping_style: str,
@@ -129,7 +124,6 @@ def _decimal_pattern_regex(
 
 
 def _integer_pattern_regex(
-    *,
     thousand_separator: str,
     grouping_style: str,
 ) -> str:
@@ -140,7 +134,7 @@ def _integer_pattern_regex(
     return rf"^[+-]?(?:{grouped_integer}|[0-9]+)$"
 
 
-def _grouped_integer_pattern(thousand: str, *, grouping_style: str) -> str:
+def _grouped_integer_pattern(thousand: str, grouping_style: str) -> str:
     if grouping_style == GROUPING_STYLE_INDIAN:
         return rf"[0-9]{{1,3}}(?:{thousand}[0-9]{{2}})*{thousand}[0-9]{{3}}"
     return rf"[0-9]{{1,3}}(?:{thousand}[0-9]{{3}})+"

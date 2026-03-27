@@ -39,7 +39,6 @@ class StagedArtifacts:
 
 def stage_artifacts(
     conn: DuckDBPyConnection,
-    *,
     output_root: Path,
     fingerprint: str,
     quality_output: QualityOutput,

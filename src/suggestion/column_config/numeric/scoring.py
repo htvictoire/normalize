@@ -35,7 +35,7 @@ def _score_candidate(
     leading_decimal_matches = 0
 
     for value in values:
-        parsed = parse_numeric_token(value, candidate=candidate)
+        parsed = parse_numeric_token(value, candidate)
         if parsed is None:
             continue
         if parsed.used_decimal_separator or parsed.used_thousand_separator:

@@ -46,7 +46,6 @@ _RULES_VERSION = "v1"
 
 
 def execute_conversion(
-    *,
     source: SourceRef,
     source_format: SourceFormat,
     source_checksum: str,
@@ -110,7 +109,7 @@ def execute_conversion(
 
             quality_output = QualityMetricsStage().execute(
                 conn,
-                data_columns=cell_plan.data_columns,
+                cell_plan.data_columns,
             )
 
             duckdb_version_row = conn.execute("SELECT version()").fetchone()
@@ -118,9 +117,9 @@ def execute_conversion(
                 raise RuntimeError("duckdb version query returned no rows")
             duckdb_version = str(duckdb_version_row[0])
             replay_config = build_replay_config(
-                source_format=source_format,
-                operation_config=operation_config,
-                confirmed_column_config=resolved_column_config,
+                source_format,
+                operation_config,
+                resolved_column_config,
             )
             config_json = json.dumps(replay_config, sort_keys=True, separators=(",", ":"))
             fingerprint = compute_fingerprint(

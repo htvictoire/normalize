@@ -42,7 +42,7 @@ def _read_csv_source(source: SourceRef) -> SourceReading:
     sample = read_source_probe(source, FILE_SAMPLE_BYTES)
     source_format = infer_csv_source_format(sample)
     text = sample.decode(source_format.encoding, errors="ignore")
-    sample_rows = read_csv_sample_rows(text, delimiter=source_format.delimiter)
+    sample_rows = read_csv_sample_rows(text, source_format.delimiter)
     column_names, inference_rows = read_csv_column_names_and_inference_rows(
         text,
         delimiter=source_format.delimiter,

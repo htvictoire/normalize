@@ -40,7 +40,6 @@ class CellNormalizationStage(Stage):
     def plan(
         self,
         conn: DuckDBPyConnection,
-        *,
         column_config: Mapping[str, ColumnConfig],
         null_tokens: Sequence[str] | None,
         full_raw_row: bool = False,
@@ -49,7 +48,7 @@ class CellNormalizationStage(Stage):
     ) -> CellPlan:
         """Build a CellPlan with SQL fragments, without executing anything."""
         validate_identifier(RAW_INPUT_TABLE_NAME)
-        token_policy = TokenPolicy.from_user_inputs(null_tokens=null_tokens)
+        token_policy = TokenPolicy.from_user_inputs(null_tokens)
 
         columns = read_columns(conn)
         data_columns = [column for column in columns if column not in AUDIT_COLUMNS]
@@ -72,7 +71,6 @@ class CellNormalizationStage(Stage):
     def execute(
         self,
         conn: DuckDBPyConnection,
-        *,
         column_config: Mapping[str, ColumnConfig],
         null_tokens: Sequence[str] | None,
         full_raw_row: bool = False,
@@ -81,7 +79,7 @@ class CellNormalizationStage(Stage):
     ) -> dict[str, int]:
         start_time = perf_counter()
         validate_identifier(RAW_INPUT_TABLE_NAME)
-        token_policy = TokenPolicy.from_user_inputs(null_tokens=null_tokens)
+        token_policy = TokenPolicy.from_user_inputs(null_tokens)
 
         columns = read_columns(conn)
         data_columns = [column for column in columns if column not in AUDIT_COLUMNS]

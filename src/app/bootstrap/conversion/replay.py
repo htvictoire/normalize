@@ -15,7 +15,6 @@ from shared.models.operation import (
 
 
 def build_replay_config(
-    *,
     source_format: CsvSourceFormat | ExcelSourceFormat | JsonSourceFormat,
     operation_config: OperationConfig,
     confirmed_column_config: Mapping[str, ColumnConfig],

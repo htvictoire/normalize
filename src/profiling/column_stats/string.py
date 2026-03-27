@@ -11,7 +11,6 @@ from shared.models.profiling import ColumnCounts, StringColumnProfile
 
 def compute_string_column_profile(
     conn: DuckDBPyConnection,
-    *,
     column_name: str,
     null_tokens: tuple[str, ...],
     counts: ColumnCounts,

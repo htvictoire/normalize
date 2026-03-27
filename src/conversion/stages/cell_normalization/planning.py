@@ -7,7 +7,6 @@ from conversion.stages.cell_normalization.fragments import CellExpressionFragmen
 
 
 def build_cell_plan(
-    *,
     data_columns: tuple[str, ...],
     fragments: CellExpressionFragments,
     full_raw_row: bool,

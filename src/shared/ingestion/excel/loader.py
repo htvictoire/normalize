@@ -29,7 +29,6 @@ class DirectExcelIngestor:
         self,
         conn: DuckDBPyConnection,
         source_url: str,
-        *,
         sheet_name: str | None,
         header_mode: HeaderMode,
         header_row_index: int | None,
