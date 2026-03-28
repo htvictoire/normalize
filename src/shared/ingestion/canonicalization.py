@@ -30,7 +30,7 @@ class HeaderCanonicalizationStage(Stage):
         start_time = perf_counter()
         columns = read_columns(conn)
         canonical_columns = canonicalize_header_sequence(columns)
-        mapping = canonicalize_headers(columns)
+        mapping = _build_raw_to_canonical_mapping(columns, canonical_columns)
         self.position_to_canonical = build_position_to_name(canonical_columns)
         _apply_column_renames(conn, columns, canonical_columns)
 

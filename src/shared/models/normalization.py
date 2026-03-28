@@ -41,4 +41,4 @@ class NormalizationOutput(MainModel):
 
     fingerprint: str
     quality_output: QualityOutput
-    artifacts: ArtifactPaths | None  # None when run_mode == "PROFILE" (dry-run)
+    artifacts: ArtifactPaths

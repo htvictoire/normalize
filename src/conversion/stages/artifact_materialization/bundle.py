@@ -6,7 +6,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from time import perf_counter
-from typing import Any, cast
+from typing import Any
 
 from duckdb import DuckDBPyConnection
 
@@ -48,6 +48,7 @@ def stage_artifacts(
     trace_mode: str,
     stage_metrics: Mapping[str, Mapping[str, Any]] | None,
     rules_version: str,
+    duckdb_version: str,
     timing: dict[str, float],
 ) -> StagedArtifacts:
     """Write staged artifact files to one local directory."""
@@ -90,10 +91,6 @@ def stage_artifacts(
     normalized_checksum = sha256_file(normalized_path)
     trace_checksum = sha256_file(trace_path)
     timing["checksum_seconds"] = perf_counter() - section_start
-
-    section_start = perf_counter()
-    duckdb_version = str(cast("tuple[object, ...]", conn.execute("SELECT version()").fetchone())[0])
-    timing["duckdb_version_read_seconds"] = perf_counter() - section_start
 
     section_start = perf_counter()
     manifest = build_manifest_payload(

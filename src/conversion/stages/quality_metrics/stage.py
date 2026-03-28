@@ -56,8 +56,8 @@ class QualityMetricsStage(Stage):
         null_query = f"SELECT COUNT(*), {', '.join(null_exprs)} FROM {RAW_INPUT_TABLE_NAME}"
         row = conn.execute(null_query).fetchone()
 
-        row_count = int(row[0])  # type: ignore[index]
-        column_null_counts = {col: int(row[i + 1]) for i, col in enumerate(columns)}  # type: ignore[index]
+        row_count = int(row[0])  # type: ignore[index]  # COUNT aggregate always returns 1 row; fetchone() is non-None
+        column_null_counts = {col: int(row[i + 1]) for i, col in enumerate(columns)}  # type: ignore[index]  # same
         total_nullish_cells = sum(column_null_counts.values())
         total_cells = row_count * len(columns)
 

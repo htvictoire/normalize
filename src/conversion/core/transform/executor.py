@@ -16,14 +16,14 @@ def execute_combined_transform(
     cell_plan: CellPlan,
 ) -> dict[str, object]:
     """Execute the composed transform SQL."""
-    start = perf_counter()
-
+    compose_start = perf_counter()
     sql = compose_transform_sql(row_plan, cell_plan)
+    exec_start = perf_counter()
     conn.execute(sql)
-    sql_seconds = perf_counter() - start
+    sql_seconds = perf_counter() - exec_start
 
     return {
-        "duration_seconds": perf_counter() - start,
+        "duration_seconds": perf_counter() - compose_start,
         "sql_seconds": sql_seconds,
         "rows_before": row_plan.rows_before,
         "rows_after": row_plan.rows_before - row_plan.rows_dropped,

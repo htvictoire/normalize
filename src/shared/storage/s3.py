@@ -82,8 +82,6 @@ def download_s3_temp(obj: S3ObjectRef) -> Path:
         if temp_path is not None:
             temp_path.unlink(missing_ok=True)
         raise
-    if temp_path is None:
-        raise RuntimeError("Temporary S3 download path was not created.")
     return temp_path
 
 

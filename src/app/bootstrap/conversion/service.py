@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from shared.models.column import ColumnConfig
-from shared.models.issues import IssueSeverity, NormalizationIssue
+from shared.models.issues import NormalizationIssue
 from shared.models.operation import OperationConfig, SourceFormat
 from shared.models.source import SourceRef
 from shared.settings import get_settings
@@ -32,9 +32,6 @@ class ConversionService:
         persisted_db_path: Path,
     ) -> ConversionExecutionOutput:
         """Execute conversion phase with explicit inputs only."""
-        if any(issue.severity is IssueSeverity.ERROR for issue in profiling_issues):
-            raise ValueError("instance has blocking profiling issues")
-
         settings = get_settings()
 
         return execute_conversion(

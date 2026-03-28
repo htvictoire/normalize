@@ -79,8 +79,8 @@ def execute_conversion(
                 run_ingestion(
                     IngestionRequest(
                         conn=conn,
-                        source_url=setup.url,  # type: ignore[union-attr]
-                        source_type=setup.source_type,  # type: ignore[union-attr]
+                        source_url=setup.url,  # type: ignore[union-attr]  # setup is non-None when not use_cache
+                        source_type=setup.source_type,  # type: ignore[union-attr]  # same — narrowed by use_cache flag
                         source_format=source_format,
                     )
                 )
@@ -133,6 +133,7 @@ def execute_conversion(
                 output_dir=output_root,
                 output_type=source.source_type,
                 fingerprint=fingerprint,
+                duckdb_version=duckdb_version,
                 trace_mode=operation_config.trace_mode,
                 source_checksums=SourceChecksums(source_file=source_checksum),
                 quality_output=quality_output,

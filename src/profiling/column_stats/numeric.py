@@ -23,11 +23,7 @@ from shared.models.profiling import (
     SignedColumnProfile,
 )
 from shared.parsing.currency import build_currency_symbol_extract_expr
-
-from conversion.stages.cell_normalization.transforms.numeric import (
-    decimal_pattern_regex,
-    integer_pattern_regex,
-)
+from shared.parsing.numeric import decimal_pattern_regex, integer_pattern_regex
 
 
 @dataclass(frozen=True)

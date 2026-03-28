@@ -16,7 +16,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from shared.db.column_index import build_position_to_name
-from shared.db.duckdb import DuckDBManager, configure_duckdb_s3, resolve_db_path
+from shared.db.duckdb import DuckDBManager, resolve_db_path
 from shared.db.sql import read_columns
 from shared.ingestion import (
     IngestionRequest,
@@ -48,8 +48,6 @@ def run_profiling(
     setup = resolve_ingestion_setup(source, confirmed_config.source_format)
     try:
         with DuckDBManager(database=db_arg) as conn:
-            if setup.source_type == "s3":
-                configure_duckdb_s3(conn)
             run_ingestion(
                 IngestionRequest(
                     conn=conn,

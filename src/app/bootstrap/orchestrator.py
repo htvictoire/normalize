@@ -9,12 +9,14 @@ lifecycle step via PostgresRunRepository.
 from __future__ import annotations
 
 from pathlib import Path
+from typing import cast
 from uuid import UUID
 
 from shared.models.instance import InstanceModel, InstanceStatus
 from shared.models.instance_config import InstanceConfig
 from shared.models.issues import IssueSeverity
 from shared.models.normalization import NormalizationOutput
+from shared.models.profiling import ProfilingOutput
 from shared.models.source import SourceRef
 from shared.settings import get_settings
 
@@ -67,13 +69,12 @@ class MainOrchestrator:
         instance = self._repository.get_required(instance_id)
         if instance.status is not InstanceStatus.CONFIRMED:
             raise ValueError("instance must be CONFIRMED before profile")
-        if instance.confirmed_config is None:
-            raise ValueError("instance is missing confirmed config")
 
         instance.status = InstanceStatus.PROFILING
         self._repository.save(instance)
 
-        confirmed = instance.confirmed_config
+        # CONFIRMED status guarantees confirmed_config was set atomically by confirm()
+        confirmed = cast(InstanceConfig, instance.confirmed_config)
         profiling_output = self._profiling_service.profile(
             source=SourceRef(
                 source_file=instance.source_file,
@@ -93,19 +94,16 @@ class MainOrchestrator:
         instance = self._repository.get_required(instance_id)
         if instance.status is not InstanceStatus.PROFILED:
             raise ValueError("instance must be PROFILED before normalize")
-        if instance.confirmed_config is None:
-            raise ValueError("instance is missing confirmed config")
-        if instance.profiling_output is None:
-            raise ValueError("instance is missing profiling output")
-        if any(
-            issue.severity is IssueSeverity.ERROR for issue in instance.profiling_output.issues
-        ):
+        # PROFILED status guarantees both fields were set atomically by set_profiling_output()
+        # and confirm() respectively; PROFILED is only reachable from CONFIRMED.
+        profiling_output = cast(ProfilingOutput, instance.profiling_output)
+        confirmed = cast(InstanceConfig, instance.confirmed_config)
+        if any(issue.severity is IssueSeverity.ERROR for issue in profiling_output.issues):
             raise ValueError("instance has blocking profiling issues")
         instance.status = InstanceStatus.NORMALIZING
         self._repository.save(instance)
 
         settings = get_settings()
-        confirmed = instance.confirmed_config
         db_cache_path = self._duckdb_cache_path(instance_id)
         result = self._conversion_service.convert(
             source=SourceRef(
@@ -118,7 +116,7 @@ class MainOrchestrator:
             source_checksum=instance.source_checksum,
             confirmed_column_config=confirmed.column_config,
             operation_config=confirmed.operation_config,
-            profiling_issues=list(instance.profiling_output.issues),
+            profiling_issues=list(profiling_output.issues),
             output_root=settings.conversion_output_dir,
             run_id=str(instance_id),
             persisted_db_path=db_cache_path,

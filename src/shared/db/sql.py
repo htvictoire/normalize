@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import re
 from collections.abc import Mapping, Sequence
 from typing import cast
 
@@ -10,12 +9,6 @@ from duckdb import DuckDBPyConnection
 
 from shared.constants import RAW_INPUT_TABLE_NAME
 from shared.models.profiling import ColumnCountResult, ColumnCounts
-
-
-def validate_identifier(identifier: str) -> None:
-    """Validate SQL identifiers used in dynamic SQL."""
-    if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", identifier):
-        raise ValueError(f"Invalid SQL identifier: {identifier}")
 
 
 def quote_identifier(identifier: str) -> str:
@@ -35,7 +28,7 @@ def execute_scalar(conn: DuckDBPyConnection, sql: str) -> int:
 
 def read_relation_columns(conn: DuckDBPyConnection, table_name: str) -> list[str]:
     """Read ordered column names from one explicit DuckDB relation."""
-    rows = conn.execute(f"PRAGMA table_info('{table_name}')").fetchall()
+    rows = conn.execute(f"PRAGMA table_info({quote_identifier(table_name)})").fetchall()
     return [str(row[1]) for row in rows]
 
 

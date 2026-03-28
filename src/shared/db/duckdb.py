@@ -11,11 +11,12 @@ from urllib.parse import urlparse
 import duckdb
 from duckdb import DuckDBPyConnection
 
+from shared.db.sql import quote_string
 from shared.settings import get_settings
 
 
 def _escape_sql_string(value: str) -> str:
-    return value.replace("'", "''")
+    return quote_string(value)[1:-1]
 
 
 class DuckDBManager:
