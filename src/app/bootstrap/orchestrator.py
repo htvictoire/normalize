@@ -15,7 +15,6 @@ from uuid import UUID
 from shared.models.instance import InstanceModel, InstanceStatus
 from shared.models.instance_config import InstanceConfig
 from shared.models.issues import IssueSeverity
-from shared.models.normalization import NormalizationOutput
 from shared.models.profiling import ProfilingOutput
 from shared.models.source import SourceRef
 from shared.settings import get_settings
@@ -112,7 +111,6 @@ class MainOrchestrator:
                 source_type=instance.source_type,
                 source_file_format=instance.source_file_format,
             ),
-            source_format=confirmed.source_format,
             source_checksum=instance.source_checksum,
             confirmed_column_config=confirmed.column_config,
             operation_config=confirmed.operation_config,
@@ -123,12 +121,6 @@ class MainOrchestrator:
         )
         if db_cache_path.exists():
             db_cache_path.unlink()
-        instance.set_normalization_output(
-            NormalizationOutput(
-                fingerprint=result.fingerprint,
-                quality_output=result.quality_output,
-                artifacts=result.artifacts,
-            )
-        )
+        instance.set_normalization_output(result)
         self._repository.save(instance)
         return instance

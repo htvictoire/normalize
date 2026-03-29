@@ -86,6 +86,12 @@ def configure_duckdb_s3(conn: DuckDBPyConnection) -> None:
     conn.execute("SET s3_region='auto'")
 
 
+def get_duckdb_version(conn: DuckDBPyConnection) -> str:
+    """Return the DuckDB version string for the active connection."""
+    row = conn.execute("SELECT version()").fetchone()
+    return str(row[0])  # type: ignore[index]  # version() always returns one row
+
+
 def resolve_db_path(db_path: str) -> str:
     """Resolve a DuckDB database path, creating parent dirs if needed."""
     if db_path == ":memory:":

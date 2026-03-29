@@ -3,17 +3,14 @@
 from __future__ import annotations
 
 import re
-from time import perf_counter
 
 from duckdb import DuckDBPyConnection
 
 from shared.constants import RAW_INPUT_TABLE_NAME
-from shared.db.column_index import build_position_to_name
 from shared.db.sql import quote_identifier, read_columns
-from shared.stage import Stage
 
 
-class HeaderCanonicalizationStage(Stage):
+class HeaderCanonicalizationStage:
     """
     Canonicalize ingested column names and apply deterministic uniqueness.
 
@@ -27,24 +24,10 @@ class HeaderCanonicalizationStage(Stage):
     """
 
     def execute(self, conn: DuckDBPyConnection) -> dict[str, str]:
-        start_time = perf_counter()
         columns = read_columns(conn)
         canonical_columns = canonicalize_header_sequence(columns)
         mapping = _build_raw_to_canonical_mapping(columns, canonical_columns)
-        self.position_to_canonical = build_position_to_name(canonical_columns)
         _apply_column_renames(conn, columns, canonical_columns)
-
-        renamed_count = sum(
-            1
-            for raw, canonical in zip(columns, canonical_columns, strict=False)
-            if raw != canonical
-        )
-        self.metrics = {
-            "duration_seconds": perf_counter() - start_time,
-            "column_count": len(columns),
-            "renamed_count": renamed_count,
-            "position_mapping_count": len(self.position_to_canonical),
-        }
         return mapping
 
 

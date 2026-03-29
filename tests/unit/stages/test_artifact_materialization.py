@@ -7,7 +7,7 @@ from shared.db.duckdb import DuckDBManager
 from shared.models.issues import IssueSeverity, NormalizationIssue
 from shared.models.normalization import ArtifactPaths, QualityOutput, SourceChecksums
 
-from conversion.stages.artifact_materialization import ArtifactMaterializationStage
+from conversion.artifacts import ArtifactMaterializationStage
 from conversion.utils.checksums import sha256_file
 
 

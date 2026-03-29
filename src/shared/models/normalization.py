@@ -17,12 +17,6 @@ class ArtifactPaths(MainModel):
     trace_parquet: str
 
 
-class SourceChecksums(MainModel):
-    """SHA-256 checksums of source files consumed by a normalization run."""
-
-    source_file: str
-
-
 class QualityOutput(MainModel):
     """Post-transform quality metrics produced by QualityMetricsStage."""
 
@@ -39,6 +33,5 @@ class QualityOutput(MainModel):
 class NormalizationOutput(MainModel):
     """Normalization-phase terminal output stored on InstanceModel."""
 
-    fingerprint: str
     quality_output: QualityOutput
     artifacts: ArtifactPaths

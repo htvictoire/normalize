@@ -9,6 +9,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
     duckdb_memory_limit: str
+    duckdb_threads: int = 4
     duckdb_cache_dir: str = "./data/duckdb"
     postgres_dsn: str
     s3_endpoint_url: str

@@ -10,7 +10,7 @@ from shared.models.column import (
     StringColumnConfig,
 )
 
-from conversion.stages.cell_normalization import CellNormalizationStage
+from conversion.cell_normalization import CellNormalizationStage
 
 COMMON_ARGS = {
     "null_tokens": ["", "null", "none", "n/a", "-"],

@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from shared.db.duckdb import DuckDBManager, resolve_db_path
+from shared.ingestion import cleanup_ingestion_setup, resolve_ingestion_setup
 from shared.models.instance_config import InstanceConfig
 from shared.models.profiling import ProfilingOutput
 from shared.models.source import SourceRef
@@ -21,10 +23,9 @@ class ProfilingService:
         confirmed_config: InstanceConfig,
         persisted_db_path: Path,
     ) -> ProfilingOutput:
-        """Execute full-dataset profiling and return profiling output only."""
-        return run_profiling(
-            source,
-            source_checksum,
-            confirmed_config,
-            persisted_db_path,
-        )
+        setup = resolve_ingestion_setup(source, confirmed_config.source_format)
+        try:
+            with DuckDBManager(database=resolve_db_path(str(persisted_db_path))) as conn:
+                return run_profiling(conn, setup, source_checksum, confirmed_config)
+        finally:
+            cleanup_ingestion_setup(setup)
