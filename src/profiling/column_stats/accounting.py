@@ -7,7 +7,7 @@ from duckdb import DuckDBPyConnection
 from shared.models.column import AccountingColumnConfig
 from shared.models.profiling import AccountingColumnProfile, ColumnCounts
 
-from profiling.column_stats.numeric import compute_symbol_family_stats
+from profiling.column_stats.symbol import compute_symbol_family_stats
 
 
 def compute_accounting_column_profile(

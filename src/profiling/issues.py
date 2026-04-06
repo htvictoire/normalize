@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import cast
+
 from shared.models.column import ColumnConfig, DecimalFamilyColumnConfig
 from shared.models.issues import IssueSeverity, NormalizationIssue
 from shared.models.profiling import (
@@ -41,15 +43,15 @@ def collect_column_issues(
 
     if (
         isinstance(profile, SeparatorMismatchProfile)
-        and isinstance(config, DecimalFamilyColumnConfig)
         and profile.separator_mismatch_detected
         and profile.swapped_match_ratio >= numeric_threshold
     ):
+        decimal_config = cast(DecimalFamilyColumnConfig, config)
         issues.append(
             build_separator_mismatch_issue(
                 column_name=column_name,
-                decimal_separator=config.decimal_separator,
-                thousand_separator=config.thousand_separator,
+                decimal_separator=decimal_config.decimal_separator,
+                thousand_separator=decimal_config.thousand_separator,
                 numeric_threshold=numeric_threshold,
                 declared_decimal_ratio=profile.parse_match_ratio,
                 swapped_decimal_ratio=profile.swapped_match_ratio,

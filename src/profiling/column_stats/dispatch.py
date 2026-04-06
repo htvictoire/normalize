@@ -24,16 +24,16 @@ from profiling.column_stats.accounting import compute_accounting_column_profile
 from profiling.column_stats.boolean import compute_boolean_column_profile
 from profiling.column_stats.currency import compute_currency_column_profile
 from profiling.column_stats.date import compute_date_column_profile
-from profiling.column_stats.numeric import (
+from profiling.column_stats.decimal import (
     compute_decimal_column_profile,
-    compute_integer_column_profile,
     compute_percentage_column_profile,
     compute_signed_column_profile,
 )
+from profiling.column_stats.integer import compute_integer_column_profile
 from profiling.column_stats.string import compute_string_column_profile
 
 
-def compute_column_profile(  # noqa: PLR0911
+def compute_column_profile(  # noqa: PLR0911 - acceptable complexity for a single dispatch function
     conn: DuckDBPyConnection,
     column_name: str,
     config: ColumnConfig,

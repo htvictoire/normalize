@@ -25,20 +25,13 @@ def compute_boolean_column_profile(
     true_in = _in_clause(true_tokens)
     false_in = _in_clause(false_tokens)
 
-    true_token_count = execute_scalar(
-        conn,
-        (
-            f"SELECT COUNT(*) FROM {RAW_INPUT_TABLE_NAME} WHERE NOT ({nullish}) "
-            f"AND {normalized} IN ({true_in})"
-        ),
-    )
-    false_token_count = execute_scalar(
-        conn,
-        (
-            f"SELECT COUNT(*) FROM {RAW_INPUT_TABLE_NAME} WHERE NOT ({nullish}) "
-            f"AND {normalized} IN ({false_in})"
-        ),
-    )
+    row = conn.execute(
+        f"SELECT COUNT(*) FILTER (WHERE {normalized} IN ({true_in})),"
+        f" COUNT(*) FILTER (WHERE {normalized} IN ({false_in}))"
+        f" FROM {RAW_INPUT_TABLE_NAME} WHERE NOT ({nullish})"
+    ).fetchone()
+    true_token_count: int = row[0]  # type: ignore[index]
+    false_token_count: int = row[1]  # type: ignore[index]
 
     non_nullish = counts.non_nullish_count
     unrecognized_count = non_nullish - true_token_count - false_token_count

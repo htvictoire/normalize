@@ -13,7 +13,7 @@ from duckdb import DuckDBPyConnection
 from shared.db.column_index import build_position_to_name
 from shared.db.sql import read_columns
 from shared.ingestion import IngestionRequest, IngestionSetup, run_ingestion
-from shared.ingestion.canonicalization import HeaderCanonicalizationStage
+from shared.ingestion.canonicalization import canonicalize_table_headers
 from shared.models.instance_config import InstanceConfig
 from shared.models.profiling import ProfilingOutput
 
@@ -37,7 +37,7 @@ def run_profiling(
         )
     )
 
-    HeaderCanonicalizationStage().execute(conn)
+    canonicalize_table_headers(conn)
     canonical_columns = read_columns(conn)
     position_to_name = build_position_to_name(canonical_columns)
     profiling_stats = compute_profiling_stats(

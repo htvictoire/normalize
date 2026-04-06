@@ -1,4 +1,4 @@
-"""Header canonicalization stage."""
+"""Header canonicalization helpers."""
 
 from __future__ import annotations
 
@@ -10,25 +10,17 @@ from shared.constants import RAW_INPUT_TABLE_NAME
 from shared.db.sql import quote_identifier, read_columns
 
 
-class HeaderCanonicalizationStage:
-    """
-    Canonicalize ingested column names and apply deterministic uniqueness.
+def canonicalize_table_headers(conn: DuckDBPyConnection) -> dict[str, str]:
+    """Canonicalize the live table's column names in place and return the raw→canonical mapping.
 
-    Rules:
-    1. trim
-    2. lowercase
-    3. replace non-alphanumeric spans with `_`
-    4. strip leading/trailing `_`
-    5. fallback to `column` when empty
-    6. enforce uniqueness with `_2`, `_3`, ...
+    Rules: trim, lowercase, replace non-alphanumeric spans with `_`, strip leading/trailing `_`,
+    fallback to `column` when empty, enforce uniqueness with `_2`, `_3`, ...
     """
-
-    def execute(self, conn: DuckDBPyConnection) -> dict[str, str]:
-        columns = read_columns(conn)
-        canonical_columns = canonicalize_header_sequence(columns)
-        mapping = _build_raw_to_canonical_mapping(columns, canonical_columns)
-        _apply_column_renames(conn, columns, canonical_columns)
-        return mapping
+    columns = read_columns(conn)
+    canonical_columns = canonicalize_header_sequence(columns)
+    mapping = _build_raw_to_canonical_mapping(columns, canonical_columns)
+    _apply_column_renames(conn, columns, canonical_columns)
+    return mapping
 
 
 def canonicalize_headers(columns: list[str]) -> dict[str, str]:

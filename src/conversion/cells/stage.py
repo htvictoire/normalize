@@ -7,7 +7,7 @@ from collections.abc import Mapping, Sequence
 from shared.db.sql import quote_identifier
 from shared.models.column import ColumnConfig
 
-from conversion.cells.exprs.dispatcher import build_column_exprs
+from conversion.cells.exprs.dispatch import build_column_exprs
 from conversion.cells.exprs.nullish import build_nullish_predicate
 from conversion.cells.naming import (
     issue_alias,

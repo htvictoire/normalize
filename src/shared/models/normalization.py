@@ -18,7 +18,7 @@ class ArtifactPaths(MainModel):
 
 
 class QualityOutput(MainModel):
-    """Post-transform quality metrics produced by QualityMetricsStage."""
+    """Post-transform quality metrics computed by conversion.quality_metrics."""
 
     row_count: int
     total_cells: int
