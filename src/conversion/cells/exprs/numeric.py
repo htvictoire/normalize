@@ -25,22 +25,13 @@ def build_integer_exprs(
     )
     match_alias = quote_identifier(parse_match_alias(column_name))
     cast_alias = quote_identifier(parse_cast_alias(column_name))
-    match_expr = f"REGEXP_FULL_MATCH({raw_value}, {quote_string(integer_pattern)})"
-    cast_expr = f"TRY_CAST({integer_value} AS BIGINT)"
-    normalized = (
-        f"CASE WHEN {nullish_predicate} THEN NULL "
-        f"WHEN {match_alias} THEN {cast_alias} "
-        "ELSE NULL END"
-    )
-    issue = (
-        f"CASE WHEN {nullish_predicate} THEN NULL "
-        f"WHEN {match_alias} AND {cast_alias} IS NOT NULL THEN NULL "
-        f"ELSE '{issue_label}' END"
-    )
-    return ColumnExprs(
-        parse_cte_entries=((match_alias, match_expr), (cast_alias, cast_expr)),
-        normalized_expr=normalized,
-        issue_expr=issue,
+    return _build_numeric_exprs(
+        nullish_predicate=nullish_predicate,
+        match_alias=match_alias,
+        cast_alias=cast_alias,
+        match_expr=f"REGEXP_FULL_MATCH({raw_value}, {quote_string(integer_pattern)})",
+        cast_expr=f"TRY_CAST({integer_value} AS BIGINT)",
+        issue_label=issue_label,
     )
 
 
@@ -68,8 +59,25 @@ def build_decimal_exprs(
     )
     match_alias = quote_identifier(parse_match_alias(column_name))
     cast_alias = quote_identifier(parse_cast_alias(column_name))
-    match_expr = f"REGEXP_FULL_MATCH({raw_value}, {quote_string(decimal_pattern)})"
-    cast_expr = f"TRY_CAST({numeric_value} AS DOUBLE)"
+    return _build_numeric_exprs(
+        nullish_predicate=nullish_predicate,
+        match_alias=match_alias,
+        cast_alias=cast_alias,
+        match_expr=f"REGEXP_FULL_MATCH({raw_value}, {quote_string(decimal_pattern)})",
+        cast_expr=f"TRY_CAST({numeric_value} AS DOUBLE)",
+        issue_label=issue_label,
+    )
+
+
+def _build_numeric_exprs(
+    *,
+    nullish_predicate: str,
+    match_alias: str,
+    cast_alias: str,
+    match_expr: str,
+    cast_expr: str,
+    issue_label: str,
+) -> ColumnExprs:
     normalized = (
         f"CASE WHEN {nullish_predicate} THEN NULL "
         f"WHEN {match_alias} THEN {cast_alias} "

@@ -78,4 +78,4 @@ def build_column_exprs(
             issue_label=issue_label,
         )
 
-    raise ValueError(f"UNSUPPORTED_CONFIG_TYPE:{type(config).__name__}")
+    raise ValueError(f"Unsupported column config type: {type(config).__name__}")

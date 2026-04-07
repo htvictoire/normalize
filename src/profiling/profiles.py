@@ -6,11 +6,11 @@ from dataclasses import dataclass
 
 from duckdb import DuckDBPyConnection
 
+from shared.db.aggregates import safe_ratio
 from shared.models.column import ColumnConfig, column_config_type
 from shared.models.issues import NormalizationIssue
 from shared.models.profiling import ColumnCounts, ColumnProfileStats, SymbolDistributionProfile
 
-from profiling.aggregates import safe_ratio
 from profiling.column_stats import compute_column_profiles
 from profiling.constants import NUMERIC_MISMATCH_THRESHOLD
 from profiling.issues import collect_column_issues

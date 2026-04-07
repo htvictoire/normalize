@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from shared.constants import EXCEL_SERIAL_DATE_EPOCH_SQL
 from shared.db.sql import quote_identifier, quote_string
 
 from conversion.cells.exprs.column_exprs import ColumnExprs
@@ -18,7 +19,7 @@ def build_date_exprs(
     """Build ColumnExprs for a date column."""
     date_alias = quote_identifier(parse_date_alias(column_name))
     if date_format == "EXCEL_SERIAL":
-        date_expr = f"(DATE '1899-12-30' + TRY_CAST({raw_value} AS INTEGER))"
+        date_expr = f"({EXCEL_SERIAL_DATE_EPOCH_SQL} + TRY_CAST({raw_value} AS INTEGER))"
     else:
         date_expr = (
             f"TRY_CAST(TRY_STRPTIME({raw_value}, {quote_string(date_format)}) AS DATE)"

@@ -1,9 +1,8 @@
-"""Shared helpers for aggregate query results and ratio calculations."""
+"""Shared helpers for aggregate query decoding and ratio calculations."""
 
 from __future__ import annotations
 
 from collections.abc import Sequence
-from typing import SupportsInt, cast
 
 from duckdb import DuckDBPyConnection
 
@@ -18,10 +17,23 @@ def safe_ratio(
     return default if denominator <= 0 else (numerator / denominator)
 
 
-def fetch_aggregate_int_row(conn: DuckDBPyConnection, query: str) -> tuple[int, ...]:
+def fetch_aggregate_int_row(
+    conn: DuckDBPyConnection,
+    query: str,
+    params: Sequence[object] = (),
+) -> tuple[int, ...]:
     """Return the single integer-valued row emitted by an aggregate SELECT."""
-    raw_row = cast("tuple[SupportsInt, ...]", conn.execute(query).fetchone())
-    return tuple(int(value) for value in raw_row)
+    raw_row = conn.execute(query, params).fetchone()
+    if raw_row is None:
+        raise ValueError("Aggregate query returned no row")
+
+    typed_values: list[int] = []
+    for value in raw_row:
+        try:
+            typed_values.append(int(value))
+        except (TypeError, ValueError) as exc:
+            raise TypeError("Aggregate query row contained a non-integer value") from exc
+    return tuple(typed_values)
 
 
 def group_int_values(

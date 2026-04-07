@@ -15,6 +15,7 @@ from conversion.cells.naming import (
     parse_nullish_alias,
     parse_raw_alias,
 )
+from conversion.constants import CONDITIONAL_RAW_JSON_ALIAS, PARSE_ERROR_COUNT_COLUMN
 from conversion.models import CellPlan
 
 
@@ -75,15 +76,18 @@ def plan_cells(
 
     if emit_raw_row:
         raw_row_expr = (
-            "__raw_json" if full_raw_row
-            else "CASE WHEN _parse_error_count = 0 THEN NULL ELSE __raw_json END"
+            CONDITIONAL_RAW_JSON_ALIAS if full_raw_row
+            else (
+                f"CASE WHEN {PARSE_ERROR_COUNT_COLUMN} = 0 THEN NULL "
+                f"ELSE {CONDITIONAL_RAW_JSON_ALIAS} END"
+            )
         )
     else:
         raw_row_expr = "NULL::VARCHAR"
 
     if emit_parse_issues and issue_pairs:
         parse_issues_expr = (
-            "CASE WHEN _parse_error_count = 0 THEN NULL "
+            f"CASE WHEN {PARSE_ERROR_COUNT_COLUMN} = 0 THEN NULL "
             f"ELSE TO_JSON(STRUCT_PACK({', '.join(issue_pairs)})) END"
         )
     else:

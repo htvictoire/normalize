@@ -6,12 +6,11 @@ from dataclasses import dataclass
 
 from duckdb import DuckDBPyConnection
 
-from shared.constants import RAW_INPUT_TABLE_NAME
+from shared.constants import EXCEL_SERIAL_DATE_EPOCH_SQL, RAW_INPUT_TABLE_NAME
+from shared.db.aggregates import fetch_aggregate_int_row, safe_ratio
 from shared.db.sql import nullish_predicate, quote_identifier, quote_string
 from shared.models.column import DateColumnConfig
 from shared.models.profiling import ColumnCounts, ColumnProfile, DateColumnProfile
-
-from profiling.aggregates import fetch_aggregate_int_row, safe_ratio
 
 
 @dataclass(frozen=True)
@@ -35,7 +34,7 @@ def compute_date_column_profiles_batch(
         quoted = quote_identifier(entry.column_name)
         nullish = nullish_predicate(quoted, null_tokens)
         if entry.config.date_format == "EXCEL_SERIAL":
-            date_expr = f"(DATE '1899-12-30' + TRY_CAST({quoted} AS INTEGER))"
+            date_expr = f"({EXCEL_SERIAL_DATE_EPOCH_SQL} + TRY_CAST({quoted} AS INTEGER))"
         else:
             fmt = quote_string(entry.config.date_format)
             date_expr = f"TRY_CAST(TRY_STRPTIME({quoted}, {fmt}) AS DATE)"

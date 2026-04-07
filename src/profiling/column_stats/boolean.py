@@ -7,11 +7,10 @@ from dataclasses import dataclass
 from duckdb import DuckDBPyConnection
 
 from shared.constants import RAW_INPUT_TABLE_NAME
+from shared.db.aggregates import fetch_aggregate_int_row, group_int_values, safe_ratio
 from shared.db.sql import normalize_tokens, nullish_predicate, quote_identifier, quote_string
 from shared.models.column import BooleanColumnConfig
 from shared.models.profiling import BooleanColumnProfile, ColumnCounts, ColumnProfile
-
-from profiling.aggregates import fetch_aggregate_int_row, group_int_values, safe_ratio
 
 
 @dataclass(frozen=True)

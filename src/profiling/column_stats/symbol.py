@@ -17,6 +17,7 @@ from typing import TypedDict
 from duckdb import DuckDBPyConnection
 
 from shared.constants import RAW_INPUT_TABLE_NAME
+from shared.db.aggregates import safe_ratio
 from shared.db.sql import nullish_predicate, quote_identifier, quote_string
 from shared.models.column import AccountingColumnConfig, CurrencyColumnConfig
 from shared.models.profiling import (
@@ -30,7 +31,6 @@ from shared.parsing.currency import (
 )
 from shared.parsing.markers import has_marker, strip_marker
 
-from profiling.aggregates import safe_ratio
 from profiling.column_stats.common import DecimalParseStats
 
 

@@ -7,10 +7,9 @@ from dataclasses import dataclass
 from duckdb import DuckDBPyConnection
 
 from shared.constants import RAW_INPUT_TABLE_NAME
+from shared.db.aggregates import fetch_aggregate_int_row, group_int_values
 from shared.db.sql import execute_scalar, nullish_predicate, quote_identifier
 from shared.models.profiling import ColumnCounts
-
-from profiling.aggregates import fetch_aggregate_int_row, group_int_values
 
 
 @dataclass(frozen=True)

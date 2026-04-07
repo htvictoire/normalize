@@ -9,12 +9,11 @@ from typing import Protocol
 from duckdb import DuckDBPyConnection
 
 from shared.constants import RAW_INPUT_TABLE_NAME
+from shared.db.aggregates import fetch_aggregate_int_row, group_int_values, safe_ratio
 from shared.db.sql import nullish_predicate, quote_identifier, quote_string
 from shared.models.column.base import DecimalSyntaxColumnConfig
 from shared.models.profiling import ColumnCounts
 from shared.parsing.numeric import decimal_pattern_regex
-
-from profiling.aggregates import fetch_aggregate_int_row, group_int_values, safe_ratio
 
 
 @dataclass(frozen=True)

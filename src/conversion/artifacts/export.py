@@ -9,7 +9,7 @@ from duckdb import DuckDBPyConnection
 from shared.constants import RAW_INPUT_TABLE_NAME
 from shared.db.sql import quote_identifier, quote_string
 
-from conversion.constants import AUDIT_OUTPUT_COLUMNS, AUDIT_RECORD_COLUMNS
+from conversion.constants import AUDIT_OUTPUT_COLUMNS, AUDIT_RECORD_COLUMNS, PARQUET_COPY_OPTIONS
 
 
 def build_export_columns(data_columns: list[str], assign_indices: bool) -> list[str]:
@@ -34,5 +34,6 @@ def write_normalized_parquet(
         + query
         + ") TO "
         + quote_string(str(normalized_path))
-        + " (FORMAT PARQUET, COMPRESSION ZSTD, ROW_GROUP_SIZE 100000)"
+        + " "
+        + PARQUET_COPY_OPTIONS
     )

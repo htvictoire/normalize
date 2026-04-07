@@ -21,6 +21,7 @@ from conversion.artifacts.manifest import (
     write_manifest,
 )
 from conversion.artifacts.trace import write_trace_parquet
+from conversion.constants import PARSE_ERROR_COUNT_COLUMN
 from conversion.models import TransformResult
 
 
@@ -60,7 +61,7 @@ def stage_artifacts(
     sparse = trace_mode == "sparse"
     trace_pre_filter: str | None = None
     if sparse:
-        trace_pre_filter = "_parse_error_count > 0"
+        trace_pre_filter = f"{PARSE_ERROR_COUNT_COLUMN} > 0"
     write_trace_parquet(
         conn,
         trace_path=trace_path,

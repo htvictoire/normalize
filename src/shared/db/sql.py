@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from typing import cast
 
 from duckdb import DuckDBPyConnection
 
 from shared.constants import RAW_INPUT_TABLE_NAME
+from shared.db.aggregates import fetch_aggregate_int_row, group_int_values
 from shared.models.profiling import ColumnCountResult, ColumnCounts
 
 
@@ -76,14 +76,21 @@ def _build_column_count_query(
 
 
 def _column_counts_from_row(
-    row: Sequence[object],
+    row: Sequence[int],
     position_to_name: Mapping[str, str],
 ) -> ColumnCountResult:
-    row_count = cast(int, row[0])
+    row_count, *per_column_counts = row
     counts: dict[str, ColumnCounts] = {}
-    for index, position_key in enumerate(position_to_name.keys()):
-        null_count = cast(int, row[1 + index * 2])
-        nullish_count = cast(int, row[1 + index * 2 + 1])
+    count_pairs = group_int_values(
+        per_column_counts,
+        group_size=2,
+        expected_groups=len(position_to_name),
+    )
+    for position_key, (null_count, nullish_count) in zip(
+        position_to_name.keys(),
+        count_pairs,
+        strict=True,
+    ):
         counts[position_key] = ColumnCounts(
             null_count=null_count,
             nullish_count=nullish_count,
@@ -106,7 +113,7 @@ def compute_column_counts_from_relation(
         position_to_name,
         null_tokens,
     )
-    row = cast("tuple[object, ...]", conn.execute(query, params).fetchone())
+    row = fetch_aggregate_int_row(conn, query, params)
     return _column_counts_from_row(row, position_to_name)
 
 
@@ -122,4 +129,3 @@ def compute_column_counts(
         position_to_name,
         null_tokens,
     )
-

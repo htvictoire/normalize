@@ -5,7 +5,34 @@ from __future__ import annotations
 from shared.constants import RAW_INPUT_TABLE_NAME
 from shared.db.sql import quote_identifier
 
+from conversion.constants import (
+    CONDITIONAL_ERROR_COUNT_ALIAS,
+    CONDITIONAL_RAW_JSON_ALIAS,
+    PARSE_ERROR_COUNT_COLUMN,
+    PARSE_ISSUES_COLUMN,
+    RAW_ROW_COLUMN,
+    ROW_INDEX_COLUMN,
+    ROWID_PASSTHROUGH_ALIAS,
+)
 from conversion.models import CellPlan, RowPlan
+
+
+def _compose_cte(
+    name: str,
+    select_parts: list[str],
+    source: str,
+    *clauses: str,
+) -> str:
+    select_sql = ",\n        ".join(select_parts)
+    lines = [
+        f"{name} AS (",
+        "    SELECT",
+        f"        {select_sql}",
+        f"    FROM {source}",
+    ]
+    lines.extend(f"    {clause}" for clause in clauses if clause)
+    lines.append(")")
+    return "\n".join(lines)
 
 
 def compose_transform_sql(
@@ -20,8 +47,6 @@ def compose_transform_sql(
       for deterministic gap-free indices after filtering.
     """
 
-    needs_window = row_plan.assign_indices and row_plan.rows_dropped > 0
-    needs_rowid_index = row_plan.assign_indices and row_plan.rows_dropped == 0
     use_parse_cte = bool(cell_plan.parse_cte_exprs)
 
     # WHERE clause for empty row filtering
@@ -31,21 +56,21 @@ def compose_transform_sql(
 
     # When a parse CTE is injected, rowid is only accessible on the base table.
     # Pass it through as __rowid so base can use it for index expressions.
-    rowid_alias = "__rowid"
+    rowid_alias = ROWID_PASSTHROUGH_ALIAS
     rowid_ref = rowid_alias if use_parse_cte else "rowid"
 
     # Base CTE: filter + type cast + issue detection + indices + raw json
     base_parts: list[str] = list(cell_plan.column_select_exprs)
-    if needs_window:
-        base_parts.append(
-            f"(ROW_NUMBER() OVER (ORDER BY {rowid_ref}))::BIGINT AS _row_index"
-        )
-        base_parts.append(
-            f"(ROW_NUMBER() OVER (ORDER BY {rowid_ref}))::BIGINT AS _global_row_index"
-        )
-    elif needs_rowid_index:
-        base_parts.append(f"({rowid_ref} + 1)::BIGINT AS _row_index")
-        base_parts.append(f"({rowid_ref} + 1)::BIGINT AS _global_row_index")
+    outer_order = ""
+    if row_plan.assign_indices:
+        if row_plan.rows_dropped > 0:
+            base_parts.append(
+                f"(ROW_NUMBER() OVER (ORDER BY {rowid_ref}))::BIGINT AS {ROW_INDEX_COLUMN}"
+            )
+            # Outer ORDER BY rowid helps DuckDB optimize the window function sort.
+            outer_order = f"ORDER BY {rowid_ref}"
+        else:
+            base_parts.append(f"({rowid_ref} + 1)::BIGINT AS {ROW_INDEX_COLUMN}")
 
     # Conditional JSON optimization: when full_raw_row=False, compute __error_cnt
     # first (via lateral column alias) and only serialize JSON for rows with errors.
@@ -64,27 +89,28 @@ def compose_transform_sql(
 
     if use_conditional_json:
         # Error count as lateral alias — referenced by conditional __raw_json below
-        base_parts.append(f"({cell_plan.row_error_expr}) AS __error_cnt")
+        base_parts.append(f"({cell_plan.row_error_expr}) AS {CONDITIONAL_ERROR_COUNT_ALIAS}")
         base_parts.append(
-            f"CASE WHEN __error_cnt > 0 THEN {struct_json_expr} ELSE NULL END AS __raw_json"
+            f"CASE WHEN {CONDITIONAL_ERROR_COUNT_ALIAS} > 0 "
+            f"THEN {struct_json_expr} ELSE NULL END AS {CONDITIONAL_RAW_JSON_ALIAS}"
         )
     elif cell_plan.emit_raw_row and cell_plan.raw_source_pairs:
-        base_parts.append(f"{struct_json_expr} AS __raw_json")
+        base_parts.append(f"{struct_json_expr} AS {CONDITIONAL_RAW_JSON_ALIAS}")
 
     # Final projection
     projected: list[str] = [quote_identifier(col) for col in cell_plan.data_columns]
     if row_plan.assign_indices:
-        projected.extend(["_row_index", "_global_row_index"])
+        projected.append(ROW_INDEX_COLUMN)
 
     # Error count expression — reuse __error_cnt when available
     if use_conditional_json:
-        error_count_sql = "__error_cnt::INTEGER"
+        error_count_sql = f"{CONDITIONAL_ERROR_COUNT_ALIAS}::INTEGER"
         # __raw_json is already conditional from the base CTE
-        raw_row_sql = "__raw_json"
+        raw_row_sql = CONDITIONAL_RAW_JSON_ALIAS
         # _parse_issues also conditional on __error_cnt
         if cell_plan.emit_parse_issues and cell_plan.issue_pairs:
             parse_issues_sql = (
-                "CASE WHEN __error_cnt > 0 "
+                f"CASE WHEN {CONDITIONAL_ERROR_COUNT_ALIAS} > 0 "
                 f"THEN TO_JSON(STRUCT_PACK({', '.join(cell_plan.issue_pairs)})) "
                 "ELSE NULL END"
             )
@@ -95,57 +121,47 @@ def compose_transform_sql(
         raw_row_sql = cell_plan.raw_row_expr
         parse_issues_sql = cell_plan.parse_issues_expr
 
-    # Outer ORDER BY rowid helps DuckDB optimize the window function sort
-    outer_order = f"\nORDER BY {rowid_ref}" if needs_window else ""
+    ctes: list[str] = []
+    base_source = RAW_INPUT_TABLE_NAME
+    base_filter_clause = filter_clause
 
     if use_parse_cte:
         # Parse CTE materialises expensive sub-expressions once; base reads from it.
         # rowid is passed through explicitly so index expressions can reference it.
-        parse_intermediate_exprs = [
+        parsed_select_extras = [
             f"{expr} AS {alias}" for alias, expr in cell_plan.parse_cte_exprs
         ]
-        rowid_passthrough = f"rowid AS {rowid_alias}" if row_plan.assign_indices else ""
-        parsed_select_extras = (
-            [rowid_passthrough, *parse_intermediate_exprs]
-            if rowid_passthrough
-            else parse_intermediate_exprs
+        if row_plan.assign_indices:
+            parsed_select_extras.insert(0, f"rowid AS {rowid_alias}")
+        ctes.append(
+            _compose_cte(
+                "parsed",
+                ["*", *parsed_select_extras],
+                RAW_INPUT_TABLE_NAME,
+                filter_clause,
+            )
         )
-        return (
-            f"CREATE OR REPLACE TABLE {RAW_INPUT_TABLE_NAME} AS\n"
-            f"WITH parsed AS (\n"
-            f"    SELECT\n"
-            f"        *,\n"
-            f"        {',\n        '.join(parsed_select_extras)}\n"
-            f"    FROM {RAW_INPUT_TABLE_NAME}\n"
-            f"    {filter_clause}\n"
-            f"),\n"
-            f"base AS (\n"
-            f"    SELECT\n"
-            f"        {',\n        '.join(base_parts)}\n"
-            f"    FROM parsed\n"
-            f"    {outer_order}\n"
-            f")\n"
-            f"SELECT\n"
-            f"    {', '.join(projected)},\n"
-            f"    {error_count_sql} AS _parse_error_count,\n"
-            f"    {raw_row_sql} AS _raw_row,\n"
-            f"    {parse_issues_sql} AS _parse_issues\n"
-            f"FROM base"
+        base_source = "parsed"
+        base_filter_clause = ""
+
+    ctes.append(
+        _compose_cte(
+            "base",
+            base_parts,
+            base_source,
+            base_filter_clause,
+            outer_order,
         )
+    )
+    with_sql = ",\n".join(ctes)
 
     return (
         f"CREATE OR REPLACE TABLE {RAW_INPUT_TABLE_NAME} AS\n"
-        f"WITH base AS (\n"
-        f"    SELECT\n"
-        f"        {',\n        '.join(base_parts)}\n"
-        f"    FROM {RAW_INPUT_TABLE_NAME}\n"
-        f"    {filter_clause}\n"
-        f"    {outer_order}\n"
-        f")\n"
+        f"WITH {with_sql}\n"
         f"SELECT\n"
         f"    {', '.join(projected)},\n"
-        f"    {error_count_sql} AS _parse_error_count,\n"
-        f"    {raw_row_sql} AS _raw_row,\n"
-        f"    {parse_issues_sql} AS _parse_issues\n"
-        f"FROM base"
+        f"    {error_count_sql} AS {PARSE_ERROR_COUNT_COLUMN},\n"
+        f"    {raw_row_sql} AS {RAW_ROW_COLUMN},\n"
+        f"    {parse_issues_sql} AS {PARSE_ISSUES_COLUMN}\n"
+        "FROM base"
     )

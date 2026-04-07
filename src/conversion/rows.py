@@ -5,6 +5,7 @@ from __future__ import annotations
 from duckdb import DuckDBPyConnection
 
 from shared.constants import RAW_INPUT_TABLE_NAME
+from shared.db.aggregates import fetch_aggregate_int_row
 from shared.db.sql import quote_identifier
 
 from conversion.models import RowPlan
@@ -26,11 +27,11 @@ def plan_rows(
     rows_dropped = 0
     if drop_empty_rows:
         filter_predicate = _build_non_empty_predicate(columns)
-        row = conn.execute(
+        rows_before, non_empty = fetch_aggregate_int_row(
+            conn,
             f"SELECT COUNT(*), COUNT(*) FILTER (WHERE {filter_predicate})"
-            f" FROM {RAW_INPUT_TABLE_NAME}"
-        ).fetchone()
-        rows_before, non_empty = row  # type: ignore[misc]
+            f" FROM {RAW_INPUT_TABLE_NAME}",
+        )
         rows_dropped = rows_before - non_empty
 
     return RowPlan(

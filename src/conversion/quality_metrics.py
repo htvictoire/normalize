@@ -8,8 +8,11 @@ from decimal import Decimal
 from duckdb import DuckDBPyConnection
 
 from shared.constants import RAW_INPUT_TABLE_NAME
-from shared.db.sql import execute_scalar, quote_identifier
+from shared.db.aggregates import fetch_aggregate_int_row, safe_ratio
+from shared.db.sql import quote_identifier
 from shared.models.normalization import QualityOutput
+
+from conversion.constants import PARSE_ERROR_COUNT_COLUMN
 
 _HUNDRED = Decimal("100")
 
@@ -54,28 +57,26 @@ def compute_quality(
     # Single-pass: row count + per-column null counts
     null_exprs = [
         f"COUNT(*) FILTER (WHERE {quote_identifier(col)} IS NULL)"
-        f" AS {quote_identifier(col + '__nulls')}"
         for col in columns
     ]
-    null_query = f"SELECT COUNT(*), {', '.join(null_exprs)} FROM {RAW_INPUT_TABLE_NAME}"
-    row = conn.execute(null_query).fetchone()
-
-    row_count = int(row[0])  # type: ignore[index]  # COUNT aggregate always returns 1 row; fetchone() is non-None
-    column_null_counts = {col: int(row[i + 1]) for i, col in enumerate(columns)}  # type: ignore[index]  # same
+    aggregate_exprs = [
+        "COUNT(*)",
+        f"COALESCE(SUM({PARSE_ERROR_COUNT_COLUMN}), 0)",
+        *null_exprs,
+    ]
+    null_query = f"SELECT {', '.join(aggregate_exprs)} FROM {RAW_INPUT_TABLE_NAME}"
+    row = fetch_aggregate_int_row(conn, null_query)
+    row_count, total_parse_error_cells, *column_null_values = row
+    column_null_counts = dict(zip(columns, column_null_values, strict=True))
     total_nullish_cells = sum(column_null_counts.values())
     total_cells = row_count * len(columns)
 
-    total_parse_error_cells = execute_scalar(
-        conn,
-        f"SELECT COALESCE(SUM(_parse_error_count), 0) FROM {RAW_INPUT_TABLE_NAME}",
-    )
-
     total_non_null_cells = total_cells - total_nullish_cells
-    completeness_ratio = 1.0 if total_cells <= 0 else (total_non_null_cells / total_cells)
-    parse_success_ratio = (
-        1.0
-        if total_non_null_cells <= 0
-        else 1.0 - (total_parse_error_cells / total_non_null_cells)
+    completeness_ratio = safe_ratio(total_non_null_cells, total_cells)
+    parse_success_ratio = 1.0 - safe_ratio(
+        total_parse_error_cells,
+        total_non_null_cells,
+        default=0.0,
     )
     quality_score = _compute_quality_score(parse_success_ratio, completeness_ratio)
 

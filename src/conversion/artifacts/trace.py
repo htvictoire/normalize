@@ -12,6 +12,13 @@ from shared.db.sql import (
     quote_string,
 )
 
+from conversion.constants import (
+    PARQUET_COPY_OPTIONS,
+    PARSE_ISSUES_COLUMN,
+    RAW_ROW_COLUMN,
+    ROW_INDEX_COLUMN,
+)
+
 
 def build_trace_query(
     data_columns: list[str],
@@ -42,7 +49,7 @@ def build_trace_query(
             "WHERE FALSE"
         )
 
-    row_index_expr = "_row_index" if has_row_index else "(rowid + 1)::BIGINT"
+    row_index_expr = ROW_INDEX_COLUMN if has_row_index else "(rowid + 1)::BIGINT"
     casted_columns = ", ".join(
         f"CAST({quote_identifier(column_name)} AS VARCHAR) AS {quote_identifier(column_name)}"
         for column_name in data_columns
@@ -50,20 +57,20 @@ def build_trace_query(
     unpivot_columns = ", ".join(quote_identifier(column_name) for column_name in data_columns)
     extra_base_columns = []
     if has_raw_row:
-        extra_base_columns.append("_raw_row")
+        extra_base_columns.append(RAW_ROW_COLUMN)
     if has_parse_issues:
-        extra_base_columns.append("_parse_issues")
-    extra_base_projection = ""
-    extra_unpivot_projection = ""
+        extra_base_columns.append(PARSE_ISSUES_COLUMN)
+    extra_projection = ""
     if extra_base_columns:
-        extra_base_projection = ", " + ", ".join(extra_base_columns)
-        extra_unpivot_projection = ", " + ", ".join(extra_base_columns)
+        extra_projection = ", " + ", ".join(extra_base_columns)
 
     raw_expr = (
-        "JSON_EXTRACT_STRING(_raw_row, '$.' || column_name)" if has_raw_row else "NULL::VARCHAR"
+        f"JSON_EXTRACT_STRING({RAW_ROW_COLUMN}, '$.' || column_name)"
+        if has_raw_row
+        else "NULL::VARCHAR"
     )
     issue_expr = (
-        "JSON_EXTRACT_STRING(_parse_issues, '$.' || column_name)"
+        f"JSON_EXTRACT_STRING({PARSE_ISSUES_COLUMN}, '$.' || column_name)"
         if has_parse_issues
         else "NULL::VARCHAR"
     )
@@ -74,29 +81,26 @@ def build_trace_query(
         conditions = []
         if has_raw_row:
             conditions.append(
-                "JSON_EXTRACT_STRING(_raw_row, '$.' || column_name) "
+                f"JSON_EXTRACT_STRING({RAW_ROW_COLUMN}, '$.' || column_name) "
                 "IS DISTINCT FROM CAST(normalized_value AS VARCHAR)"
             )
         if has_parse_issues:
             conditions.append(
-                "JSON_EXTRACT_STRING(_parse_issues, '$.' || column_name) IS NOT NULL"
+                f"JSON_EXTRACT_STRING({PARSE_ISSUES_COLUMN}, '$.' || column_name) IS NOT NULL"
             )
-        if conditions:
-            sparse_filter = "WHERE " + " OR ".join(conditions)
-        elif not has_raw_row and not has_parse_issues:
-            # No raw/issue data — sparse has nothing to filter on, emit nothing
-            sparse_filter = "WHERE FALSE"
+        # No raw/issue data means sparse has nothing to filter on, so emit nothing.
+        sparse_filter = "WHERE " + " OR ".join(conditions) if conditions else "WHERE FALSE"
 
     base_where = f" WHERE {row_pre_filter}" if row_pre_filter else ""
     return (
         "WITH base AS ("
         "SELECT "
         f"{row_index_expr} AS row_index, "
-        f"{casted_columns}{extra_base_projection} "
+        f"{casted_columns}{extra_projection} "
         f"FROM {RAW_INPUT_TABLE_NAME}{base_where}"
         "), unpivoted AS ("
         "SELECT row_index, column_name, normalized_value"
-        f"{extra_unpivot_projection} "
+        f"{extra_projection} "
         "FROM base "
         f"UNPIVOT INCLUDE NULLS (normalized_value FOR column_name IN ({unpivot_columns}))"
         ") "
@@ -105,7 +109,7 @@ def build_trace_query(
         "column_name, "
         f"{raw_expr} AS raw_value, "
         "normalized_value, "
-        "'type_cast' AS applied_rules, "
+        "'normalization' AS applied_rules, "
         f"{issue_expr} AS issue_codes "
         "FROM unpivoted"
         f" {sparse_filter}"
@@ -136,5 +140,6 @@ def write_trace_parquet(
         + trace_query
         + ") TO "
         + quote_string(str(trace_path))
-        + " (FORMAT PARQUET, COMPRESSION ZSTD, ROW_GROUP_SIZE 100000)"
+        + " "
+        + PARQUET_COPY_OPTIONS
     )

@@ -24,5 +24,5 @@ def build_nullish_predicate(
 def token_in_clause(tokens: Sequence[str]) -> str:
     normalized_tokens = normalize_tokens(tokens)
     if not normalized_tokens:
-        raise ValueError("EMPTY_BOOLEAN_TOKEN_SET")
+        raise ValueError("Boolean column has no true/false tokens configured")
     return ", ".join(quote_string(token) for token in normalized_tokens)

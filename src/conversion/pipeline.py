@@ -43,7 +43,7 @@ def run_conversion(
 
     cell_plan = plan_cells(
         column_config=resolved_column_config,
-        null_tokens=list(operation_config.null_tokens),
+        null_tokens=operation_config.null_tokens,
         columns=raw_columns,
         full_raw_row=operation_config.full_raw_row,
         emit_raw_row=operation_config.emit_raw_row,
