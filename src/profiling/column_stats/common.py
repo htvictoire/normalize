@@ -10,7 +10,7 @@ from duckdb import DuckDBPyConnection
 
 from shared.constants import RAW_INPUT_TABLE_NAME
 from shared.db.sql import nullish_predicate, quote_identifier, quote_string
-from shared.models.column.base import DecimalFamilyColumnConfig
+from shared.models.column.base import DecimalSyntaxColumnConfig
 from shared.models.profiling import ColumnCounts
 from shared.parsing.numeric import decimal_pattern_regex
 
@@ -19,7 +19,7 @@ from profiling.aggregates import fetch_aggregate_int_row, group_int_values, safe
 
 @dataclass(frozen=True)
 class DecimalParseStats:
-    """Parse-match and swapped-separator counts for any decimal-family column."""
+    """Parse-match and swapped-separator counts for any decimal-syntax column."""
 
     parse_match_count: int
     parse_match_ratio: float
@@ -32,13 +32,13 @@ class DecimalParseStats:
 
 
 class DecimalParseBatchEntry(Protocol):
-    """Shared shape for batched decimal-parse profiling inputs."""
+    """Shared shape for batched decimal-syntax parse profiling inputs."""
 
     @property
     def column_name(self) -> str: ...
 
     @property
-    def config(self) -> DecimalFamilyColumnConfig: ...
+    def config(self) -> DecimalSyntaxColumnConfig: ...
 
     @property
     def counts(self) -> ColumnCounts: ...
@@ -49,7 +49,7 @@ class DecimalParseBatchEntry(Protocol):
 
 def parse_match_count_exprs(
     column_name: str,
-    config: DecimalFamilyColumnConfig,
+    config: DecimalSyntaxColumnConfig,
     value_expr: str,
     null_tokens: tuple[str, ...],
 ) -> tuple[str, str]:

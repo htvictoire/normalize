@@ -6,16 +6,15 @@ from duckdb import DuckDBPyConnection
 
 from shared.db.sql import quote_identifier
 from shared.models.column import (
-    AccountingColumnConfig,
     BooleanColumnConfig,
     ColumnConfig,
-    CurrencyColumnConfig,
     DateColumnConfig,
     DecimalColumnConfig,
     IntegerColumnConfig,
     PercentageColumnConfig,
     SignedColumnConfig,
     StringColumnConfig,
+    has_monetary_symbol,
 )
 from shared.models.profiling import ColumnCounts, ColumnProfile
 from shared.parsing.normalizer import build_value_candidate_expr
@@ -28,8 +27,8 @@ from profiling.column_stats.boolean import (
 from profiling.column_stats.common import compute_decimal_parse_stats_batch
 from profiling.column_stats.date import DateBatchEntry, compute_date_column_profiles_batch
 from profiling.column_stats.decimal import (
-    DecimalFamilyBatchEntry,
-    compute_decimal_family_profiles_batch,
+    DecimalStatsBatchEntry,
+    compute_decimal_stats_profiles_batch,
 )
 from profiling.column_stats.integer import IntegerBatchEntry, compute_integer_column_profiles_batch
 from profiling.column_stats.string import StringBatchEntry, compute_string_column_profiles_batch
@@ -58,7 +57,7 @@ def compute_column_profiles(
     boolean_batch: list[BooleanBatchEntry] = []
     date_batch: list[DateBatchEntry] = []
     integer_batch: list[IntegerBatchEntry] = []
-    decimal_family_batch: list[DecimalFamilyBatchEntry] = []
+    decimal_stats_batch: list[DecimalStatsBatchEntry] = []
     symbol_columns: list[SymbolColumnEntry] = []
 
     for col_name in columns:
@@ -76,14 +75,14 @@ def compute_column_profiles(
             value_expr = build_value_candidate_expr(raw_col, config)
             if isinstance(config, IntegerColumnConfig):
                 integer_batch.append(IntegerBatchEntry(col_name, config, counts, value_expr))
+            elif has_monetary_symbol(config):
+                symbol_columns.append(SymbolColumnEntry(col_name, config, counts, value_expr))
             elif isinstance(
                 config, (DecimalColumnConfig, PercentageColumnConfig, SignedColumnConfig)
             ):
-                decimal_family_batch.append(
-                    DecimalFamilyBatchEntry(col_name, config, counts, value_expr)
+                decimal_stats_batch.append(
+                    DecimalStatsBatchEntry(col_name, config, counts, value_expr)
                 )
-            elif isinstance(config, (CurrencyColumnConfig, AccountingColumnConfig)):
-                symbol_columns.append(SymbolColumnEntry(col_name, config, counts, value_expr))
             else:
                 raise TypeError(f"Unsupported column config: {type(config).__name__}")
 
@@ -92,7 +91,7 @@ def compute_column_profiles(
     profiles |= compute_boolean_column_profiles_batch(conn, boolean_batch, null_tokens)
     profiles |= compute_date_column_profiles_batch(conn, date_batch, null_tokens)
     profiles |= compute_integer_column_profiles_batch(conn, integer_batch, null_tokens)
-    profiles |= compute_decimal_family_profiles_batch(conn, decimal_family_batch, null_tokens)
+    profiles |= compute_decimal_stats_profiles_batch(conn, decimal_stats_batch, null_tokens)
 
     symbol_parse_stats = compute_decimal_parse_stats_batch(conn, symbol_columns, null_tokens)
     symbol_metrics = compute_symbol_metrics_batch(conn, symbol_columns, null_tokens)

@@ -10,9 +10,9 @@ from pydantic import Field, TypeAdapter
 from shared.models.base import MainModel
 from shared.models.column.base import (
     ColumnType,
-    DecimalFamilyColumnConfig,
-    NumericColumnConfig,
-    SignedFamilyColumnConfig,
+    DecimalSyntaxColumnConfig,
+    NumericFormattingColumnConfig,
+    SignedNotationColumnConfig,
 )
 
 
@@ -30,37 +30,37 @@ class BooleanColumnConfig(MainModel):
     type: Literal["boolean"] = "boolean"
 
 
-class IntegerColumnConfig(NumericColumnConfig):
+class IntegerColumnConfig(NumericFormattingColumnConfig):
     """Declared integer column configuration."""
 
     type: Literal["integer"] = "integer"
 
 
-class DecimalColumnConfig(DecimalFamilyColumnConfig):
+class DecimalColumnConfig(DecimalSyntaxColumnConfig):
     """Declared decimal column configuration."""
 
     type: Literal["decimal"] = "decimal"
 
 
-class CurrencyColumnConfig(DecimalFamilyColumnConfig):
+class CurrencyColumnConfig(DecimalSyntaxColumnConfig):
     """Declared currency column configuration."""
 
     type: Literal["currency"] = "currency"
 
 
-class PercentageColumnConfig(DecimalFamilyColumnConfig):
+class PercentageColumnConfig(DecimalSyntaxColumnConfig):
     """Declared percentage column configuration."""
 
     type: Literal["percentage"] = "percentage"
 
 
-class SignedColumnConfig(SignedFamilyColumnConfig):
+class SignedColumnConfig(SignedNotationColumnConfig):
     """Declared signed column configuration — numeric values where sign is encoded via markers."""
 
     type: Literal["signed"] = "signed"
 
 
-class AccountingColumnConfig(SignedFamilyColumnConfig):
+class AccountingColumnConfig(SignedNotationColumnConfig):
     """Declared accounting column — currency symbols present alongside sign markers."""
 
     type: Literal["accounting"] = "accounting"

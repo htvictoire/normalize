@@ -1,4 +1,4 @@
-"""Column config base classes and shared type aliases."""
+"""Column config capability bases and shared scalar type aliases."""
 
 from __future__ import annotations
 
@@ -13,22 +13,22 @@ ColumnType = Literal[
 GroupingStyle = Literal["western", "indian"]
 
 
-class NumericColumnConfig(MainModel):
-    """Base for all numeric config types: carries thousand separator and grouping style."""
+class NumericFormattingColumnConfig(MainModel):
+    """Capability base for configs with numeric grouping/formatting settings."""
 
     thousand_separator: str
     grouping_style: GroupingStyle
 
 
-class DecimalFamilyColumnConfig(NumericColumnConfig):
-    """Base for decimal-family config types: adds decimal separator fields."""
+class DecimalSyntaxColumnConfig(NumericFormattingColumnConfig):
+    """Capability base for configs with decimal separator syntax settings."""
 
     decimal_separator: str
     allow_leading_decimal_point: bool
 
 
-class SignedFamilyColumnConfig(DecimalFamilyColumnConfig):
-    """Base for sign-aware config types: adds sign marker fields."""
+class SignedNotationColumnConfig(DecimalSyntaxColumnConfig):
+    """Capability base for configs with explicit sign marker notation."""
 
     positive_markers: tuple[str, ...]
     negative_markers: tuple[str, ...]

@@ -21,7 +21,6 @@ from shared.models.profiling.profiles import (
     PercentageColumnProfile,
     SignedColumnProfile,
     StringColumnProfile,
-    decimal_stats_profile_class_for_config,
     profile_class_for_config,
 )
 
@@ -47,6 +46,5 @@ __all__ = [
     "SignedColumnProfile",
     "StringColumnProfile",
     "SymbolDistributionProfile",
-    "decimal_stats_profile_class_for_config",
     "profile_class_for_config",
 ]

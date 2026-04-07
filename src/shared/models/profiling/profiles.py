@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Annotated, Literal, cast, overload
+from typing import Annotated, Literal, overload
 
 from pydantic import Field
 
@@ -92,18 +92,6 @@ type ColumnProfileClass = (
     | type[DateColumnProfile]
 )
 
-type DecimalLeafProfileClass = (
-    type[DecimalColumnProfile]
-    | type[PercentageColumnProfile]
-    | type[SignedColumnProfile]
-)
-
-type DecimalStatsColumnConfig = (
-    DecimalColumnConfig
-    | PercentageColumnConfig
-    | SignedColumnConfig
-)
-
 _PROFILE_CLASS_BY_CONFIG: dict[type[object], ColumnProfileClass] = {
     StringColumnConfig: StringColumnProfile,
     BooleanColumnConfig: BooleanColumnProfile,
@@ -156,14 +144,6 @@ def profile_class_for_config(config: DateColumnConfig) -> type[DateColumnProfile
 def profile_class_for_config(config: ColumnConfig) -> ColumnProfileClass:
     """Return the concrete profiling model class for one declared column config."""
     return _PROFILE_CLASS_BY_CONFIG[type(config)]
-
-
-def decimal_stats_profile_class_for_config(
-    config: DecimalStatsColumnConfig,
-) -> DecimalLeafProfileClass:
-    """Return the decimal-style profile class for decimal/percentage/signed configs."""
-    profile_cls = _PROFILE_CLASS_BY_CONFIG[type(config)]
-    return cast("DecimalLeafProfileClass", profile_cls)
 
 
 ColumnProfile = Annotated[

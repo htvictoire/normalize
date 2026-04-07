@@ -30,7 +30,7 @@ class ParseMatchProfile(MainModel):
 
 
 class SeparatorMismatchProfile(ParseMatchProfile):
-    """Base for decimal-family profiles that also detect separator swap."""
+    """Base for decimal-style profiles that also detect separator swap."""
 
     swapped_match_count: int
     swapped_match_ratio: float
@@ -42,7 +42,7 @@ class DecimalStatsProfile(SeparatorMismatchProfile):
 
 
 class SymbolDistributionProfile(MainModel):
-    """Base for currency-family profiles that track currency symbol distribution."""
+    """Base for monetary profiles that track currency symbol distribution."""
 
     symbol_distribution: dict[str, int]
     symbol_detected_count: int

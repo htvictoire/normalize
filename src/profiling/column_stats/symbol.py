@@ -1,4 +1,4 @@
-"""Symbol-family profiling stats — currency and accounting types.
+"""Monetary symbol profiling stats for currency and accounting types.
 
 Currency and accounting metrics are computed via one shared grouped query across
 all symbol-bearing columns. We keep that mixed query because splitting the work
@@ -432,6 +432,8 @@ def compute_symbol_column_profile(
 ) -> CurrencyColumnProfile | AccountingColumnProfile:
     """Combine batched monetary metrics and parse stats for one symbol-bearing column."""
     coverage = _build_symbol_coverage_stats(counts, metrics)
+    # Config remains the authoritative semantic type. Metrics are derived from the
+    # mixed batch query and are only cross-checked here to catch impossible mismatches.
     if isinstance(config, CurrencyColumnConfig):
         if not isinstance(metrics, CurrencyColumnMetrics):
             raise TypeError("Currency columns require CurrencyColumnMetrics")

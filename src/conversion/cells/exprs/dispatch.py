@@ -6,7 +6,7 @@ from shared.models.column import (
     BooleanColumnConfig,
     ColumnConfig,
     DateColumnConfig,
-    DecimalFamilyColumnConfig,
+    DecimalSyntaxColumnConfig,
     IntegerColumnConfig,
     StringColumnConfig,
 )
@@ -63,10 +63,10 @@ def build_column_exprs(
             issue_label=issue_label,
         )
 
-    # Decimal-family: preprocess via the shared normalizer, then build decimal exprs.
+    # Decimal-syntax types: preprocess via the shared normalizer, then build decimal exprs.
     candidate = build_value_candidate_expr(raw_value, config)
 
-    if isinstance(config, DecimalFamilyColumnConfig):
+    if isinstance(config, DecimalSyntaxColumnConfig):
         return build_decimal_exprs(
             column_name,
             nullish_predicate,
