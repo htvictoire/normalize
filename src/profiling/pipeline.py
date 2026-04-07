@@ -10,8 +10,8 @@ from __future__ import annotations
 
 from duckdb import DuckDBPyConnection
 
-from shared.db.column_index import build_position_to_name
-from shared.db.sql import read_columns
+from shared.db.column_index import resolve_column_config_by_canonical
+from shared.db.sql import normalize_tokens, read_columns
 from shared.ingestion import IngestionRequest, IngestionSetup, run_ingestion
 from shared.ingestion.canonicalization import canonicalize_table_headers
 from shared.models.instance_config import InstanceConfig
@@ -39,18 +39,22 @@ def run_profiling(
 
     canonicalize_table_headers(conn)
     canonical_columns = read_columns(conn)
-    position_to_name = build_position_to_name(canonical_columns)
+    null_tokens = normalize_tokens(confirmed_config.operation_config.null_tokens)
+    column_config = resolve_column_config_by_canonical(
+        canonical_columns, confirmed_config.column_config
+    )
+
     profiling_stats = compute_profiling_stats(
         conn=conn,
-        position_to_name=position_to_name,
-        null_tokens=confirmed_config.operation_config.null_tokens,
+        columns=canonical_columns,
+        null_tokens=null_tokens,
     )
     profile_results = compute_profile_results(
         conn=conn,
-        position_to_name=position_to_name,
-        column_config=confirmed_config.column_config,
-        null_tokens=confirmed_config.operation_config.null_tokens,
-        counts_by_position=profiling_stats.column_counts,
+        columns=canonical_columns,
+        column_config=column_config,
+        null_tokens=null_tokens,
+        counts_by_name=profiling_stats.column_counts,
         row_count=profiling_stats.row_count,
     )
     return ProfilingOutput(

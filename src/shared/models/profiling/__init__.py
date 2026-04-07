@@ -1,6 +1,10 @@
 from shared.models.profiling.base import (
+    AccountingSignProfile,
     ColumnCountResult,
     ColumnCounts,
+    CurrencyFormatProfile,
+    DecimalStatsProfile,
+    MonetaryProfile,
     ParseMatchProfile,
     SeparatorMismatchProfile,
     SymbolDistributionProfile,
@@ -17,19 +21,25 @@ from shared.models.profiling.profiles import (
     PercentageColumnProfile,
     SignedColumnProfile,
     StringColumnProfile,
+    decimal_stats_profile_class_for_config,
+    profile_class_for_config,
 )
 
 __all__ = [
     "AccountingColumnProfile",
+    "AccountingSignProfile",
     "BooleanColumnProfile",
     "ColumnCountResult",
     "ColumnCounts",
     "ColumnProfile",
     "ColumnProfileStats",
     "CurrencyColumnProfile",
+    "CurrencyFormatProfile",
     "DateColumnProfile",
     "DecimalColumnProfile",
+    "DecimalStatsProfile",
     "IntegerColumnProfile",
+    "MonetaryProfile",
     "ParseMatchProfile",
     "PercentageColumnProfile",
     "ProfilingOutput",
@@ -37,4 +47,6 @@ __all__ = [
     "SignedColumnProfile",
     "StringColumnProfile",
     "SymbolDistributionProfile",
+    "decimal_stats_profile_class_for_config",
+    "profile_class_for_config",
 ]

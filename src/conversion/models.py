@@ -45,7 +45,7 @@ class CellPlan:
 
 @dataclass(frozen=True)
 class TransformResult:
-    """Output of the conversion computation — quality metrics and the plans that shaped the transform."""
+    """Output of the conversion computation."""
 
     quality_output: QualityOutput
     cell_plan: CellPlan

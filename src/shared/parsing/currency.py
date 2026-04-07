@@ -80,11 +80,11 @@ def build_currency_symbol_extract_expr(value_expr: str) -> str:
     token_pattern = CURRENCY_TOKEN_PATTERN_LOWER
     prefix_extract = (
         f"REGEXP_EXTRACT({lowered}, "
-        f"{quote_string(rf'^[+-]?\\s*({token_pattern})\\s*.+$')}, 1)"
+        f"{quote_string(rf'^[+-]?\s*({token_pattern})\s*.+$')}, 1)"
     )
     suffix_extract = (
         f"REGEXP_EXTRACT({lowered}, "
-        f"{quote_string(rf'^.+\\s*({token_pattern})$')}, 1)"
+        f"{quote_string(rf'^.+\s*({token_pattern})$')}, 1)"
     )
     symbol_candidate = (
         f"COALESCE(NULLIF({prefix_extract}, ''), NULLIF({suffix_extract}, ''))"

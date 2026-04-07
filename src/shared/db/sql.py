@@ -37,10 +37,15 @@ def read_columns(conn: DuckDBPyConnection) -> list[str]:
     return read_relation_columns(conn, RAW_INPUT_TABLE_NAME)
 
 
+def normalize_tokens(tokens: Sequence[str]) -> tuple[str, ...]:
+    """Return sorted, deduplicated, stripped, lower-cased tokens."""
+    return tuple(sorted({token.strip().lower() for token in tokens if token.strip()}))
+
+
 def nullish_predicate(value_expr: str, null_tokens: tuple[str, ...]) -> str:
     """Build a SQL boolean expression that is true for structural and semantic nulls."""
     base = f"NULLIF(TRIM(CAST({value_expr} AS VARCHAR)), '')"
-    normalized = sorted({t.strip().lower() for t in null_tokens if t.strip()})
+    normalized = normalize_tokens(null_tokens)
     if not normalized:
         return f"{base} IS NULL"
     in_clause = ", ".join(quote_string(t) for t in normalized)
@@ -117,5 +122,4 @@ def compute_column_counts(
         position_to_name,
         null_tokens,
     )
-
 

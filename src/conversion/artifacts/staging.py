@@ -10,7 +10,6 @@ from duckdb import DuckDBPyConnection
 
 from shared.db.duckdb import get_duckdb_version
 from shared.models.issues import NormalizationIssue
-from shared.models.normalization import QualityOutput
 from shared.models.operation import TraceMode
 
 from conversion.artifacts.export import (

@@ -20,26 +20,20 @@ def collect_column_issues(
     config: ColumnConfig,
     profile: ColumnProfile,
     numeric_threshold: float,
-) -> tuple[list[NormalizationIssue], float | None]:
-    """Return issues detected from the column profile and the dominant symbol ratio if applicable.
-
-    The float return is the dominant_symbol_ratio for symbol-bearing columns, or None otherwise.
-    Callers accumulate this ratio separately to compute the aggregate pattern_consistency_ratio.
-    """
+) -> list[NormalizationIssue]:
+    """Return issues detected from the column profile."""
     issues: list[NormalizationIssue] = []
-    dominant_symbol_ratio: float | None = None
 
-    if isinstance(profile, SymbolDistributionProfile):
-        dominant_symbol_ratio = profile.dominant_symbol_ratio
-        if profile.has_mixed_symbols:
-            issues.append(
-                build_mixed_currency_issue(
-                    column_name=column_name,
-                    symbols=sorted(profile.symbol_distribution.keys()),
-                    dominant_symbol=profile.dominant_symbol,
-                    dominant_symbol_ratio=profile.dominant_symbol_ratio,
-                )
+    if isinstance(profile, SymbolDistributionProfile) and profile.has_mixed_symbols:
+        issues.append(
+            build_mixed_currency_issue(
+                column_name=column_name,
+                symbols=sorted(profile.symbol_distribution.keys()),
+                symbol_detected_ratio=profile.symbol_detected_ratio,
+                dominant_symbol=profile.dominant_symbol,
+                dominant_symbol_ratio=profile.dominant_symbol_ratio,
             )
+        )
 
     if (
         isinstance(profile, SeparatorMismatchProfile)
@@ -58,12 +52,13 @@ def collect_column_issues(
             )
         )
 
-    return issues, dominant_symbol_ratio
+    return issues
 
 
 def build_mixed_currency_issue(
     column_name: str,
     symbols: list[str],
+    symbol_detected_ratio: float,
     dominant_symbol: str | None,
     dominant_symbol_ratio: float,
 ) -> NormalizationIssue:
@@ -74,6 +69,7 @@ def build_mixed_currency_issue(
         location=column_name,
         evidence={
             "symbols": symbols,
+            "symbol_detected_ratio": symbol_detected_ratio,
             "dominant_symbol": dominant_symbol,
             "dominant_symbol_ratio": dominant_symbol_ratio,
         },

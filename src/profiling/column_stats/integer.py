@@ -2,39 +2,56 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 from duckdb import DuckDBPyConnection
 
 from shared.constants import RAW_INPUT_TABLE_NAME
-from shared.db.sql import execute_scalar, nullish_predicate, quote_identifier, quote_string
+from shared.db.sql import nullish_predicate, quote_identifier, quote_string
 from shared.models.column import IntegerColumnConfig
-from shared.models.profiling import ColumnCounts, IntegerColumnProfile
+from shared.models.profiling import ColumnCounts, ColumnProfile, IntegerColumnProfile
 from shared.parsing.numeric import integer_pattern_regex
 
+from profiling.aggregates import fetch_aggregate_int_row, safe_ratio
 
-def compute_integer_column_profile(
+
+@dataclass(frozen=True)
+class IntegerBatchEntry:
+    column_name: str
+    config: IntegerColumnConfig
+    counts: ColumnCounts
+    value_expr: str
+
+
+def compute_integer_column_profiles_batch(
     conn: DuckDBPyConnection,
-    column_name: str,
-    config: IntegerColumnConfig,
+    batch: list[IntegerBatchEntry],
     null_tokens: tuple[str, ...],
-    counts: ColumnCounts,
-    normalized_value_expr: str,
-) -> IntegerColumnProfile:
-    """Count values that match the declared integer format."""
-    quoted = quote_identifier(column_name)
-    nullish = nullish_predicate(quoted, null_tokens)
-    non_nullish = counts.non_nullish_count
+) -> dict[str, ColumnProfile]:
+    """Count integer-pattern matches for all columns in a single table scan."""
+    if not batch:
+        return {}
 
-    pattern = integer_pattern_regex(
-        thousand_separator=config.thousand_separator,
-        grouping_style=config.grouping_style,
-    )
-    parse_match_count = execute_scalar(
-        conn,
-        f"SELECT COUNT(*) FROM {RAW_INPUT_TABLE_NAME} WHERE NOT ({nullish}) "
-        f"AND REGEXP_FULL_MATCH({normalized_value_expr}, {quote_string(pattern)})",
-    )
-    parse_match_ratio = 1.0 if non_nullish <= 0 else (parse_match_count / non_nullish)
-    return IntegerColumnProfile(
-        parse_match_count=parse_match_count,
-        parse_match_ratio=parse_match_ratio,
-    )
+    exprs: list[str] = []
+    for entry in batch:
+        quoted = quote_identifier(entry.column_name)
+        nullish = nullish_predicate(quoted, null_tokens)
+        pattern = integer_pattern_regex(
+            thousand_separator=entry.config.thousand_separator,
+            grouping_style=entry.config.grouping_style,
+        )
+        exprs.append(
+            f"COUNT(*) FILTER (WHERE NOT ({nullish})"
+            f" AND REGEXP_FULL_MATCH({entry.value_expr}, {quote_string(pattern)}))"
+        )
+
+    row = fetch_aggregate_int_row(conn, f"SELECT {', '.join(exprs)} FROM {RAW_INPUT_TABLE_NAME}")
+
+    profiles: dict[str, ColumnProfile] = {}
+    for entry, parse_match_count in zip(batch, row, strict=True):
+        non_nullish = entry.counts.non_nullish_count
+        profiles[entry.column_name] = IntegerColumnProfile(
+            parse_match_count=parse_match_count,
+            parse_match_ratio=safe_ratio(parse_match_count, non_nullish),
+        )
+    return profiles

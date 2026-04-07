@@ -37,10 +37,51 @@ class SeparatorMismatchProfile(ParseMatchProfile):
     separator_mismatch_detected: bool
 
 
+class DecimalStatsProfile(SeparatorMismatchProfile):
+    """Base for decimal/percentage/signed profiles with identical parse stats."""
+
+
 class SymbolDistributionProfile(MainModel):
     """Base for currency-family profiles that track currency symbol distribution."""
 
     symbol_distribution: dict[str, int]
+    symbol_detected_count: int
+    symbol_detected_ratio: float
+    missing_symbol_count: int
+    missing_symbol_ratio: float
     dominant_symbol: str | None
     dominant_symbol_ratio: float
     has_mixed_symbols: bool
+
+
+class MonetaryProfile(SymbolDistributionProfile, SeparatorMismatchProfile):
+    """Base for monetary profiles that share symbol coverage and parse stats."""
+
+
+class CurrencyFormatProfile(MainModel):
+    """Base for currency profiles that track monetary token formatting consistency."""
+
+    symbol_position_distribution: dict[str, int]
+    dominant_symbol_position: str | None
+    dominant_symbol_position_ratio: float
+    has_mixed_symbol_positions: bool
+    currency_token_form_distribution: dict[str, int]
+    dominant_currency_token_form: str | None
+    dominant_currency_token_form_ratio: float
+    has_mixed_currency_token_forms: bool
+
+
+class AccountingSignProfile(MainModel):
+    """Base for accounting profiles that track sign-notation behavior."""
+
+    sign_notation_distribution: dict[str, int]
+    dominant_sign_notation: str | None
+    dominant_sign_notation_ratio: float
+    has_mixed_sign_notations: bool
+    negative_marker_distribution: dict[str, int]
+    positive_marker_distribution: dict[str, int]
+    parentheses_negative_count: int
+    leading_sign_count: int
+    trailing_sign_count: int
+    explicit_sign_count: int
+    unsigned_non_nullish_count: int

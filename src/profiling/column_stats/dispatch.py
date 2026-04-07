@@ -1,4 +1,4 @@
-"""Single-entry dispatch from ColumnConfig to its column profile."""
+"""Batch dispatch from column configs to column profiles."""
 
 from __future__ import annotations
 
@@ -20,106 +20,88 @@ from shared.models.column import (
 from shared.models.profiling import ColumnCounts, ColumnProfile
 from shared.parsing.normalizer import build_value_candidate_expr
 
-from profiling.column_stats.accounting import compute_accounting_column_profile
-from profiling.column_stats.boolean import compute_boolean_column_profile
-from profiling.column_stats.currency import compute_currency_column_profile
-from profiling.column_stats.date import compute_date_column_profile
-from profiling.column_stats.decimal import (
-    compute_decimal_column_profile,
-    compute_percentage_column_profile,
-    compute_signed_column_profile,
+from profiling.column_stats.boolean import (
+    BooleanBatchEntry,
+    compute_boolean_column_profiles_batch,
+    make_boolean_batch_entry,
 )
-from profiling.column_stats.integer import compute_integer_column_profile
-from profiling.column_stats.string import compute_string_column_profile
+from profiling.column_stats.common import compute_decimal_parse_stats_batch
+from profiling.column_stats.date import DateBatchEntry, compute_date_column_profiles_batch
+from profiling.column_stats.decimal import (
+    DecimalFamilyBatchEntry,
+    compute_decimal_family_profiles_batch,
+)
+from profiling.column_stats.integer import IntegerBatchEntry, compute_integer_column_profiles_batch
+from profiling.column_stats.string import StringBatchEntry, compute_string_column_profiles_batch
+from profiling.column_stats.symbol import (
+    SymbolColumnEntry,
+    compute_symbol_column_profile,
+    compute_symbol_metrics_batch,
+)
 
 
-def compute_column_profile(  # noqa: PLR0911 - acceptable complexity for a single dispatch function
+def compute_column_profiles(
     conn: DuckDBPyConnection,
-    column_name: str,
-    config: ColumnConfig,
+    columns: list[str],
+    column_config: dict[str, ColumnConfig],
     null_tokens: tuple[str, ...],
-    counts: ColumnCounts,
-) -> ColumnProfile:
-    """Dispatch to the correct per-type profiler and return the column profile."""
-    # Types that need no value preprocessing — return before building the candidate expr.
-    if isinstance(config, StringColumnConfig):
-        return compute_string_column_profile(
-            conn, column_name=column_name, null_tokens=null_tokens, counts=counts
-        )
-    if isinstance(config, BooleanColumnConfig):
-        return compute_boolean_column_profile(
-            conn,
-            column_name=column_name,
-            true_tokens=config.true_tokens,
-            false_tokens=config.false_tokens,
-            null_tokens=null_tokens,
-            counts=counts,
-        )
-    if isinstance(config, DateColumnConfig):
-        return compute_date_column_profile(
-            conn,
-            column_name=column_name,
-            date_format=config.date_format,
-            null_tokens=null_tokens,
-            counts=counts,
+    counts_by_name: dict[str, ColumnCounts],
+) -> dict[str, ColumnProfile]:
+    """Compute profiles for all columns, grouping same-type columns into batched queries.
+
+    Currency and accounting columns use one scan for parse stats and one grouped query
+    for monetary formatting metrics across all symbol-bearing columns. We keep one
+    mixed symbol-metrics batch even though currency and accounting now have
+    separate metric types, because splitting them would add another grouped scan.
+    """
+    string_batch: list[StringBatchEntry] = []
+    boolean_batch: list[BooleanBatchEntry] = []
+    date_batch: list[DateBatchEntry] = []
+    integer_batch: list[IntegerBatchEntry] = []
+    decimal_family_batch: list[DecimalFamilyBatchEntry] = []
+    symbol_columns: list[SymbolColumnEntry] = []
+
+    for col_name in columns:
+        config = column_config[col_name]
+        counts = counts_by_name[col_name]
+
+        if isinstance(config, StringColumnConfig):
+            string_batch.append(StringBatchEntry(col_name, counts))
+        elif isinstance(config, BooleanColumnConfig):
+            boolean_batch.append(make_boolean_batch_entry(col_name, config, counts))
+        elif isinstance(config, DateColumnConfig):
+            date_batch.append(DateBatchEntry(col_name, config, counts))
+        else:
+            raw_col = f"TRIM(CAST({quote_identifier(col_name)} AS VARCHAR))"
+            value_expr = build_value_candidate_expr(raw_col, config)
+            if isinstance(config, IntegerColumnConfig):
+                integer_batch.append(IntegerBatchEntry(col_name, config, counts, value_expr))
+            elif isinstance(
+                config, (DecimalColumnConfig, PercentageColumnConfig, SignedColumnConfig)
+            ):
+                decimal_family_batch.append(
+                    DecimalFamilyBatchEntry(col_name, config, counts, value_expr)
+                )
+            elif isinstance(config, (CurrencyColumnConfig, AccountingColumnConfig)):
+                symbol_columns.append(SymbolColumnEntry(col_name, config, counts, value_expr))
+            else:
+                raise TypeError(f"Unsupported column config: {type(config).__name__}")
+
+    profiles: dict[str, ColumnProfile] = {}
+    profiles |= compute_string_column_profiles_batch(conn, string_batch, null_tokens)
+    profiles |= compute_boolean_column_profiles_batch(conn, boolean_batch, null_tokens)
+    profiles |= compute_date_column_profiles_batch(conn, date_batch, null_tokens)
+    profiles |= compute_integer_column_profiles_batch(conn, integer_batch, null_tokens)
+    profiles |= compute_decimal_family_profiles_batch(conn, decimal_family_batch, null_tokens)
+
+    symbol_parse_stats = compute_decimal_parse_stats_batch(conn, symbol_columns, null_tokens)
+    symbol_metrics = compute_symbol_metrics_batch(conn, symbol_columns, null_tokens)
+    for entry in symbol_columns:
+        profiles[entry.column_name] = compute_symbol_column_profile(
+            entry.config,
+            entry.counts,
+            symbol_parse_stats[entry.column_name],
+            symbol_metrics[entry.column_name],
         )
 
-    # All remaining types are numeric — build the preprocessed value expression once.
-    raw_col = f"TRIM(CAST({quote_identifier(column_name)} AS VARCHAR))"
-    candidate = build_value_candidate_expr(raw_col, config)
-
-    if isinstance(config, IntegerColumnConfig):
-        return compute_integer_column_profile(
-            conn,
-            column_name=column_name,
-            config=config,
-            null_tokens=null_tokens,
-            counts=counts,
-            normalized_value_expr=candidate,
-        )
-    if isinstance(config, DecimalColumnConfig):
-        return compute_decimal_column_profile(
-            conn,
-            column_name=column_name,
-            config=config,
-            null_tokens=null_tokens,
-            counts=counts,
-            normalized_value_expr=candidate,
-        )
-    if isinstance(config, PercentageColumnConfig):
-        return compute_percentage_column_profile(
-            conn,
-            column_name=column_name,
-            config=config,
-            null_tokens=null_tokens,
-            counts=counts,
-            normalized_value_expr=candidate,
-        )
-    if isinstance(config, SignedColumnConfig):
-        return compute_signed_column_profile(
-            conn,
-            column_name=column_name,
-            config=config,
-            null_tokens=null_tokens,
-            counts=counts,
-            normalized_value_expr=candidate,
-        )
-    if isinstance(config, CurrencyColumnConfig):
-        return compute_currency_column_profile(
-            conn,
-            column_name=column_name,
-            config=config,
-            null_tokens=null_tokens,
-            counts=counts,
-            normalized_value_expr=candidate,
-        )
-    if isinstance(config, AccountingColumnConfig):
-        return compute_accounting_column_profile(
-            conn,
-            column_name=column_name,
-            config=config,
-            null_tokens=null_tokens,
-            counts=counts,
-            normalized_value_expr=candidate,
-        )
-    raise TypeError(f"Unsupported column config: {type(config).__name__}")
+    return profiles
