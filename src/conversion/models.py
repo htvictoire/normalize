@@ -18,7 +18,7 @@ class RowPlan:
 
 @dataclass(frozen=True)
 class CellPlan:
-    """SQL fragments produced by cell normalization planning."""
+    """Structural SQL components produced by cell normalization planning."""
 
     data_columns: tuple[str, ...]
     # (alias, expr) pairs for the pre-parse CTE — materialised once per row
@@ -32,12 +32,6 @@ class CellPlan:
     raw_source_pairs: tuple[str, ...]
     # Pairs for TO_JSON(STRUCT_PACK(...)) capturing issue codes
     issue_pairs: tuple[str, ...]
-    # Expression summing per-column error indicators
-    row_error_expr: str
-    # Final _raw_row expression (may be conditional on _parse_error_count)
-    raw_row_expr: str
-    # Final _parse_issues expression (may be conditional on _parse_error_count)
-    parse_issues_expr: str
     emit_raw_row: bool
     full_raw_row: bool
     emit_parse_issues: bool

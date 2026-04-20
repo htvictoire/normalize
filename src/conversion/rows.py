@@ -43,7 +43,7 @@ def plan_rows(
 
 def _build_non_empty_predicate(columns: list[str]) -> str:
     if not columns:
-        return "FALSE"
+        raise ValueError("Row planning requires at least one data column")
     checks = [f"LENGTH({_stripped_value_expr(col)}) > 0" for col in columns]
     return " OR ".join(checks)
 

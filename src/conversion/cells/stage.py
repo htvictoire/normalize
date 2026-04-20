@@ -15,7 +15,6 @@ from conversion.cells.naming import (
     parse_nullish_alias,
     parse_raw_alias,
 )
-from conversion.constants import CONDITIONAL_RAW_JSON_ALIAS, PARSE_ERROR_COUNT_COLUMN
 from conversion.models import CellPlan
 
 
@@ -37,7 +36,6 @@ def plan_cells(
     base_exprs: list[str] = []
     raw_source_pairs: list[str] = []
     issue_pairs: list[str] = []
-    row_error_terms: list[str] = []
 
     for column_name in data_columns:
         spec = column_config[column_name]
@@ -62,36 +60,14 @@ def plan_cells(
         issue_col = issue_alias(column_name)
         base_exprs.append(f"{col_exprs.normalized_expr} AS {quote_identifier(column_name)}")
         base_exprs.append(f"{col_exprs.issue_expr} AS {quote_identifier(issue_col)}")
-        row_error_terms.append(f"CASE WHEN {quote_identifier(issue_col)} IS NULL THEN 0 ELSE 1 END")
 
         if emit_raw_row:
             raw_source_pairs.append(
                 f"{quote_identifier(column_name)} := "
-                f"CAST({quote_identifier(column_name)} AS VARCHAR)"
+                f"CAST({raw_alias} AS VARCHAR)"
             )
         if emit_parse_issues:
             issue_pairs.append(f"{quote_identifier(column_name)} := {quote_identifier(issue_col)}")
-
-    row_error_expr = "0" if not row_error_terms else " + ".join(row_error_terms)
-
-    if emit_raw_row:
-        raw_row_expr = (
-            CONDITIONAL_RAW_JSON_ALIAS if full_raw_row
-            else (
-                f"CASE WHEN {PARSE_ERROR_COUNT_COLUMN} = 0 THEN NULL "
-                f"ELSE {CONDITIONAL_RAW_JSON_ALIAS} END"
-            )
-        )
-    else:
-        raw_row_expr = "NULL::VARCHAR"
-
-    if emit_parse_issues and issue_pairs:
-        parse_issues_expr = (
-            f"CASE WHEN {PARSE_ERROR_COUNT_COLUMN} = 0 THEN NULL "
-            f"ELSE TO_JSON(STRUCT_PACK({', '.join(issue_pairs)})) END"
-        )
-    else:
-        parse_issues_expr = "NULL::VARCHAR"
 
     return CellPlan(
         data_columns=tuple(data_columns),
@@ -99,9 +75,6 @@ def plan_cells(
         column_select_exprs=tuple(base_exprs),
         raw_source_pairs=tuple(raw_source_pairs),
         issue_pairs=tuple(issue_pairs),
-        row_error_expr=row_error_expr,
-        raw_row_expr=raw_row_expr,
-        parse_issues_expr=parse_issues_expr,
         emit_raw_row=emit_raw_row,
         full_raw_row=full_raw_row,
         emit_parse_issues=emit_parse_issues,

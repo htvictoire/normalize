@@ -24,15 +24,23 @@ class LocalArtifactPublisher:
 
     @contextmanager
     def staging_root(self) -> Iterator[Path]:
-        target_root = self.output_root / self.run_id
-        target_root.mkdir(parents=True, exist_ok=True)
-        yield target_root
+        self.output_root.mkdir(parents=True, exist_ok=True)
+        with TemporaryDirectory(
+            dir=self.output_root,
+            prefix=f".{self.run_id}.staging-",
+        ) as temp_dir:
+            yield Path(temp_dir)
 
     def publish(self, staged: StagedArtifacts) -> ArtifactPaths:
+        target_root = self.output_root / self.run_id
+        target_root.mkdir(parents=True, exist_ok=True)
+        normalized_path = _promote_local_file(staged.normalized_path, target_root)
+        manifest_path = _promote_local_file(staged.manifest_path, target_root)
+        trace_path = _promote_local_file(staged.trace_path, target_root)
         return ArtifactPaths(
-            normalized_parquet=str(staged.normalized_path),
-            manifest_json=str(staged.manifest_path),
-            trace_parquet=str(staged.trace_path),
+            normalized_parquet=str(normalized_path),
+            manifest_json=str(manifest_path),
+            trace_parquet=str(trace_path),
         )
 
 
@@ -54,9 +62,10 @@ class S3ArtifactPublisher:
         manifest_key = _join_s3_key(prefix, staged.manifest_path.name)
         trace_key = _join_s3_key(prefix, staged.trace_path.name)
 
+        # Publish the manifest last so its presence is the marker that the run is complete.
         upload_s3_file(staged.normalized_path, s3_ref(normalized_key))
-        upload_s3_file(staged.manifest_path, s3_ref(manifest_key))
         upload_s3_file(staged.trace_path, s3_ref(trace_key))
+        upload_s3_file(staged.manifest_path, s3_ref(manifest_key))
 
         return ArtifactPaths(
             normalized_parquet=normalized_key,
@@ -89,3 +98,9 @@ def _join_s3_key(prefix: str, leaf: str) -> str:
     if not prefix:
         return leaf
     return f"{prefix}/{leaf}"
+
+
+def _promote_local_file(staged_path: Path, target_root: Path) -> Path:
+    target_path = target_root / staged_path.name
+    staged_path.replace(target_path)
+    return target_path

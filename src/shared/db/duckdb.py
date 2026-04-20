@@ -75,7 +75,6 @@ def configure_duckdb_s3(conn: DuckDBPyConnection) -> None:
     endpoint_host = endpoint.netloc or endpoint.path
     use_ssl = endpoint.scheme == "https"
 
-    conn.execute("LOAD httpfs")
     conn.execute(f"SET s3_endpoint='{_escape_sql_string(endpoint_host)}'")
     conn.execute(f"SET s3_access_key_id='{_escape_sql_string(settings.s3_access_key_id)}'")
     conn.execute(

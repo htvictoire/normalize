@@ -29,6 +29,9 @@ def run_conversion(
 ) -> TransformResult:
     """Run the conversion transform and quality computation against an open DuckDB connection."""
     raw_columns = read_columns(conn)
+    if not raw_columns:
+        raise ValueError("Conversion requires at least one data column")
+
     resolved_column_config = resolve_column_config_by_canonical(
         data_columns=raw_columns,
         column_config=confirmed_column_config,

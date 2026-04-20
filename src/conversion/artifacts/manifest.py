@@ -58,6 +58,8 @@ def _relative_path(path: Path, base_dir: Path) -> str:
     """Return a portable path relative to base_dir."""
     try:
         relative = path.relative_to(base_dir)
-    except ValueError:
-        relative = Path(path.name)
+    except ValueError as exc:
+        raise ValueError(
+            f"Artifact path {path} is not under manifest directory {base_dir}"
+        ) from exc
     return relative.as_posix()

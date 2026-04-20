@@ -37,18 +37,6 @@ def build_trace_query(
     base CTE, allowing the caller to skip entire rows cheaply (e.g. only process
     rows with ``_parse_error_count > 0``).
     """
-    if not data_columns:
-        return (
-            "SELECT "
-            "CAST(NULL AS BIGINT) AS row_index, "
-            "CAST(NULL AS VARCHAR) AS column_name, "
-            "CAST(NULL AS VARCHAR) AS raw_value, "
-            "CAST(NULL AS VARCHAR) AS normalized_value, "
-            "CAST(NULL AS VARCHAR) AS applied_rules, "
-            "CAST(NULL AS VARCHAR) AS issue_codes "
-            "WHERE FALSE"
-        )
-
     row_index_expr = ROW_INDEX_COLUMN if has_row_index else "(rowid + 1)::BIGINT"
     casted_columns = ", ".join(
         f"CAST({quote_identifier(column_name)} AS VARCHAR) AS {quote_identifier(column_name)}"

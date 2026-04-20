@@ -63,10 +63,9 @@ def build_column_exprs(
             issue_label=issue_label,
         )
 
-    # Decimal-syntax types: preprocess via the shared normalizer, then build decimal exprs.
-    candidate = build_value_candidate_expr(raw_value, config)
-
     if isinstance(config, DecimalSyntaxColumnConfig):
+        # Decimal-syntax types preprocess via the shared normalizer before matching/casting.
+        candidate = build_value_candidate_expr(raw_value, config)
         return build_decimal_exprs(
             column_name,
             nullish_predicate,

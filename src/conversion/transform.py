@@ -5,6 +5,7 @@ from __future__ import annotations
 from shared.constants import RAW_INPUT_TABLE_NAME
 from shared.db.sql import quote_identifier
 
+from conversion.cells.naming import issue_alias
 from conversion.constants import (
     CONDITIONAL_ERROR_COUNT_ALIAS,
     CONDITIONAL_RAW_JSON_ALIAS,
@@ -35,6 +36,14 @@ def _compose_cte(
     return "\n".join(lines)
 
 
+def _build_row_error_expr(data_columns: tuple[str, ...]) -> str:
+    terms = [
+        f"CASE WHEN {quote_identifier(issue_alias(column_name))} IS NULL THEN 0 ELSE 1 END"
+        for column_name in data_columns
+    ]
+    return "0" if not terms else " + ".join(terms)
+
+
 def compose_transform_sql(
     row_plan: RowPlan,
     cell_plan: CellPlan,
@@ -61,6 +70,7 @@ def compose_transform_sql(
 
     # Base CTE: filter + type cast + issue detection + indices + raw json
     base_parts: list[str] = list(cell_plan.column_select_exprs)
+    row_error_expr = _build_row_error_expr(cell_plan.data_columns)
     outer_order = ""
     if row_plan.assign_indices:
         if row_plan.rows_dropped > 0:
@@ -89,7 +99,7 @@ def compose_transform_sql(
 
     if use_conditional_json:
         # Error count as lateral alias — referenced by conditional __raw_json below
-        base_parts.append(f"({cell_plan.row_error_expr}) AS {CONDITIONAL_ERROR_COUNT_ALIAS}")
+        base_parts.append(f"({row_error_expr}) AS {CONDITIONAL_ERROR_COUNT_ALIAS}")
         base_parts.append(
             f"CASE WHEN {CONDITIONAL_ERROR_COUNT_ALIAS} > 0 "
             f"THEN {struct_json_expr} ELSE NULL END AS {CONDITIONAL_RAW_JSON_ALIAS}"
@@ -117,9 +127,25 @@ def compose_transform_sql(
         else:
             parse_issues_sql = "NULL::VARCHAR"
     else:
-        error_count_sql = f"({cell_plan.row_error_expr})::INTEGER"
-        raw_row_sql = cell_plan.raw_row_expr
-        parse_issues_sql = cell_plan.parse_issues_expr
+        error_count_sql = f"({row_error_expr})::INTEGER"
+        if cell_plan.emit_raw_row and cell_plan.raw_source_pairs:
+            raw_row_sql = (
+                CONDITIONAL_RAW_JSON_ALIAS
+                if cell_plan.full_raw_row
+                else (
+                    f"CASE WHEN {PARSE_ERROR_COUNT_COLUMN} = 0 THEN NULL "
+                    f"ELSE {CONDITIONAL_RAW_JSON_ALIAS} END"
+                )
+            )
+        else:
+            raw_row_sql = "NULL::VARCHAR"
+        if cell_plan.emit_parse_issues and cell_plan.issue_pairs:
+            parse_issues_sql = (
+                f"CASE WHEN {PARSE_ERROR_COUNT_COLUMN} = 0 THEN NULL "
+                f"ELSE TO_JSON(STRUCT_PACK({', '.join(cell_plan.issue_pairs)})) END"
+            )
+        else:
+            parse_issues_sql = "NULL::VARCHAR"
 
     ctes: list[str] = []
     base_source = RAW_INPUT_TABLE_NAME
