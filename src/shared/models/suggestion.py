@@ -28,3 +28,4 @@ class SuggestionOutput(MainModel):
 
     suggested_config: InstanceConfig
     display: SuggestionDisplay
+    estimated_pipeline_seconds: int

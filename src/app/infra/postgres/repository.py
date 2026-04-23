@@ -39,29 +39,31 @@ class PostgresRunRepository:
             cur.execute(
                 """
                 INSERT INTO normalization_runs (
-                    id, tenant_id, status,
+                    instance_id, tenant_id, status, webhook_url,
                     source_file, source_file_name, source_file_format,
                     source_type, source_checksum,
                     suggested_config, suggestion_display, confirmed_config,
-                    profiling_output, normalization_output
+                    profiling_output, normalization_output, timings
                 ) VALUES (
-                    %s, %s, %s,
+                    %s, %s, %s, %s,
                     %s, %s, %s,
                     %s, %s,
                     %s::jsonb, %s::jsonb, %s::jsonb,
-                    %s::jsonb, %s::jsonb
+                    %s::jsonb, %s::jsonb, %s::jsonb
                 )
-                ON CONFLICT (id) DO UPDATE SET
+                ON CONFLICT (instance_id) DO UPDATE SET
                     status               = EXCLUDED.status,
+                    webhook_url          = EXCLUDED.webhook_url,
                     suggested_config     = EXCLUDED.suggested_config,
                     suggestion_display   = EXCLUDED.suggestion_display,
                     confirmed_config     = EXCLUDED.confirmed_config,
                     profiling_output     = EXCLUDED.profiling_output,
                     normalization_output = EXCLUDED.normalization_output,
+                    timings              = EXCLUDED.timings,
                     updated_at           = NOW()
                 """,
                 (
-                    r["id"], r["tenant_id"], r["status"],
+                    r["instance_id"], r["tenant_id"], r["status"], r["webhook_url"],
                     r["source_file"], r["source_file_name"], r["source_file_format"],
                     r["source_type"], r["source_checksum"],
                     _as_jsonb(r["suggested_config"]),
@@ -69,6 +71,7 @@ class PostgresRunRepository:
                     _as_jsonb(r["confirmed_config"]),
                     _as_jsonb(r["profiling_output"]),
                     _as_jsonb(r["normalization_output"]),
+                    _as_jsonb(r["timings"]),
                 ),
             )
         return instance
@@ -77,13 +80,13 @@ class PostgresRunRepository:
         with self._psycopg.connect(self._dsn, autocommit=True) as conn, conn.cursor() as cur:
             cur.execute(
                 """
-                SELECT id, tenant_id, status,
+                SELECT instance_id, tenant_id, status, webhook_url,
                        source_file, source_file_name, source_file_format,
                        source_type, source_checksum,
                        suggested_config, suggestion_display, confirmed_config,
-                       profiling_output, normalization_output
+                       profiling_output, normalization_output, timings
                 FROM normalization_runs
-                WHERE id = %s
+                WHERE instance_id = %s
                 """,
                 (str(instance_id),),
             )
@@ -91,19 +94,21 @@ class PostgresRunRepository:
         if row is None:
             return None
         return record_to_instance({
-            "id":                  row[0],
+            "instance_id":         row[0],
             "tenant_id":           row[1],
             "status":              row[2],
-            "source_file":         row[3],
-            "source_file_name":    row[4],
-            "source_file_format":  row[5],
-            "source_type":         row[6],
-            "source_checksum":     row[7],
-            "suggested_config":    row[8],
-            "suggestion_display":  row[9],
-            "confirmed_config":    row[10],
-            "profiling_output":    row[11],
-            "normalization_output": row[12],
+            "webhook_url":         row[3],
+            "source_file":         row[4],
+            "source_file_name":    row[5],
+            "source_file_format":  row[6],
+            "source_type":         row[7],
+            "source_checksum":     row[8],
+            "suggested_config":    row[9],
+            "suggestion_display":  row[10],
+            "confirmed_config":    row[11],
+            "profiling_output":    row[12],
+            "normalization_output": row[13],
+            "timings":             row[14],
         })
 
     def get_required(self, instance_id: UUID) -> InstanceModel:
@@ -112,14 +117,33 @@ class PostgresRunRepository:
             raise KeyError(f"instance not found: {instance_id}")
         return instance
 
+    def sweep_stuck_normalizing(self, threshold_minutes: int = 30) -> list[UUID]:
+        """Set NORMALIZING instances older than the threshold to FAILED and return their IDs."""
+        from datetime import timedelta
+
+        with self._psycopg.connect(self._dsn, autocommit=True) as conn, conn.cursor() as cur:
+            cur.execute(
+                """
+                UPDATE normalization_runs
+                SET status = 'FAILED', updated_at = NOW()
+                WHERE status = 'NORMALIZING'
+                  AND updated_at < NOW() - %s
+                RETURNING instance_id
+                """,
+                (timedelta(minutes=threshold_minutes),),
+            )
+            rows = cur.fetchall()
+        return [UUID(str(row[0])) for row in rows]
+
     def _ensure_schema(self) -> None:
         with self._psycopg.connect(self._dsn, autocommit=True) as conn, conn.cursor() as cur:
             cur.execute(
                 """
                 CREATE TABLE IF NOT EXISTS normalization_runs (
-                    id                   UUID        PRIMARY KEY,
+                    instance_id          UUID        PRIMARY KEY,
                     tenant_id            TEXT        NOT NULL,
                     status               TEXT        NOT NULL,
+                    webhook_url          TEXT,
                     source_file          TEXT        NOT NULL,
                     source_file_name     TEXT        NOT NULL,
                     source_file_format   TEXT        NOT NULL,
@@ -130,6 +154,7 @@ class PostgresRunRepository:
                     confirmed_config     JSONB,
                     profiling_output     JSONB,
                     normalization_output JSONB,
+                    timings              JSONB,
                     created_at           TIMESTAMPTZ NOT NULL DEFAULT NOW(),
                     updated_at           TIMESTAMPTZ NOT NULL DEFAULT NOW()
                 )

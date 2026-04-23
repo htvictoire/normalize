@@ -44,6 +44,7 @@ from suggestion.constants import (
     DEFAULT_TRACE_MODE,
 )
 from suggestion.display import read_sample_values
+from suggestion.duration import estimate_pipeline_seconds
 from suggestion.null_tokens import infer_null_tokens
 from suggestion.source import SourceReading, read_source
 from suggestion.stats import compute_source_stats
@@ -119,4 +120,8 @@ def run_suggestion(source: SourceRef) -> SuggestionOutput:
         },
         sample_rows=reading.sample_rows,
     )
-    return SuggestionOutput(suggested_config=suggested_config, display=display)
+    return SuggestionOutput(
+        suggested_config=suggested_config,
+        display=display,
+        estimated_pipeline_seconds=estimate_pipeline_seconds(stats.row_count),
+    )

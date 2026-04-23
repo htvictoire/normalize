@@ -17,6 +17,7 @@ class Settings(BaseSettings):
     s3_secret_access_key: str
     s3_bucket: str
     conversion_output_dir: str
+    redis_url: str
 
     model_config = SettingsConfigDict(
         env_prefix="NORMALIZE_",

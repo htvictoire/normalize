@@ -132,6 +132,19 @@ DEFAULT_DECISION_READY: float = 95.0
 DEFAULT_DECISION_WARNING: float = 85.0
 
 # ---------------------------------------------------------------------------
+# Pipeline duration estimation (profile + convert)
+# ---------------------------------------------------------------------------
+
+# (row_threshold, estimated_seconds) breakpoints for linear interpolation.
+# Durations are approximate — benchmark on your hardware with real data.
+PIPELINE_DURATION_TIERS: tuple[tuple[int, int], ...] = (
+    (10_000,       5),
+    (100_000,     30),
+    (1_000_000,  180),
+    (10_000_000, 900),
+)
+
+# ---------------------------------------------------------------------------
 # Null tokens
 # ---------------------------------------------------------------------------
 

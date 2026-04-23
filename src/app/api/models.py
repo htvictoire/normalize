@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pydantic import Field
 
+from shared.models.base import MainModel
 from shared.models.instance_config import InstanceConfig
 from shared.models.source import SourceRef
 
@@ -17,5 +18,9 @@ class SuggestRequest(SourceRef):
     )
 
 
-class ConfirmRequest(InstanceConfig):
+class ConfirmRequest(MainModel):
     """Request payload for instance confirmation."""
+
+    config: InstanceConfig
+    proceed_with_pipeline: bool = False
+    webhook_url: str | None = None

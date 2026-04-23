@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
-from shared.models.instance import InstanceModel
+from shared.models.instance import InstanceModel, StageTimings
 from shared.models.instance_config import InstanceConfig
 from shared.models.normalization import NormalizationOutput
 from shared.models.profiling import ProfilingOutput
@@ -15,7 +15,7 @@ from shared.models.suggestion import SuggestionDisplay
 def instance_to_record(instance: InstanceModel) -> dict[str, Any]:
     """Serialize one instance to a column-mapped record."""
     return {
-        "id": str(instance.id),
+        "instance_id": str(instance.instance_id),
         "tenant_id": instance.tenant_id,
         "status": instance.status,
         "source_file": instance.source_file,
@@ -23,6 +23,7 @@ def instance_to_record(instance: InstanceModel) -> dict[str, Any]:
         "source_file_format": instance.source_file_format,
         "source_type": instance.source_type,
         "source_checksum": instance.source_checksum,
+        "webhook_url": instance.webhook_url,
         "suggested_config": (
             instance.suggested_config.model_dump(mode="json")
             if instance.suggested_config is not None
@@ -48,15 +49,17 @@ def instance_to_record(instance: InstanceModel) -> dict[str, Any]:
             if instance.normalization_output is not None
             else None
         ),
+        "timings": instance.timings.model_dump(mode="json"),
     }
 
 
 def record_to_instance(record: Mapping[str, Any]) -> InstanceModel:
     """Deserialize a column-mapped record into a strict instance."""
     return InstanceModel(
-        id=record["id"],
+        instance_id=record["instance_id"],
         tenant_id=record["tenant_id"],
         status=record["status"],
+        webhook_url=record.get("webhook_url"),
         source_file=record["source_file"],
         source_file_name=record["source_file_name"],
         source_file_format=record["source_file_format"],
@@ -87,4 +90,5 @@ def record_to_instance(record: Mapping[str, Any]) -> InstanceModel:
             if record.get("normalization_output") is not None
             else None
         ),
+        timings=StageTimings.model_validate(record["timings"]),
     )

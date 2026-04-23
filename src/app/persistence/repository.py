@@ -28,7 +28,7 @@ class InMemoryNormalizationInstanceRepository:
         self._instances: dict[UUID, InstanceModel] = {}
 
     def save(self, instance: InstanceModel) -> InstanceModel:
-        self._instances[instance.id] = instance
+        self._instances[instance.instance_id] = instance
         return instance
 
     def get(self, instance_id: UUID) -> InstanceModel | None:

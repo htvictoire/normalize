@@ -38,7 +38,12 @@ def get_instance_endpoint(request: Request, instance_id: UUID) -> InstanceModel:
 
 @router.put("/normalize/instances/{instance_id}/confirm", response_model=InstanceModel)
 def confirm_endpoint(request: Request, instance_id: UUID, payload: ConfirmRequest) -> InstanceModel:
-    return _orchestrator(request).confirm(instance_id, payload)
+    return _orchestrator(request).confirm(
+        instance_id,
+        payload.config,
+        payload.proceed_with_pipeline,
+        payload.webhook_url,
+    )
 
 
 @router.post("/normalize/instances/{instance_id}/profile", response_model=InstanceModel)

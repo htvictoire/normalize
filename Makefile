@@ -13,8 +13,8 @@ NAME      ?= $(shell date +%Y-%m-%dT%H-%M-%S)
 
 SUGGEST_ARGS := $(wordlist 2,$(words $(MAKECMDGOALS)),$(MAKECMDGOALS))
 
-.PHONY: first bootstrap install test lint format check db-up db-down api \
-        suggest confirm profile convert clean-venv
+.PHONY: first bootstrap install test lint format check db-up db-down redis-up redis-down api \
+        worker beat suggest confirm profile convert clean-venv
 
 ifeq ($(firstword $(MAKECMDGOALS)),suggest)
 ifneq ($(strip $(SUGGEST_ARGS)),)
@@ -58,8 +58,20 @@ db-up:
 db-down:
 	docker compose down
 
+redis-up:
+	docker compose up -d redis
+
+redis-down:
+	docker compose stop redis
+
 api: | $(VENV_PYTHON)
 	$(VENV_BIN)/uvicorn app.api.server:app --host 0.0.0.0 --port 8000
+
+worker: | $(VENV_PYTHON)
+	$(VENV_BIN)/celery -A app.worker.app:celery_app worker --loglevel=info
+
+beat: | $(VENV_PYTHON)
+	$(VENV_BIN)/celery -A app.worker.app:celery_app beat --loglevel=info
 
 # ── lifecycle commands ────────────────────────────────────────────────────────
 # Usage:

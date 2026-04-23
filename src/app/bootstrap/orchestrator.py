@@ -8,6 +8,7 @@ lifecycle step via PostgresRunRepository.
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import cast
 from uuid import UUID
@@ -23,6 +24,7 @@ from app.bootstrap.conversion import ConversionService
 from app.bootstrap.profiling import ProfilingService
 from app.bootstrap.suggestion import SuggestionService
 from app.bootstrap.validation import validate_file_format
+from app.bootstrap.webhook import fire_webhook
 from app.infra.postgres.repository import PostgresRunRepository
 
 
@@ -42,6 +44,7 @@ class MainOrchestrator:
         return self._repository.get(instance_id)
 
     def suggest(self, source: SourceRef, source_checksum: str) -> InstanceModel:
+        started_at = datetime.now(UTC)
         validate_file_format(source)
         result = self._suggestion_service.suggest(source)
         instance = InstanceModel.create(
@@ -55,13 +58,31 @@ class MainOrchestrator:
             suggested_config=result.suggested_config,
             display=result.display,
         )
+        instance.timings.suggest_started_at = started_at
+        instance.timings.suggest_ended_at = datetime.now(UTC)
+        instance.timings.estimated_pipeline_seconds = result.estimated_pipeline_seconds
         self._repository.save(instance)
         return instance
 
-    def confirm(self, instance_id: UUID, confirmed_config: InstanceConfig) -> InstanceModel:
+    def confirm(
+        self,
+        instance_id: UUID,
+        confirmed_config: InstanceConfig,
+        proceed_with_pipeline: bool = False,
+        webhook_url: str | None = None,
+    ) -> InstanceModel:
         instance = self._repository.get_required(instance_id)
+        instance.webhook_url = webhook_url
         instance.confirm(confirmed_config)
         self._repository.save(instance)
+        if webhook_url:
+            fire_webhook(webhook_url, instance_id, instance.status)
+        if proceed_with_pipeline:
+            from app.worker.app import celery_app
+            celery_app.send_task(
+                "app.worker.tasks.run_post_confirmation_pipeline",
+                args=[str(instance_id)],
+            )
         return instance
 
     def profile(self, instance_id: UUID) -> InstanceModel:
@@ -69,8 +90,11 @@ class MainOrchestrator:
         if instance.status is not InstanceStatus.CONFIRMED:
             raise ValueError("instance must be CONFIRMED before profile")
 
+        instance.timings.profile_started_at = datetime.now(UTC)
         instance.status = InstanceStatus.PROFILING
         self._repository.save(instance)
+        if instance.webhook_url:
+            fire_webhook(instance.webhook_url, instance_id, instance.status)
 
         # CONFIRMED status guarantees confirmed_config was set atomically by confirm()
         confirmed = cast(InstanceConfig, instance.confirmed_config)
@@ -86,7 +110,10 @@ class MainOrchestrator:
             persisted_db_path=self._duckdb_cache_path(instance_id),
         )
         instance.set_profiling_output(profiling_output)
+        instance.timings.profile_ended_at = datetime.now(UTC)
         self._repository.save(instance)
+        if instance.webhook_url:
+            fire_webhook(instance.webhook_url, instance_id, instance.status)
         return instance
 
     def normalize(self, instance_id: UUID) -> InstanceModel:
@@ -99,8 +126,11 @@ class MainOrchestrator:
         confirmed = cast(InstanceConfig, instance.confirmed_config)
         if any(issue.severity is IssueSeverity.ERROR for issue in profiling_output.issues):
             raise ValueError("instance has blocking profiling issues")
+        instance.timings.convert_started_at = datetime.now(UTC)
         instance.status = InstanceStatus.NORMALIZING
         self._repository.save(instance)
+        if instance.webhook_url:
+            fire_webhook(instance.webhook_url, instance_id, instance.status)
 
         settings = get_settings()
         db_cache_path = self._duckdb_cache_path(instance_id)
@@ -122,5 +152,8 @@ class MainOrchestrator:
         if db_cache_path.exists():
             db_cache_path.unlink()
         instance.set_normalization_output(result)
+        instance.timings.convert_ended_at = datetime.now(UTC)
         self._repository.save(instance)
+        if instance.webhook_url:
+            fire_webhook(instance.webhook_url, instance_id, instance.status)
         return instance

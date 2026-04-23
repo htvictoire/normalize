@@ -19,6 +19,7 @@ dependencies = [
     "requests>=2.32",
     "uvicorn>=0.32",
     "boto3>=1.35",
+    "celery[redis]>=5.3",
 ]
 
 [project.optional-dependencies]
@@ -53,6 +54,10 @@ ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
 module = ["boto3", "boto3.*", "botocore", "botocore.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["celery", "celery.*", "kombu", "kombu.*"]
 ignore_missing_imports = true
 
 [tool.ruff]

@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from enum import StrEnum
 from uuid import UUID, uuid4
+
+from pydantic import Field
 
 from shared.models.base import MainModel
 from shared.models.instance_config import InstanceConfig
@@ -11,6 +14,18 @@ from shared.models.normalization import NormalizationOutput
 from shared.models.operation import FileFormat, FileSource
 from shared.models.profiling import ProfilingOutput
 from shared.models.suggestion import SuggestionDisplay
+
+
+class StageTimings(MainModel):
+    """Wall-clock timestamps and duration estimate for each pipeline stage."""
+
+    suggest_started_at: datetime | None = None
+    suggest_ended_at: datetime | None = None
+    profile_started_at: datetime | None = None
+    profile_ended_at: datetime | None = None
+    convert_started_at: datetime | None = None
+    convert_ended_at: datetime | None = None
+    estimated_pipeline_seconds: int | None = None
 
 
 class InstanceStatus(StrEnum):
@@ -31,7 +46,7 @@ class InstanceStatus(StrEnum):
 class InstanceModel(MainModel):
     """Single run instance used as suggest -> normalize handoff."""
 
-    id: UUID
+    instance_id: UUID
     tenant_id: str
     status: InstanceStatus
     source_file_name: str
@@ -39,11 +54,13 @@ class InstanceModel(MainModel):
     source_file: str
     source_type: FileSource
     source_checksum: str
+    webhook_url: str | None = None
     suggested_config: InstanceConfig | None = None
     suggestion_display: SuggestionDisplay | None = None
     confirmed_config: InstanceConfig | None = None
     profiling_output: ProfilingOutput | None = None
     normalization_output: NormalizationOutput | None = None
+    timings: StageTimings = Field(default_factory=StageTimings)
 
     @classmethod
     def create(
@@ -58,7 +75,7 @@ class InstanceModel(MainModel):
     ) -> InstanceModel:
         """Create a new pending instance."""
         return cls(
-            id=instance_id or uuid4(),
+            instance_id=instance_id or uuid4(),
             tenant_id=tenant_id,
             status=InstanceStatus.PENDING,
             source_file_name=source_file_name,
