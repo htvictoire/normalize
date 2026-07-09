@@ -9,9 +9,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from shared.ingestion import resolve_ingestion_setup
 from shared.models.source import SourceRef
 from shared.storage.probe import read_source_probe
-from shared.storage.s3 import build_duckdb_s3_url, download_s3_temp, s3_ref
+from shared.storage.s3 import download_s3_temp, s3_ref
 
 from suggestion.constants import FILE_SAMPLE_BYTES, JSON_FIRST_OBJECT_MAX_BYTES
 from suggestion.rule_based.source.csv import infer_csv_source_format
@@ -40,18 +41,15 @@ def _read_csv_source(source: SourceRef) -> SourceReading:
         header_mode=source_format.header_mode,
         header_row_index=source_format.header_row_index,
     )
-    if source.source_type == "s3":
-        ingestion_url = build_duckdb_s3_url(s3_ref(source.source_file))
-    else:
-        ingestion_url = source.source_file
+    setup = resolve_ingestion_setup(source, source_format)
     return SourceReading(
         source_format=source_format,
         sample_rows=sample_rows,
         column_names=column_names,
         inference_rows=inference_rows,
-        ingestion_source_url=ingestion_url,
-        ingestion_source_type=source.source_type,
-        cleanup_path=None,
+        ingestion_source_url=setup.url,
+        ingestion_source_type=setup.source_type,
+        cleanup_path=setup.cleanup_path,
     )
 
 
@@ -85,19 +83,17 @@ def _read_excel_source(source: SourceRef) -> SourceReading:
 def _read_json_source(source: SourceRef) -> SourceReading:
     sample = read_source_probe(source, FILE_SAMPLE_BYTES)
     ensure_json_first_object_within_limit(sample[:JSON_FIRST_OBJECT_MAX_BYTES])
-    if source.source_type == "s3":
-        ingestion_url = build_duckdb_s3_url(s3_ref(source.source_file))
-    else:
-        ingestion_url = source.source_file
     column_names, inference_rows = read_json_column_names_and_inference_rows(sample)
+    source_format = infer_json_source_format()
+    setup = resolve_ingestion_setup(source, source_format)
     return SourceReading(
-        source_format=infer_json_source_format(),
+        source_format=source_format,
         sample_rows=read_json_sample_rows(sample),
         column_names=column_names,
         inference_rows=inference_rows,
-        ingestion_source_url=ingestion_url,
-        ingestion_source_type=source.source_type,
-        cleanup_path=None,
+        ingestion_source_url=setup.url,
+        ingestion_source_type=setup.source_type,
+        cleanup_path=setup.cleanup_path,
     )
 
 

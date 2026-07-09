@@ -72,6 +72,16 @@ def read_json_column_names_and_inference_rows(
     return column_names, rows
 
 
+def read_json_sample_objects(sample: bytes, limit: int) -> list[dict[str, object]]:
+    """Return up to ``limit`` raw objects from a JSON array probe (for AI prompting)."""
+    objects: list[dict[str, object]] = []
+    for obj in _iter_json_array_objects(sample):
+        objects.append(obj)
+        if len(objects) >= limit:
+            break
+    return objects
+
+
 def read_json_sample_rows(sample: bytes) -> list[list[str]]:
     """Read up to DISPLAY_RAW_ROWS rows from a JSON array probe using stable key order."""
     column_names: list[str] | None = None

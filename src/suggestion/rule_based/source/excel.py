@@ -8,12 +8,11 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from shared.models.operation import ExcelSourceFormat
+from shared.models.operation import ExcelSourceFormat, HeaderMode
 
-from suggestion.constants import DISPLAY_RAW_ROWS
 from suggestion.rule_based.constants import HEADER_SCAN_ROWS
 from suggestion.rule_based.source.heuristics import looks_numeric
-from suggestion.source.excel import read_excel_raw_rows, row_to_strings
+from suggestion.source.excel import assemble_excel_reading, read_excel_raw_rows
 
 
 def _is_likely_header_row(row: tuple[object, ...]) -> bool:
@@ -37,34 +36,10 @@ def read_excel_source(
     Read Excel source settings, raw sample rows, column names, and all data rows.
 
     The selected sheet is the first visible, non-empty worksheet in workbook order.
+    The header row is detected heuristically; slicing is mechanical (shared).
     Returns (source_format, sample_rows, column_names, inference_rows).
     """
     title, all_rows = read_excel_raw_rows(local_path)
-
     header_row_index = _detect_header_row(all_rows[:HEADER_SCAN_ROWS])
-
-    col_count = len(all_rows[0]) if all_rows else 0
-    if header_row_index is not None:
-        header_idx = header_row_index - 1
-        if header_idx < len(all_rows):
-            column_names = [
-                (str(cell).strip() if cell is not None else "") or f"col_{i}"
-                for i, cell in enumerate(all_rows[header_idx])
-            ]
-        else:
-            column_names = [f"col_{i}" for i in range(col_count)]
-        data_rows = all_rows[header_idx + 1 :]
-    else:
-        column_names = [f"col_{i}" for i in range(col_count)]
-        data_rows = all_rows
-
-    return (
-        ExcelSourceFormat(
-            sheet_name=title,
-            header_mode="present" if header_row_index is not None else "absent",
-            header_row_index=header_row_index,
-        ),
-        [row_to_strings(row) for row in all_rows[:DISPLAY_RAW_ROWS]],
-        column_names,
-        [row_to_strings(row) for row in data_rows],
-    )
+    header_mode: HeaderMode = "present" if header_row_index is not None else "absent"
+    return assemble_excel_reading(title, all_rows, header_mode, header_row_index)

@@ -11,6 +11,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
+from shared.db.column_index import build_position_to_name
 from shared.models.base import MainModel
 from shared.models.column import ColumnConfig
 from shared.models.source import SourceRef
@@ -29,6 +30,29 @@ class AiColumnInference(MainModel):
     name: str
     config: ColumnConfig
     confidence: float
+
+
+def pair_columns_by_position(
+    column_names: list[str],
+    ai_columns: list[AiColumnInference],
+) -> tuple[dict[str, ColumnConfig], dict[str, float]]:
+    """Key the model's ordered columns to positions (one AI column per parsed column).
+
+    For positional formats (CSV, Excel), where the model returns columns
+    left-to-right. Returns (column_config, confidences), both keyed by position.
+    Raises if the model's column count disagrees with the parsed column count.
+    """
+    positions = list(build_position_to_name(column_names).keys())
+    if len(ai_columns) != len(positions):
+        raise ValueError(
+            f"Model returned {len(ai_columns)} columns but the source parsed into "
+            f"{len(positions)}."
+        )
+    paired = list(zip(positions, ai_columns, strict=True))
+    return (
+        {pos: col.config for pos, col in paired},
+        {pos: col.confidence for pos, col in paired},
+    )
 
 
 @dataclass(frozen=True)
