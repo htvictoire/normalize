@@ -6,6 +6,8 @@ from functools import lru_cache
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from shared.models.operation import AiProvider
+
 
 class Settings(BaseSettings):
     duckdb_memory_limit: str
@@ -18,6 +20,8 @@ class Settings(BaseSettings):
     s3_bucket: str
     conversion_output_dir: str
     redis_url: str
+    ai_provider: AiProvider = "claude"
+    ai_sample_row_count: int = 50
 
     model_config = SettingsConfigDict(
         env_prefix="NORMALIZE_",

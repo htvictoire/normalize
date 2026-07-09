@@ -13,8 +13,7 @@ Phase 3  Run two tracks in parallel:
          Track B — infer column configs and collect display values from the
                    inference rows.
 
-Phase 4  Assemble and return a SuggestionResult containing the suggested
-         InstanceConfig and the display-only SuggestionDisplay.
+Phase 4  Assemble and return the SuggestionOutput via the shared assembler.
 """
 
 from __future__ import annotations
@@ -24,39 +23,14 @@ from dataclasses import dataclass
 
 from shared.db.column_index import build_position_to_name
 from shared.models.column import ColumnConfig
-from shared.models.instance_config import InstanceConfig
-from shared.models.operation import (
-    CsvSourceFormat,
-    DecisionThresholds,
-    ExcelSourceFormat,
-    OperationConfig,
-    SourceFormat,
-)
+from shared.models.operation import CsvSourceFormat, ExcelSourceFormat, SourceFormat
 from shared.models.source import SourceRef
-from shared.models.suggestion import (
-    SuggestedColumnDisplay,
-    SuggestionConfidence,
-    SuggestionDisplay,
-    SuggestionOutput,
-)
+from shared.models.suggestion import SuggestionConfidence, SuggestionOutput
 
-from suggestion.constants import (
-    DEFAULT_APPROXIMATE_UNIQUE,
-    DEFAULT_ASSIGN_INDICES,
-    DEFAULT_DECISION_READY,
-    DEFAULT_DECISION_WARNING,
-    DEFAULT_DROP_EMPTY_ROWS,
-    DEFAULT_EMIT_PARSE_ISSUES,
-    DEFAULT_EMIT_RAW_ROW,
-    DEFAULT_FULL_RAW_ROW,
-    DEFAULT_INCLUDE_PER_COLUMN_PARSE_ERROR_COUNTS,
-    DEFAULT_INCLUDE_UNIQUE_RATIO,
-    DEFAULT_TRACE_MODE,
-)
+from suggestion.assembly import build_suggestion_output
 from suggestion.display import read_sample_values
-from suggestion.duration import estimate_pipeline_seconds
+from suggestion.null_tokens import infer_null_tokens
 from suggestion.rule_based import infer_column_type, sample_column_values
-from suggestion.rule_based.null_tokens import infer_null_tokens
 from suggestion.rule_based.source import read_source
 from suggestion.source import SourceReading
 from suggestion.stats import compute_source_stats
@@ -118,41 +92,13 @@ def run_suggestion(source: SourceRef) -> SuggestionOutput:
         if reading.cleanup_path is not None:
             reading.cleanup_path.unlink(missing_ok=True)
 
-    suggested_config = InstanceConfig(
+    return build_suggestion_output(
         source_format=reading.source_format,
         column_config=core.column_configs,
-        operation_config=OperationConfig(
-            null_tokens=null_tokens,
-            assign_indices=DEFAULT_ASSIGN_INDICES,
-            drop_empty_rows=DEFAULT_DROP_EMPTY_ROWS,
-            emit_raw_row=DEFAULT_EMIT_RAW_ROW,
-            full_raw_row=DEFAULT_FULL_RAW_ROW,
-            emit_parse_issues=DEFAULT_EMIT_PARSE_ISSUES,
-            include_unique_ratio=DEFAULT_INCLUDE_UNIQUE_RATIO,
-            include_per_column_parse_error_counts=DEFAULT_INCLUDE_PER_COLUMN_PARSE_ERROR_COUNTS,
-            approximate_unique=DEFAULT_APPROXIMATE_UNIQUE,
-            trace_mode=DEFAULT_TRACE_MODE,
-            decision_thresholds=DecisionThresholds(
-                ready=DEFAULT_DECISION_READY,
-                warning=DEFAULT_DECISION_WARNING,
-            ),
-        ),
-    )
-    display = SuggestionDisplay(
-        row_count=stats.row_count,
-        columns={
-            pos: SuggestedColumnDisplay(
-                label=position_to_name[pos],
-                counts=stats.column_counts[pos],
-                sample_values=core.sample_values_by_position[pos],
-            )
-            for pos in position_to_name
-        },
-        sample_rows=reading.sample_rows,
-    )
-    return SuggestionOutput(
-        suggested_config=suggested_config,
+        null_tokens=null_tokens,
         confidence=_rule_based_confidence(reading.source_format, position_to_name),
-        display=display,
-        estimated_pipeline_seconds=estimate_pipeline_seconds(stats.row_count),
+        stats=stats,
+        sample_values_by_position=core.sample_values_by_position,
+        sample_rows=reading.sample_rows,
+        position_to_name=position_to_name,
     )

@@ -1,15 +1,19 @@
 """Infer null token sentinels present in the data.
 
-This is a heuristic guess (fixed candidate list matched against sampled
-values), the same category as delimiter/header detection — not a mechanical
-fact, so it lives here rather than in the shared suggestion.constants.
+Shared across strategies: both rule-based and AI resolve null tokens with this
+same deterministic scan (the AI path keeps this in our code rather than asking
+the model). The candidate constant is co-located here since this is its only
+consumer.
 """
 
 from __future__ import annotations
 
 from collections.abc import Sequence
 
-from suggestion.rule_based.constants import NULL_TOKEN_CANDIDATES
+# Known sentinel strings commonly used to represent missing values.
+NULL_TOKEN_CANDIDATES = frozenset({
+    "n/a", "na", "null", "none", "nan", "nil", "-", "--", "---", "?", "missing",
+})
 
 
 def infer_null_tokens(

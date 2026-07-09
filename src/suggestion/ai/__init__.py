@@ -1,7 +1,7 @@
-"""AI-based column inference strategy for the suggestion layer."""
+"""AI-based suggestion strategy for the suggestion layer."""
 
-from suggestion.ai.sampler import sample_inference_rows
+from suggestion.ai.pipeline import run_suggestion
 
 __all__ = [
-    "sample_inference_rows",
+    "run_suggestion",
 ]

@@ -13,6 +13,7 @@ TraceMode = Literal["full", "sparse"]
 FileFormat = Literal["csv", "excel", "json"]
 FileSource = Literal["local", "s3"]
 SuggestionMethod = Literal["rule_based", "ai"]
+AiProvider = Literal["claude", "openai", "gemini"]
 
 
 class CsvSourceFormat(MainModel):

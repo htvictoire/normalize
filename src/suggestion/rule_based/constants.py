@@ -108,12 +108,3 @@ NUMERIC_CANDIDATES = (
     NumericCandidate(decimal_separator=",", thousand_separator=".", grouping_style="indian"),
     NumericCandidate(decimal_separator=".", thousand_separator="'", grouping_style="western"),
 )
-
-# ---------------------------------------------------------------------------
-# Null tokens
-# ---------------------------------------------------------------------------
-
-# Known sentinel strings commonly used to represent missing values.
-NULL_TOKEN_CANDIDATES = frozenset({
-    "n/a", "na", "null", "none", "nan", "nil", "-", "--", "---", "?", "missing",
-})
