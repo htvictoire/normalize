@@ -63,6 +63,7 @@ class MainOrchestrator:
         )
         instance.set_suggestion_output(
             suggested_config=result.suggested_config,
+            confidence=result.confidence,
             display=result.display,
         )
         instance.timings.suggest_started_at = started_at

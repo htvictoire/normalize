@@ -9,7 +9,7 @@ from shared.models.instance import InstanceModel, StageTimings
 from shared.models.instance_config import InstanceConfig
 from shared.models.normalization import NormalizationOutput
 from shared.models.profiling import ProfilingOutput
-from shared.models.suggestion import SuggestionDisplay
+from shared.models.suggestion import SuggestionConfidence, SuggestionDisplay
 
 
 def instance_to_record(instance: InstanceModel) -> dict[str, Any]:
@@ -33,6 +33,11 @@ def instance_to_record(instance: InstanceModel) -> dict[str, Any]:
         "suggestion_display": (
             instance.suggestion_display.model_dump(mode="json")
             if instance.suggestion_display is not None
+            else None
+        ),
+        "suggestion_confidence": (
+            instance.suggestion_confidence.model_dump(mode="json")
+            if instance.suggestion_confidence is not None
             else None
         ),
         "confirmed_config": (
@@ -75,6 +80,11 @@ def record_to_instance(record: Mapping[str, Any]) -> InstanceModel:
         suggestion_display=(
             SuggestionDisplay.model_validate(record["suggestion_display"])
             if record.get("suggestion_display") is not None
+            else None
+        ),
+        suggestion_confidence=(
+            SuggestionConfidence.model_validate(record["suggestion_confidence"])
+            if record.get("suggestion_confidence") is not None
             else None
         ),
         confirmed_config=(

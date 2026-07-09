@@ -42,25 +42,26 @@ class PostgresRunRepository:
                     instance_id, tenant_id, status, webhook_url,
                     source_file, source_file_name, source_file_format,
                     source_type, source_checksum, suggestion_method,
-                    suggested_config, suggestion_display, confirmed_config,
-                    profiling_output, normalization_output, timings
+                    suggested_config, suggestion_display, suggestion_confidence,
+                    confirmed_config, profiling_output, normalization_output, timings
                 ) VALUES (
                     %s, %s, %s, %s,
                     %s, %s, %s,
                     %s, %s, %s,
                     %s::jsonb, %s::jsonb, %s::jsonb,
-                    %s::jsonb, %s::jsonb, %s::jsonb
+                    %s::jsonb, %s::jsonb, %s::jsonb, %s::jsonb
                 )
                 ON CONFLICT (instance_id) DO UPDATE SET
-                    status               = EXCLUDED.status,
-                    webhook_url          = EXCLUDED.webhook_url,
-                    suggested_config     = EXCLUDED.suggested_config,
-                    suggestion_display   = EXCLUDED.suggestion_display,
-                    confirmed_config     = EXCLUDED.confirmed_config,
-                    profiling_output     = EXCLUDED.profiling_output,
-                    normalization_output = EXCLUDED.normalization_output,
-                    timings              = EXCLUDED.timings,
-                    updated_at           = NOW()
+                    status                = EXCLUDED.status,
+                    webhook_url           = EXCLUDED.webhook_url,
+                    suggested_config      = EXCLUDED.suggested_config,
+                    suggestion_display    = EXCLUDED.suggestion_display,
+                    suggestion_confidence = EXCLUDED.suggestion_confidence,
+                    confirmed_config      = EXCLUDED.confirmed_config,
+                    profiling_output      = EXCLUDED.profiling_output,
+                    normalization_output  = EXCLUDED.normalization_output,
+                    timings               = EXCLUDED.timings,
+                    updated_at            = NOW()
                 """,
                 (
                     r["instance_id"], r["tenant_id"], r["status"], r["webhook_url"],
@@ -68,6 +69,7 @@ class PostgresRunRepository:
                     r["source_type"], r["source_checksum"], r["suggestion_method"],
                     _as_jsonb(r["suggested_config"]),
                     _as_jsonb(r["suggestion_display"]),
+                    _as_jsonb(r["suggestion_confidence"]),
                     _as_jsonb(r["confirmed_config"]),
                     _as_jsonb(r["profiling_output"]),
                     _as_jsonb(r["normalization_output"]),
@@ -83,8 +85,8 @@ class PostgresRunRepository:
                 SELECT instance_id, tenant_id, status, webhook_url,
                        source_file, source_file_name, source_file_format,
                        source_type, source_checksum, suggestion_method,
-                       suggested_config, suggestion_display, confirmed_config,
-                       profiling_output, normalization_output, timings
+                       suggested_config, suggestion_display, suggestion_confidence,
+                       confirmed_config, profiling_output, normalization_output, timings
                 FROM normalization_runs
                 WHERE instance_id = %s
                 """,
@@ -94,22 +96,23 @@ class PostgresRunRepository:
         if row is None:
             return None
         return record_to_instance({
-            "instance_id":         row[0],
-            "tenant_id":           row[1],
-            "status":              row[2],
-            "webhook_url":         row[3],
-            "source_file":         row[4],
-            "source_file_name":    row[5],
-            "source_file_format":  row[6],
-            "source_type":         row[7],
-            "source_checksum":     row[8],
-            "suggestion_method":   row[9],
-            "suggested_config":    row[10],
-            "suggestion_display":  row[11],
-            "confirmed_config":    row[12],
-            "profiling_output":    row[13],
-            "normalization_output": row[14],
-            "timings":             row[15],
+            "instance_id":          row[0],
+            "tenant_id":            row[1],
+            "status":               row[2],
+            "webhook_url":          row[3],
+            "source_file":          row[4],
+            "source_file_name":     row[5],
+            "source_file_format":   row[6],
+            "source_type":          row[7],
+            "source_checksum":      row[8],
+            "suggestion_method":    row[9],
+            "suggested_config":     row[10],
+            "suggestion_display":   row[11],
+            "suggestion_confidence": row[12],
+            "confirmed_config":     row[13],
+            "profiling_output":     row[14],
+            "normalization_output": row[15],
+            "timings":              row[16],
         })
 
     def get_required(self, instance_id: UUID) -> InstanceModel:
@@ -150,15 +153,16 @@ class PostgresRunRepository:
                     source_file_format   TEXT        NOT NULL,
                     source_type          TEXT        NOT NULL,
                     source_checksum      TEXT        NOT NULL,
-                    suggestion_method    TEXT        NOT NULL DEFAULT 'rule_based',
-                    suggested_config     JSONB,
-                    suggestion_display   JSONB,
-                    confirmed_config     JSONB,
-                    profiling_output     JSONB,
-                    normalization_output JSONB,
-                    timings              JSONB,
-                    created_at           TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-                    updated_at           TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                    suggestion_method     TEXT        NOT NULL DEFAULT 'rule_based',
+                    suggested_config      JSONB,
+                    suggestion_display    JSONB,
+                    suggestion_confidence JSONB,
+                    confirmed_config      JSONB,
+                    profiling_output      JSONB,
+                    normalization_output  JSONB,
+                    timings               JSONB,
+                    created_at            TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    updated_at            TIMESTAMPTZ NOT NULL DEFAULT NOW()
                 )
                 """
             )
@@ -166,6 +170,12 @@ class PostgresRunRepository:
                 """
                 ALTER TABLE normalization_runs
                     ADD COLUMN IF NOT EXISTS suggestion_method TEXT NOT NULL DEFAULT 'rule_based'
+                """
+            )
+            cur.execute(
+                """
+                ALTER TABLE normalization_runs
+                    ADD COLUMN IF NOT EXISTS suggestion_confidence JSONB
                 """
             )
 

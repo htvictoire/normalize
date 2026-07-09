@@ -25,9 +25,20 @@ from dataclasses import dataclass
 from shared.db.column_index import build_position_to_name
 from shared.models.column import ColumnConfig
 from shared.models.instance_config import InstanceConfig
-from shared.models.operation import DecisionThresholds, OperationConfig
+from shared.models.operation import (
+    CsvSourceFormat,
+    DecisionThresholds,
+    ExcelSourceFormat,
+    OperationConfig,
+    SourceFormat,
+)
 from shared.models.source import SourceRef
-from shared.models.suggestion import SuggestedColumnDisplay, SuggestionDisplay, SuggestionOutput
+from shared.models.suggestion import (
+    SuggestedColumnDisplay,
+    SuggestionConfidence,
+    SuggestionDisplay,
+    SuggestionOutput,
+)
 
 from suggestion.constants import (
     DEFAULT_APPROXIMATE_UNIQUE,
@@ -55,6 +66,24 @@ from suggestion.stats import compute_source_stats
 class _CoreSuggestion:
     column_configs: dict[str, ColumnConfig]
     sample_values_by_position: dict[str, list[str]]
+
+
+def _rule_based_confidence(
+    source_format: SourceFormat,
+    position_to_name: dict[str, str],
+) -> SuggestionConfidence:
+    """Deterministic rule-based inference reports full confidence for everything it guesses.
+
+    delimiter/header are None for formats that do not have them (Excel has no
+    delimiter; JSON has neither).
+    """
+    is_csv = isinstance(source_format, CsvSourceFormat)
+    is_excel = isinstance(source_format, ExcelSourceFormat)
+    return SuggestionConfidence(
+        delimiter=1.0 if is_csv else None,
+        header=1.0 if (is_csv or is_excel) else None,
+        column_config=dict.fromkeys(position_to_name, 1.0),
+    )
 
 
 def _run_core(reading: SourceReading, position_to_name: dict[str, str]) -> _CoreSuggestion:
@@ -123,6 +152,7 @@ def run_suggestion(source: SourceRef) -> SuggestionOutput:
     )
     return SuggestionOutput(
         suggested_config=suggested_config,
+        confidence=_rule_based_confidence(reading.source_format, position_to_name),
         display=display,
         estimated_pipeline_seconds=estimate_pipeline_seconds(stats.row_count),
     )
