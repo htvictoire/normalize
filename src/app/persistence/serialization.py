@@ -23,6 +23,7 @@ def instance_to_record(instance: InstanceModel) -> dict[str, Any]:
         "source_file_format": instance.source_file_format,
         "source_type": instance.source_type,
         "source_checksum": instance.source_checksum,
+        "suggestion_method": instance.suggestion_method,
         "webhook_url": instance.webhook_url,
         "suggested_config": (
             instance.suggested_config.model_dump(mode="json")
@@ -65,6 +66,7 @@ def record_to_instance(record: Mapping[str, Any]) -> InstanceModel:
         source_file_format=record["source_file_format"],
         source_type=record["source_type"],
         source_checksum=record["source_checksum"],
+        suggestion_method=record["suggestion_method"],
         suggested_config=(
             InstanceConfig.model_validate(record["suggested_config"])
             if record.get("suggested_config") is not None

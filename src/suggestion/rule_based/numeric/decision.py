@@ -16,13 +16,13 @@ from shared.models.column import (
 from shared.parsing.currency import CURRENCY_DETECTION_RE
 from shared.parsing.markers import POSITIVE_SIGN_MARKERS, SIGN_MARKER_DETECTION_RE
 
-from suggestion.column_config.numeric.scoring import infer_best_numeric_fits
-from suggestion.constants import (
+from suggestion.rule_based.constants import (
     CURRENCY_MATCH_MIN_RATIO,
     SIGNED_MATCH_MIN_RATIO,
     TYPE_MATCH_MIN_RATIO,
 )
-from suggestion.models import NumericFits, SignedMarkers
+from suggestion.rule_based.models import NumericFits, SignedMarkers
+from suggestion.rule_based.numeric.scoring import infer_best_numeric_fits
 
 
 def infer_numeric_type(values: Sequence[str], sample_count: int) -> ColumnConfig | None:

@@ -12,6 +12,7 @@ HeaderMode = Literal["present", "absent"]
 TraceMode = Literal["full", "sparse"]
 FileFormat = Literal["csv", "excel", "json"]
 FileSource = Literal["local", "s3"]
+SuggestionMethod = Literal["rule_based", "ai"]
 
 
 class CsvSourceFormat(MainModel):

@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from datetime import datetime
 
-from suggestion.constants import DATE_FORMAT_CANDIDATES, DATE_FORMAT_RANK
+from suggestion.rule_based.constants import DATE_FORMAT_CANDIDATES, DATE_FORMAT_RANK
 
 
 def match_date_format(value: str) -> str | None:

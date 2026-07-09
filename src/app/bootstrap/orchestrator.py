@@ -16,6 +16,7 @@ from uuid import UUID
 from shared.models.instance import InstanceModel, InstanceStatus
 from shared.models.instance_config import InstanceConfig
 from shared.models.issues import IssueSeverity
+from shared.models.operation import SuggestionMethod
 from shared.models.profiling import ProfilingOutput
 from shared.models.source import SourceRef
 from shared.settings import get_settings
@@ -43,16 +44,22 @@ class MainOrchestrator:
     def get_instance(self, instance_id: UUID) -> InstanceModel | None:
         return self._repository.get(instance_id)
 
-    def suggest(self, source: SourceRef, source_checksum: str) -> InstanceModel:
+    def suggest(
+        self,
+        source: SourceRef,
+        source_checksum: str,
+        suggestion_method: SuggestionMethod = "rule_based",
+    ) -> InstanceModel:
         started_at = datetime.now(UTC)
         validate_file_format(source)
-        result = self._suggestion_service.suggest(source)
+        result = self._suggestion_service.suggest(source, suggestion_method)
         instance = InstanceModel.create(
             source_file=source.source_file,
             source_file_name=source.source_file_name,
             source_type=source.source_type,
             source_file_format=source.source_file_format,
             source_checksum=source_checksum,
+            suggestion_method=suggestion_method,
         )
         instance.set_suggestion_output(
             suggested_config=result.suggested_config,

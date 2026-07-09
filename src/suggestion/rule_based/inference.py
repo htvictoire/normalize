@@ -11,10 +11,10 @@ from shared.models.column import (
     StringColumnConfig,
 )
 
-from suggestion.column_config.boolean import is_boolean
-from suggestion.column_config.date import best_date_format
-from suggestion.column_config.numeric import infer_numeric_type
-from suggestion.constants import BOOLEAN_TOKEN_PAIRS, TYPE_MATCH_MIN_RATIO
+from suggestion.rule_based.boolean import is_boolean
+from suggestion.rule_based.constants import BOOLEAN_TOKEN_PAIRS, TYPE_MATCH_MIN_RATIO
+from suggestion.rule_based.date import best_date_format
+from suggestion.rule_based.numeric import infer_numeric_type
 
 
 def infer_column_type(values: Sequence[str]) -> ColumnConfig:

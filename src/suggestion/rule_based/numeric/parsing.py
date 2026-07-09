@@ -6,13 +6,13 @@ from shared.models.column import GroupingStyle
 from shared.parsing.currency import CURRENCY_DETECTION_RE
 from shared.parsing.markers import SIGN_MARKER_DETECTION_RE
 
-from suggestion.constants import (
+from suggestion.rule_based.constants import (
     GROUP_FIRST_MAX_DIGITS,
     GROUP_INDIAN_MIDDLE_SIZE,
     GROUP_INDIAN_TWO_GROUP_CASE,
     GROUP_WESTERN_SIZE,
 )
-from suggestion.models import NumericCandidate, NumericParseResult
+from suggestion.rule_based.models import NumericCandidate, NumericParseResult
 
 
 def _valid_group_sizes(groups: list[str], grouping_style: GroupingStyle) -> bool:

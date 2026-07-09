@@ -6,6 +6,7 @@ from pydantic import Field
 
 from shared.models.base import MainModel
 from shared.models.instance_config import InstanceConfig
+from shared.models.operation import SuggestionMethod
 from shared.models.source import SourceRef
 
 
@@ -16,6 +17,7 @@ class SuggestRequest(SourceRef):
         pattern="^[0-9a-f]{64}$",
         description="Lowercase hex-encoded SHA256 checksum (exactly 64 characters, no whitespace).",
     )
+    suggestion_method: SuggestionMethod = "rule_based"
 
 
 class ConfirmRequest(MainModel):

@@ -1,41 +1,32 @@
-"""Source reading orchestration for the suggestion pipeline."""
+"""Source reading orchestration for the rule-based inference strategy.
+
+Resolves a SourceReading by heuristically guessing CSV delimiter/header and
+Excel header placement. This is one strategy's approach to reading — it is
+not the shared contract itself (see suggestion.source.reading.SourceReading).
+"""
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from pathlib import Path
 
-from shared.models.operation import FileSource, SourceFormat
 from shared.models.source import SourceRef
 from shared.storage.probe import read_source_probe
 from shared.storage.s3 import build_duckdb_s3_url, download_s3_temp, s3_ref
 
 from suggestion.constants import FILE_SAMPLE_BYTES, JSON_FIRST_OBJECT_MAX_BYTES
+from suggestion.rule_based.source.csv import infer_csv_source_format
+from suggestion.rule_based.source.excel import read_excel_source
 from suggestion.source.csv import (
-    infer_csv_source_format,
     read_csv_column_names_and_inference_rows,
     read_csv_sample_rows,
 )
-from suggestion.source.excel import read_excel_source
 from suggestion.source.json import (
     ensure_json_first_object_within_limit,
     infer_json_source_format,
     read_json_column_names_and_inference_rows,
     read_json_sample_rows,
 )
-
-
-@dataclass(frozen=True)
-class SourceReading:
-    """Inferred format, raw sample rows, column names, inference rows, and ingestion target."""
-
-    source_format: SourceFormat
-    sample_rows: list[list[str]]
-    column_names: list[str]
-    inference_rows: list[list[str]]
-    ingestion_source_url: str
-    ingestion_source_type: FileSource
-    cleanup_path: Path | None
+from suggestion.source.reading import SourceReading
 
 
 def _read_csv_source(source: SourceRef) -> SourceReading:

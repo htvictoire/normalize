@@ -1,8 +1,7 @@
 """Suggestion source reading and inference helpers."""
 
-from suggestion.source.reader import SourceReading, read_source
+from suggestion.source.reading import SourceReading
 
 __all__ = [
     "SourceReading",
-    "read_source",
 ]

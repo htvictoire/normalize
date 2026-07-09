@@ -1,10 +1,15 @@
-"""Infer null token sentinels present in the data."""
+"""Infer null token sentinels present in the data.
+
+This is a heuristic guess (fixed candidate list matched against sampled
+values), the same category as delimiter/header detection — not a mechanical
+fact, so it lives here rather than in the shared suggestion.constants.
+"""
 
 from __future__ import annotations
 
 from collections.abc import Sequence
 
-from suggestion.constants import NULL_TOKEN_CANDIDATES
+from suggestion.rule_based.constants import NULL_TOKEN_CANDIDATES
 
 
 def infer_null_tokens(

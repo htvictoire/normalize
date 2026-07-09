@@ -5,14 +5,14 @@ from __future__ import annotations
 from collections.abc import Sequence
 from dataclasses import replace
 
-from suggestion.column_config.numeric.parsing import parse_numeric_token
-from suggestion.constants import LEADING_DECIMAL_MIN_RATIO, NUMERIC_CANDIDATES
-from suggestion.models import (
+from suggestion.rule_based.constants import LEADING_DECIMAL_MIN_RATIO, NUMERIC_CANDIDATES
+from suggestion.rule_based.models import (
     NumericCandidate,
     NumericCandidateStats,
     NumericFits,
     NumericTypeFit,
 )
+from suggestion.rule_based.numeric.parsing import parse_numeric_token
 
 
 def _fit_key(fit: NumericTypeFit) -> tuple[int, int, int, int]:

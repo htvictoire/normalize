@@ -53,6 +53,7 @@ def run(args: list[str]) -> None:
         instance = MainOrchestrator().suggest(
             source,
             _sha256_stream(input_path),
+            "rule_based",
         )
     except (ValueError, FileNotFoundError) as exc:
         die(str(exc))

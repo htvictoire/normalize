@@ -41,13 +41,13 @@ class PostgresRunRepository:
                 INSERT INTO normalization_runs (
                     instance_id, tenant_id, status, webhook_url,
                     source_file, source_file_name, source_file_format,
-                    source_type, source_checksum,
+                    source_type, source_checksum, suggestion_method,
                     suggested_config, suggestion_display, confirmed_config,
                     profiling_output, normalization_output, timings
                 ) VALUES (
                     %s, %s, %s, %s,
                     %s, %s, %s,
-                    %s, %s,
+                    %s, %s, %s,
                     %s::jsonb, %s::jsonb, %s::jsonb,
                     %s::jsonb, %s::jsonb, %s::jsonb
                 )
@@ -65,7 +65,7 @@ class PostgresRunRepository:
                 (
                     r["instance_id"], r["tenant_id"], r["status"], r["webhook_url"],
                     r["source_file"], r["source_file_name"], r["source_file_format"],
-                    r["source_type"], r["source_checksum"],
+                    r["source_type"], r["source_checksum"], r["suggestion_method"],
                     _as_jsonb(r["suggested_config"]),
                     _as_jsonb(r["suggestion_display"]),
                     _as_jsonb(r["confirmed_config"]),
@@ -82,7 +82,7 @@ class PostgresRunRepository:
                 """
                 SELECT instance_id, tenant_id, status, webhook_url,
                        source_file, source_file_name, source_file_format,
-                       source_type, source_checksum,
+                       source_type, source_checksum, suggestion_method,
                        suggested_config, suggestion_display, confirmed_config,
                        profiling_output, normalization_output, timings
                 FROM normalization_runs
@@ -103,12 +103,13 @@ class PostgresRunRepository:
             "source_file_format":  row[6],
             "source_type":         row[7],
             "source_checksum":     row[8],
-            "suggested_config":    row[9],
-            "suggestion_display":  row[10],
-            "confirmed_config":    row[11],
-            "profiling_output":    row[12],
-            "normalization_output": row[13],
-            "timings":             row[14],
+            "suggestion_method":   row[9],
+            "suggested_config":    row[10],
+            "suggestion_display":  row[11],
+            "confirmed_config":    row[12],
+            "profiling_output":    row[13],
+            "normalization_output": row[14],
+            "timings":             row[15],
         })
 
     def get_required(self, instance_id: UUID) -> InstanceModel:
@@ -149,6 +150,7 @@ class PostgresRunRepository:
                     source_file_format   TEXT        NOT NULL,
                     source_type          TEXT        NOT NULL,
                     source_checksum      TEXT        NOT NULL,
+                    suggestion_method    TEXT        NOT NULL DEFAULT 'rule_based',
                     suggested_config     JSONB,
                     suggestion_display   JSONB,
                     confirmed_config     JSONB,
@@ -158,6 +160,12 @@ class PostgresRunRepository:
                     created_at           TIMESTAMPTZ NOT NULL DEFAULT NOW(),
                     updated_at           TIMESTAMPTZ NOT NULL DEFAULT NOW()
                 )
+                """
+            )
+            cur.execute(
+                """
+                ALTER TABLE normalization_runs
+                    ADD COLUMN IF NOT EXISTS suggestion_method TEXT NOT NULL DEFAULT 'rule_based'
                 """
             )
 

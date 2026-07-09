@@ -11,7 +11,7 @@ from pydantic import Field
 from shared.models.base import MainModel
 from shared.models.instance_config import InstanceConfig
 from shared.models.normalization import NormalizationOutput
-from shared.models.operation import FileFormat, FileSource
+from shared.models.operation import FileFormat, FileSource, SuggestionMethod
 from shared.models.profiling import ProfilingOutput
 from shared.models.suggestion import SuggestionDisplay
 
@@ -54,6 +54,7 @@ class InstanceModel(MainModel):
     source_file: str
     source_type: FileSource
     source_checksum: str
+    suggestion_method: SuggestionMethod
     webhook_url: str | None = None
     suggested_config: InstanceConfig | None = None
     suggestion_display: SuggestionDisplay | None = None
@@ -70,6 +71,7 @@ class InstanceModel(MainModel):
         source_type: FileSource,
         source_file_format: FileFormat,
         source_checksum: str,
+        suggestion_method: SuggestionMethod,
         tenant_id: str = "default",
         instance_id: UUID | None = None,
     ) -> InstanceModel:
@@ -83,6 +85,7 @@ class InstanceModel(MainModel):
             source_file=source_file,
             source_type=source_type,
             source_checksum=source_checksum,
+            suggestion_method=suggestion_method,
         )
 
     def set_suggestion_output(

@@ -1,4 +1,4 @@
-"""Suggestion-domain internal inference models."""
+"""Internal models for the rule-based numeric inference scorer."""
 
 from __future__ import annotations
 
