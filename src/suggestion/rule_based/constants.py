@@ -80,6 +80,32 @@ DATE_FORMAT_CANDIDATES = (
 # so that equal-count formats resolve deterministically to the highest-priority format.
 DATE_FORMAT_RANK: dict[str, int] = {fmt: i for i, fmt in enumerate(DATE_FORMAT_CANDIDATES)}
 
+DATETIME_FORMAT_CANDIDATES = (
+    "%Y-%m-%d %H:%M:%S",
+    "%Y-%m-%d %H:%M",
+    "%Y/%m/%d %H:%M:%S",
+    "%Y/%m/%d %H:%M",
+    "%m/%d/%Y %H:%M:%S",
+    "%m/%d/%Y %H:%M",
+    "%d/%m/%Y %H:%M:%S",
+    "%d/%m/%Y %H:%M",
+    "%Y-%m-%dT%H:%M:%S",
+    "%Y-%m-%dT%H:%M",
+)
+
+DATETIME_FORMAT_RANK: dict[str, int] = {
+    fmt: i for i, fmt in enumerate(DATETIME_FORMAT_CANDIDATES)
+}
+
+TIME_FORMAT_CANDIDATES = (
+    "%H:%M:%S",
+    "%H:%M",
+    "%I:%M:%S %p",
+    "%I:%M %p",
+)
+
+TIME_FORMAT_RANK: dict[str, int] = {fmt: i for i, fmt in enumerate(TIME_FORMAT_CANDIDATES)}
+
 # ---------------------------------------------------------------------------
 # Numeric grouping
 # ---------------------------------------------------------------------------

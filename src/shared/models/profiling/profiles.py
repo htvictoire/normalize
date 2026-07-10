@@ -13,11 +13,13 @@ from shared.models.column import (
     ColumnConfig,
     CurrencyColumnConfig,
     DateColumnConfig,
+    DateTimeColumnConfig,
     DecimalColumnConfig,
     IntegerColumnConfig,
     PercentageColumnConfig,
     SignedColumnConfig,
     StringColumnConfig,
+    TimeColumnConfig,
 )
 from shared.models.profiling.base import (
     AccountingSignProfile,
@@ -80,6 +82,18 @@ class DateColumnProfile(MainModel):
     format_match_ratio: float
 
 
+class DateTimeColumnProfile(MainModel):
+    profile_type: Literal["datetime"] = "datetime"
+    format_match_count: int
+    format_match_ratio: float
+
+
+class TimeColumnProfile(MainModel):
+    profile_type: Literal["time"] = "time"
+    format_match_count: int
+    format_match_ratio: float
+
+
 type ColumnProfileClass = (
     type[StringColumnProfile]
     | type[BooleanColumnProfile]
@@ -90,6 +104,8 @@ type ColumnProfileClass = (
     | type[CurrencyColumnProfile]
     | type[AccountingColumnProfile]
     | type[DateColumnProfile]
+    | type[DateTimeColumnProfile]
+    | type[TimeColumnProfile]
 )
 
 _PROFILE_CLASS_BY_CONFIG: dict[type[object], ColumnProfileClass] = {
@@ -102,6 +118,8 @@ _PROFILE_CLASS_BY_CONFIG: dict[type[object], ColumnProfileClass] = {
     SignedColumnConfig: SignedColumnProfile,
     AccountingColumnConfig: AccountingColumnProfile,
     DateColumnConfig: DateColumnProfile,
+    DateTimeColumnConfig: DateTimeColumnProfile,
+    TimeColumnConfig: TimeColumnProfile,
 }
 
 
@@ -141,6 +159,14 @@ def profile_class_for_config(config: AccountingColumnConfig) -> type[AccountingC
 def profile_class_for_config(config: DateColumnConfig) -> type[DateColumnProfile]: ...
 
 
+@overload
+def profile_class_for_config(config: DateTimeColumnConfig) -> type[DateTimeColumnProfile]: ...
+
+
+@overload
+def profile_class_for_config(config: TimeColumnConfig) -> type[TimeColumnProfile]: ...
+
+
 def profile_class_for_config(config: ColumnConfig) -> ColumnProfileClass:
     """Return the concrete profiling model class for one declared column config."""
     return _PROFILE_CLASS_BY_CONFIG[type(config)]
@@ -157,6 +183,8 @@ ColumnProfile = Annotated[
         | CurrencyColumnProfile
         | AccountingColumnProfile
         | DateColumnProfile
+        | DateTimeColumnProfile
+        | TimeColumnProfile
     ),
     Field(discriminator="profile_type"),
 ]

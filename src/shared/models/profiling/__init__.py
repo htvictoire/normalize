@@ -16,11 +16,13 @@ from shared.models.profiling.profiles import (
     ColumnProfile,
     CurrencyColumnProfile,
     DateColumnProfile,
+    DateTimeColumnProfile,
     DecimalColumnProfile,
     IntegerColumnProfile,
     PercentageColumnProfile,
     SignedColumnProfile,
     StringColumnProfile,
+    TimeColumnProfile,
     profile_class_for_config,
 )
 
@@ -35,6 +37,7 @@ __all__ = [
     "CurrencyColumnProfile",
     "CurrencyFormatProfile",
     "DateColumnProfile",
+    "DateTimeColumnProfile",
     "DecimalColumnProfile",
     "DecimalStatsProfile",
     "IntegerColumnProfile",
@@ -46,5 +49,6 @@ __all__ = [
     "SignedColumnProfile",
     "StringColumnProfile",
     "SymbolDistributionProfile",
+    "TimeColumnProfile",
     "profile_class_for_config",
 ]

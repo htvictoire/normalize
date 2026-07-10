@@ -22,11 +22,13 @@ from shared.models.column.configs import (
     ColumnConfig,
     CurrencyColumnConfig,
     DateColumnConfig,
+    DateTimeColumnConfig,
     DecimalColumnConfig,
     IntegerColumnConfig,
     PercentageColumnConfig,
     SignedColumnConfig,
     StringColumnConfig,
+    TimeColumnConfig,
 )
 
 type ColumnCapability = Literal[
@@ -36,6 +38,8 @@ type ColumnCapability = Literal[
     "monetary_symbol",
     "boolean_tokens",
     "date_format",
+    "datetime_format",
+    "time_format",
 ]
 
 type ColumnConfigClass = (
@@ -48,6 +52,8 @@ type ColumnConfigClass = (
     | type[SignedColumnConfig]
     | type[AccountingColumnConfig]
     | type[DateColumnConfig]
+    | type[DateTimeColumnConfig]
+    | type[TimeColumnConfig]
 )
 
 
@@ -97,6 +103,8 @@ COLUMN_TYPE_SPECS: tuple[ColumnTypeSpec, ...] = (
         ),
     ),
     ColumnTypeSpec("date", DateColumnConfig, frozenset({"date_format"})),
+    ColumnTypeSpec("datetime", DateTimeColumnConfig, frozenset({"datetime_format"})),
+    ColumnTypeSpec("time", TimeColumnConfig, frozenset({"time_format"})),
 )
 
 _TYPE_SPEC_BY_TYPE: dict[ColumnType, ColumnTypeSpec] = {

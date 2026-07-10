@@ -6,15 +6,21 @@ from shared.models.column import (
     BooleanColumnConfig,
     ColumnConfig,
     DateColumnConfig,
+    DateTimeColumnConfig,
     DecimalSyntaxColumnConfig,
     IntegerColumnConfig,
     StringColumnConfig,
+    TimeColumnConfig,
 )
 from shared.parsing.normalizer import build_value_candidate_expr
 
 from conversion.cells.exprs.boolean import build_boolean_exprs
 from conversion.cells.exprs.column_exprs import ColumnExprs
-from conversion.cells.exprs.date import build_date_exprs
+from conversion.cells.exprs.date import (
+    build_date_exprs,
+    build_datetime_exprs,
+    build_time_exprs,
+)
 from conversion.cells.exprs.numeric import (
     build_decimal_exprs,
     build_integer_exprs,
@@ -36,25 +42,39 @@ def build_column_exprs(
     issue_label = f"INVALID_{config.type.upper()}"
 
     if isinstance(config, BooleanColumnConfig):
-        return build_boolean_exprs(
+        exprs = build_boolean_exprs(
             nullish_predicate,
             normalized_raw_value,
             true_tokens=config.true_tokens,
             false_tokens=config.false_tokens,
             issue_label=issue_label,
         )
-
-    if isinstance(config, DateColumnConfig):
-        return build_date_exprs(
+    elif isinstance(config, DateColumnConfig):
+        exprs = build_date_exprs(
             column_name,
             nullish_predicate,
             raw_value=raw_value,
             date_format=config.date_format,
             issue_label=issue_label,
         )
-
-    if isinstance(config, IntegerColumnConfig):
-        return build_integer_exprs(
+    elif isinstance(config, DateTimeColumnConfig):
+        exprs = build_datetime_exprs(
+            column_name,
+            nullish_predicate,
+            raw_value=raw_value,
+            datetime_format=config.datetime_format,
+            issue_label=issue_label,
+        )
+    elif isinstance(config, TimeColumnConfig):
+        exprs = build_time_exprs(
+            column_name,
+            nullish_predicate,
+            raw_value=raw_value,
+            time_format=config.time_format,
+            issue_label=issue_label,
+        )
+    elif isinstance(config, IntegerColumnConfig):
+        exprs = build_integer_exprs(
             column_name,
             nullish_predicate,
             raw_value=raw_value,
@@ -62,11 +82,10 @@ def build_column_exprs(
             grouping_style=config.grouping_style,
             issue_label=issue_label,
         )
-
-    if isinstance(config, DecimalSyntaxColumnConfig):
+    elif isinstance(config, DecimalSyntaxColumnConfig):
         # Decimal-syntax types preprocess via the shared normalizer before matching/casting.
         candidate = build_value_candidate_expr(raw_value, config)
-        return build_decimal_exprs(
+        exprs = build_decimal_exprs(
             column_name,
             nullish_predicate,
             raw_value=candidate,
@@ -76,5 +95,7 @@ def build_column_exprs(
             allow_leading_decimal_point=config.allow_leading_decimal_point,
             issue_label=issue_label,
         )
+    else:
+        raise TypeError(f"Unsupported column config type: {type(config).__name__}")
 
-    raise ValueError(f"Unsupported column config type: {type(config).__name__}")
+    return exprs

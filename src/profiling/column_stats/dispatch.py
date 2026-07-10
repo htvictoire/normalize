@@ -9,11 +9,13 @@ from shared.models.column import (
     BooleanColumnConfig,
     ColumnConfig,
     DateColumnConfig,
+    DateTimeColumnConfig,
     DecimalColumnConfig,
     IntegerColumnConfig,
     PercentageColumnConfig,
     SignedColumnConfig,
     StringColumnConfig,
+    TimeColumnConfig,
     has_monetary_symbol,
 )
 from shared.models.profiling import ColumnCounts, ColumnProfile
@@ -25,7 +27,14 @@ from profiling.column_stats.boolean import (
     make_boolean_batch_entry,
 )
 from profiling.column_stats.common import compute_decimal_parse_stats_batch
-from profiling.column_stats.date import DateBatchEntry, compute_date_column_profiles_batch
+from profiling.column_stats.date import (
+    DateBatchEntry,
+    DateTimeBatchEntry,
+    TimeBatchEntry,
+    compute_date_column_profiles_batch,
+    compute_datetime_column_profiles_batch,
+    compute_time_column_profiles_batch,
+)
 from profiling.column_stats.decimal import (
     DecimalStatsBatchEntry,
     compute_decimal_stats_profiles_batch,
@@ -56,6 +65,8 @@ def compute_column_profiles(
     string_batch: list[StringBatchEntry] = []
     boolean_batch: list[BooleanBatchEntry] = []
     date_batch: list[DateBatchEntry] = []
+    datetime_batch: list[DateTimeBatchEntry] = []
+    time_batch: list[TimeBatchEntry] = []
     integer_batch: list[IntegerBatchEntry] = []
     decimal_stats_batch: list[DecimalStatsBatchEntry] = []
     symbol_columns: list[SymbolColumnEntry] = []
@@ -70,6 +81,10 @@ def compute_column_profiles(
             boolean_batch.append(make_boolean_batch_entry(col_name, config, counts))
         elif isinstance(config, DateColumnConfig):
             date_batch.append(DateBatchEntry(col_name, config, counts))
+        elif isinstance(config, DateTimeColumnConfig):
+            datetime_batch.append(DateTimeBatchEntry(col_name, config, counts))
+        elif isinstance(config, TimeColumnConfig):
+            time_batch.append(TimeBatchEntry(col_name, config, counts))
         else:
             raw_col = f"TRIM(CAST({quote_identifier(col_name)} AS VARCHAR))"
             value_expr = build_value_candidate_expr(raw_col, config)
@@ -90,6 +105,8 @@ def compute_column_profiles(
     profiles |= compute_string_column_profiles_batch(conn, string_batch, null_tokens)
     profiles |= compute_boolean_column_profiles_batch(conn, boolean_batch, null_tokens)
     profiles |= compute_date_column_profiles_batch(conn, date_batch, null_tokens)
+    profiles |= compute_datetime_column_profiles_batch(conn, datetime_batch, null_tokens)
+    profiles |= compute_time_column_profiles_batch(conn, time_batch, null_tokens)
     profiles |= compute_integer_column_profiles_batch(conn, integer_batch, null_tokens)
     profiles |= compute_decimal_stats_profiles_batch(conn, decimal_stats_batch, null_tokens)
 

@@ -93,6 +93,57 @@ class DateColumnConfig(MainModel):
         return value
 
 
+class DateTimeColumnConfig(MainModel):
+    """Declared datetime/timestamp column configuration."""
+
+    datetime_format: str = Field(
+        description=(
+            "A DuckDB strptime format (e.g. %Y-%m-%d %H:%M:%S, %d/%m/%Y %H:%M), "
+            "or the literal EXCEL_SERIAL for spreadsheet serial-number timestamps. "
+            "The engine parses datetimes with TRY_STRPTIME, so the format must be "
+            "one it can execute. If the column's datetimes cannot be expressed as "
+            "such a format, classify the column as string instead of datetime."
+        )
+    )
+    type: Literal["datetime"] = "datetime"
+
+    @field_validator("datetime_format")
+    @classmethod
+    def _require_strptime_or_sentinel(cls, value: str) -> str:
+        """Reject formats the engine cannot execute (e.g. human notation)."""
+        if value != "EXCEL_SERIAL" and "%" not in value:
+            raise ValueError(
+                f"datetime_format must be a strptime pattern containing '%' "
+                f"or the literal 'EXCEL_SERIAL', got {value!r}"
+            )
+        return value
+
+
+class TimeColumnConfig(MainModel):
+    """Declared time-of-day column configuration."""
+
+    time_format: str = Field(
+        description=(
+            "A DuckDB strptime format for time-of-day values (e.g. %H:%M:%S, "
+            "%H:%M, %I:%M %p). The engine parses times with TRY_STRPTIME, so "
+            "the format must be one it can execute. If the column's times cannot "
+            "be expressed as such a format, classify the column as string instead "
+            "of time."
+        )
+    )
+    type: Literal["time"] = "time"
+
+    @field_validator("time_format")
+    @classmethod
+    def _require_strptime_pattern(cls, value: str) -> str:
+        """Reject formats the engine cannot execute (e.g. human notation)."""
+        if "%" not in value:
+            raise ValueError(
+                f"time_format must be a strptime pattern containing '%', got {value!r}"
+            )
+        return value
+
+
 ColumnConfig = Annotated[
     (
         StringColumnConfig
@@ -104,6 +155,8 @@ ColumnConfig = Annotated[
         | SignedColumnConfig
         | AccountingColumnConfig
         | DateColumnConfig
+        | DateTimeColumnConfig
+        | TimeColumnConfig
     ),
     Field(discriminator="type"),
 ]

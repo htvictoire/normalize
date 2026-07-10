@@ -9,7 +9,7 @@ The returned expression is a SQL VARCHAR expression that:
 - resolves sign into a leading ``-`` where applicable
 - is ready for decimal/integer pattern matching and separator replacement
 
-Types that need no preprocessing (string, boolean, integer, date) get
+Types that need no preprocessing (string, boolean, integer, date, datetime, time) get
 back a plain ``TRIM(value_expr)``.
 """
 

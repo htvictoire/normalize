@@ -23,6 +23,16 @@ def parse_date_alias(column_name: str) -> str:
     return f"__p_date__{column_name}"
 
 
+def parse_datetime_alias(column_name: str) -> str:
+    """Alias for the pre-computed TRY_CAST timestamp result in the parse CTE."""
+    return f"__p_datetime__{column_name}"
+
+
+def parse_time_alias(column_name: str) -> str:
+    """Alias for the pre-computed TRY_CAST time result in the parse CTE."""
+    return f"__p_time__{column_name}"
+
+
 def parse_raw_alias(column_name: str) -> str:
     """Alias for the pre-computed raw VARCHAR cell value in the parse CTE."""
     return f"__p_raw__{column_name}"

@@ -8,7 +8,7 @@ from shared.models.base import MainModel
 
 ColumnType = Literal[
     "string", "boolean", "integer", "decimal", "currency",
-    "percentage", "signed", "accounting", "date",
+    "percentage", "signed", "accounting", "date", "datetime", "time",
 ]
 GroupingStyle = Literal["western", "indian"]
 
