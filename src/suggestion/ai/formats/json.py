@@ -8,6 +8,7 @@ back to the parsed keys by name (JSON keys are named, unlike positional CSV).
 from __future__ import annotations
 
 import json
+from typing import cast
 
 from shared.db.column_index import build_position_to_name
 from shared.ingestion import resolve_ingestion_setup
@@ -21,6 +22,7 @@ from suggestion.ai.formats.base import (
     AiInferenceResult,
     FormatInference,
     ReconciledInference,
+    make_core_output_model,
 )
 from suggestion.constants import FILE_SAMPLE_BYTES, JSON_FIRST_OBJECT_MAX_BYTES
 from suggestion.source import SourceReading
@@ -53,6 +55,7 @@ class JsonFormatInference(FormatInference):
     """JSON prompt, sampling, and reconciliation."""
 
     output_model = JsonAiInferenceResult
+    core_output_model = make_core_output_model("CoreJsonAiInferenceResult", JsonAiInferenceResult)
 
     def sample(self, source: SourceRef) -> str:
         sample_bytes = read_source_probe(source, FILE_SAMPLE_BYTES)
@@ -63,10 +66,8 @@ class JsonFormatInference(FormatInference):
         return _PROMPT.format(sample=sample)
 
     def reconcile(self, result: AiInferenceResult, source: SourceRef) -> ReconciledInference:
-        if not isinstance(result, JsonAiInferenceResult):
-            raise TypeError(
-                f"JSON reconcile expected JsonAiInferenceResult, got {type(result).__name__}."
-            )
+        self.validate_result_type(result)
+        result = cast(JsonAiInferenceResult, result)
         sample_bytes = read_source_probe(source, FILE_SAMPLE_BYTES)
         ensure_json_first_object_within_limit(sample_bytes[:JSON_FIRST_OBJECT_MAX_BYTES])
         column_names, inference_rows = read_json_column_names_and_inference_rows(sample_bytes)

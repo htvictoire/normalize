@@ -6,7 +6,20 @@ from pydantic import Field
 
 from shared.models.base import MainModel
 from shared.models.instance_config import InstanceConfig
+from shared.models.operation import SuggestionMethod
 from shared.models.profiling import ColumnCounts
+from shared.models.source import SourceRef
+
+
+class SuggestionInput(SourceRef):
+    """Complete request metadata for one suggestion run."""
+
+    source_checksum: str = Field(
+        pattern="^[0-9a-f]{64}$",
+        description="Lowercase hex-encoded SHA256 checksum (exactly 64 characters, no whitespace).",
+    )
+    suggestion_method: SuggestionMethod
+    extended_type_detection: bool
 
 
 class SuggestedColumnDisplay(MainModel):

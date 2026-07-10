@@ -42,12 +42,14 @@ class PostgresRunRepository:
                     instance_id, tenant_id, status, webhook_url,
                     source_file, source_file_name, source_file_format,
                     source_type, source_checksum, suggestion_method,
+                    extended_type_detection,
                     suggested_config, suggestion_display, suggestion_confidence,
                     confirmed_config, profiling_output, normalization_output, timings
                 ) VALUES (
                     %s, %s, %s, %s,
                     %s, %s, %s,
                     %s, %s, %s,
+                    %s,
                     %s::jsonb, %s::jsonb, %s::jsonb,
                     %s::jsonb, %s::jsonb, %s::jsonb, %s::jsonb
                 )
@@ -67,6 +69,7 @@ class PostgresRunRepository:
                     r["instance_id"], r["tenant_id"], r["status"], r["webhook_url"],
                     r["source_file"], r["source_file_name"], r["source_file_format"],
                     r["source_type"], r["source_checksum"], r["suggestion_method"],
+                    r["extended_type_detection"],
                     _as_jsonb(r["suggested_config"]),
                     _as_jsonb(r["suggestion_display"]),
                     _as_jsonb(r["suggestion_confidence"]),
@@ -85,6 +88,7 @@ class PostgresRunRepository:
                 SELECT instance_id, tenant_id, status, webhook_url,
                        source_file, source_file_name, source_file_format,
                        source_type, source_checksum, suggestion_method,
+                       extended_type_detection,
                        suggested_config, suggestion_display, suggestion_confidence,
                        confirmed_config, profiling_output, normalization_output, timings
                 FROM normalization_runs
@@ -106,13 +110,14 @@ class PostgresRunRepository:
             "source_type":          row[7],
             "source_checksum":      row[8],
             "suggestion_method":    row[9],
-            "suggested_config":     row[10],
-            "suggestion_display":   row[11],
-            "suggestion_confidence": row[12],
-            "confirmed_config":     row[13],
-            "profiling_output":     row[14],
-            "normalization_output": row[15],
-            "timings":              row[16],
+            "extended_type_detection": row[10],
+            "suggested_config":     row[11],
+            "suggestion_display":   row[12],
+            "suggestion_confidence": row[13],
+            "confirmed_config":     row[14],
+            "profiling_output":     row[15],
+            "normalization_output": row[16],
+            "timings":              row[17],
         })
 
     def get_required(self, instance_id: UUID) -> InstanceModel:
@@ -123,7 +128,7 @@ class PostgresRunRepository:
 
     def sweep_stuck_normalizing(self, threshold_minutes: int = 30) -> list[UUID]:
         """Set NORMALIZING instances older than the threshold to FAILED and return their IDs."""
-        from datetime import timedelta
+        from datetime import timedelta  # noqa: PLC0415
 
         with self._psycopg.connect(self._dsn, autocommit=True) as conn, conn.cursor() as cur:
             cur.execute(
@@ -154,6 +159,7 @@ class PostgresRunRepository:
                     source_type          TEXT        NOT NULL,
                     source_checksum      TEXT        NOT NULL,
                     suggestion_method     TEXT        NOT NULL DEFAULT 'rule_based',
+                    extended_type_detection BOOLEAN   NOT NULL DEFAULT FALSE,
                     suggested_config      JSONB,
                     suggestion_display    JSONB,
                     suggestion_confidence JSONB,
@@ -170,6 +176,12 @@ class PostgresRunRepository:
                 """
                 ALTER TABLE normalization_runs
                     ADD COLUMN IF NOT EXISTS suggestion_method TEXT NOT NULL DEFAULT 'rule_based'
+                """
+            )
+            cur.execute(
+                """
+                ALTER TABLE normalization_runs
+                    ADD COLUMN IF NOT EXISTS extended_type_detection BOOLEAN NOT NULL DEFAULT FALSE
                 """
             )
             cur.execute(

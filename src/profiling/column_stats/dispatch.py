@@ -7,25 +7,38 @@ from duckdb import DuckDBPyConnection
 from shared.db.sql import quote_identifier
 from shared.models.column import (
     BooleanColumnConfig,
+    CategoricalColumnConfig,
     ColumnConfig,
+    CountryCodeColumnConfig,
+    CurrencyCodeColumnConfig,
     DateColumnConfig,
     DateTimeColumnConfig,
     DecimalColumnConfig,
+    EmailColumnConfig,
     IntegerColumnConfig,
+    IpAddressColumnConfig,
+    LanguageCodeColumnConfig,
     PercentageColumnConfig,
+    PhoneColumnConfig,
     SignedColumnConfig,
     StringColumnConfig,
     TimeColumnConfig,
+    UrlColumnConfig,
     has_monetary_symbol,
 )
 from shared.models.profiling import ColumnCounts, ColumnProfile
 from shared.parsing.normalizer import build_value_candidate_expr
 
+from profiling.column_stats.ai_only import (
+    AiOnlyBatchEntry,
+    compute_ai_only_column_profiles_batch,
+)
 from profiling.column_stats.boolean import (
     BooleanBatchEntry,
     compute_boolean_column_profiles_batch,
     make_boolean_batch_entry,
 )
+from profiling.column_stats.code import CodeBatchEntry, compute_code_column_profiles_batch
 from profiling.column_stats.common import compute_decimal_parse_stats_batch
 from profiling.column_stats.date import (
     DateBatchEntry,
@@ -67,6 +80,8 @@ def compute_column_profiles(
     date_batch: list[DateBatchEntry] = []
     datetime_batch: list[DateTimeBatchEntry] = []
     time_batch: list[TimeBatchEntry] = []
+    code_batch: list[CodeBatchEntry] = []
+    ai_only_batch: list[AiOnlyBatchEntry] = []
     integer_batch: list[IntegerBatchEntry] = []
     decimal_stats_batch: list[DecimalStatsBatchEntry] = []
     symbol_columns: list[SymbolColumnEntry] = []
@@ -85,6 +100,22 @@ def compute_column_profiles(
             datetime_batch.append(DateTimeBatchEntry(col_name, config, counts))
         elif isinstance(config, TimeColumnConfig):
             time_batch.append(TimeBatchEntry(col_name, config, counts))
+        elif isinstance(
+            config,
+            (CountryCodeColumnConfig, CurrencyCodeColumnConfig, LanguageCodeColumnConfig),
+        ):
+            code_batch.append(CodeBatchEntry(col_name, config, counts))
+        elif isinstance(
+            config,
+            (
+                CategoricalColumnConfig,
+                EmailColumnConfig,
+                UrlColumnConfig,
+                IpAddressColumnConfig,
+                PhoneColumnConfig,
+            ),
+        ):
+            ai_only_batch.append(AiOnlyBatchEntry(col_name, config, counts))
         else:
             raw_col = f"TRIM(CAST({quote_identifier(col_name)} AS VARCHAR))"
             value_expr = build_value_candidate_expr(raw_col, config)
@@ -107,6 +138,8 @@ def compute_column_profiles(
     profiles |= compute_date_column_profiles_batch(conn, date_batch, null_tokens)
     profiles |= compute_datetime_column_profiles_batch(conn, datetime_batch, null_tokens)
     profiles |= compute_time_column_profiles_batch(conn, time_batch, null_tokens)
+    profiles |= compute_code_column_profiles_batch(conn, code_batch, null_tokens)
+    profiles |= compute_ai_only_column_profiles_batch(conn, ai_only_batch, null_tokens)
     profiles |= compute_integer_column_profiles_batch(conn, integer_batch, null_tokens)
     profiles |= compute_decimal_stats_profiles_batch(conn, decimal_stats_batch, null_tokens)
 

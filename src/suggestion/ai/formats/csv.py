@@ -8,7 +8,7 @@ read them); everything structural is the model's call.
 
 from __future__ import annotations
 
-from typing import Literal
+from typing import Literal, cast
 
 from shared.ingestion import resolve_ingestion_setup
 from shared.models.operation import CsvSourceFormat, HeaderMode
@@ -22,6 +22,7 @@ from suggestion.ai.formats.base import (
     AiInferenceResult,
     FormatInference,
     ReconciledInference,
+    make_core_output_model,
     pair_columns_by_position,
 )
 from suggestion.constants import FILE_SAMPLE_BYTES
@@ -74,6 +75,7 @@ class CsvFormatInference(FormatInference):
     """CSV prompt, sampling, and reconciliation."""
 
     output_model = CsvAiInferenceResult
+    core_output_model = make_core_output_model("CoreCsvAiInferenceResult", CsvAiInferenceResult)
 
     def sample(self, source: SourceRef) -> str:
         _, text = _read_decoded(source)
@@ -84,10 +86,8 @@ class CsvFormatInference(FormatInference):
         return _PROMPT.format(sample=sample)
 
     def reconcile(self, result: AiInferenceResult, source: SourceRef) -> ReconciledInference:
-        if not isinstance(result, CsvAiInferenceResult):
-            raise TypeError(
-                f"CSV reconcile expected CsvAiInferenceResult, got {type(result).__name__}."
-            )
+        self.validate_result_type(result)
+        result = cast(CsvAiInferenceResult, result)
         encoding, text = _read_decoded(source)
         delimiter = _DELIMITER_CHARS[result.delimiter]
 

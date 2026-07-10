@@ -19,16 +19,24 @@ from shared.models.column.base import (
 from shared.models.column.configs import (
     AccountingColumnConfig,
     BooleanColumnConfig,
+    CategoricalColumnConfig,
     ColumnConfig,
+    CountryCodeColumnConfig,
+    CurrencyCodeColumnConfig,
     CurrencyColumnConfig,
     DateColumnConfig,
     DateTimeColumnConfig,
     DecimalColumnConfig,
+    EmailColumnConfig,
     IntegerColumnConfig,
+    IpAddressColumnConfig,
+    LanguageCodeColumnConfig,
     PercentageColumnConfig,
+    PhoneColumnConfig,
     SignedColumnConfig,
     StringColumnConfig,
     TimeColumnConfig,
+    UrlColumnConfig,
 )
 
 type ColumnCapability = Literal[
@@ -40,6 +48,10 @@ type ColumnCapability = Literal[
     "date_format",
     "datetime_format",
     "time_format",
+    "standard_code",
+    "ai_only",
+    "categorical_mapping",
+    "structured_string",
 ]
 
 type ColumnConfigClass = (
@@ -54,6 +66,14 @@ type ColumnConfigClass = (
     | type[DateColumnConfig]
     | type[DateTimeColumnConfig]
     | type[TimeColumnConfig]
+    | type[CountryCodeColumnConfig]
+    | type[CurrencyCodeColumnConfig]
+    | type[LanguageCodeColumnConfig]
+    | type[CategoricalColumnConfig]
+    | type[EmailColumnConfig]
+    | type[UrlColumnConfig]
+    | type[IpAddressColumnConfig]
+    | type[PhoneColumnConfig]
 )
 
 
@@ -105,6 +125,22 @@ COLUMN_TYPE_SPECS: tuple[ColumnTypeSpec, ...] = (
     ColumnTypeSpec("date", DateColumnConfig, frozenset({"date_format"})),
     ColumnTypeSpec("datetime", DateTimeColumnConfig, frozenset({"datetime_format"})),
     ColumnTypeSpec("time", TimeColumnConfig, frozenset({"time_format"})),
+    ColumnTypeSpec("country_code", CountryCodeColumnConfig, frozenset({"standard_code"})),
+    ColumnTypeSpec("currency_code", CurrencyCodeColumnConfig, frozenset({"standard_code"})),
+    ColumnTypeSpec("language_code", LanguageCodeColumnConfig, frozenset({"standard_code"})),
+    ColumnTypeSpec(
+        "categorical",
+        CategoricalColumnConfig,
+        frozenset({"ai_only", "categorical_mapping"}),
+    ),
+    ColumnTypeSpec("email", EmailColumnConfig, frozenset({"ai_only", "structured_string"})),
+    ColumnTypeSpec("url", UrlColumnConfig, frozenset({"ai_only", "structured_string"})),
+    ColumnTypeSpec(
+        "ip_address",
+        IpAddressColumnConfig,
+        frozenset({"ai_only", "structured_string"}),
+    ),
+    ColumnTypeSpec("phone", PhoneColumnConfig, frozenset({"ai_only", "structured_string"})),
 )
 
 _TYPE_SPEC_BY_TYPE: dict[ColumnType, ColumnTypeSpec] = {

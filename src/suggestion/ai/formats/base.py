@@ -9,11 +9,15 @@ pipeline dispatches by source_file_format and is otherwise format-blind.
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from collections.abc import Sequence
 from dataclasses import dataclass
+from typing import cast
+
+from pydantic import create_model
 
 from shared.db.column_index import build_position_to_name
 from shared.models.base import MainModel
-from shared.models.column import ColumnConfig
+from shared.models.column import ColumnConfig, CoreColumnConfig
 from shared.models.source import SourceRef
 from shared.models.suggestion import SuggestionConfidence
 
@@ -25,16 +29,46 @@ class AiInferenceResult(MainModel):
 
 
 class AiColumnInference(MainModel):
-    """One column as inferred by the model: its config and how sure the model is."""
+    """One extended-mode column inferred by the model.
+
+    This schema includes every executable ColumnConfig, including AI-only configs
+    such as categorical, email, URL, IP address, and phone.
+    """
 
     name: str
     config: ColumnConfig
     confidence: float
 
 
+class CoreAiColumnInference(MainModel):
+    """AI column inference constrained to core non-extended column configs."""
+
+    name: str
+    config: CoreColumnConfig
+    confidence: float
+
+
+type AnyAiColumnInference = AiColumnInference | CoreAiColumnInference
+
+
+def make_core_output_model(
+    name: str,
+    base_model: type[AiInferenceResult],
+) -> type[AiInferenceResult]:
+    """Derive a core-mode output model by replacing only the column config schema."""
+    return cast(
+        type[AiInferenceResult],
+        create_model(
+            name,
+            __base__=base_model,
+            columns=(list[CoreAiColumnInference], ...),
+        ),
+    )
+
+
 def pair_columns_by_position(
     column_names: list[str],
-    ai_columns: list[AiColumnInference],
+    ai_columns: Sequence[AnyAiColumnInference],
 ) -> tuple[dict[str, ColumnConfig], dict[str, float]]:
     """Key the model's ordered columns to positions (one AI column per parsed column).
 
@@ -73,6 +107,29 @@ class FormatInference(ABC):
     """What every file type must supply to the AI pipeline."""
 
     output_model: type[AiInferenceResult]
+    core_output_model: type[AiInferenceResult] | None = None
+
+    def output_model_for_options(
+        self,
+        extended_type_detection: bool,
+    ) -> type[AiInferenceResult]:
+        """Return the structured output model for the selected suggestion options."""
+        if not extended_type_detection and self.core_output_model is not None:
+            return self.core_output_model
+        return self.output_model
+
+    def validate_result_type(self, result: AiInferenceResult) -> None:
+        """Validate that a provider result matches this format's possible output models."""
+        valid_types = (
+            (self.output_model,)
+            if self.core_output_model is None
+            else (self.output_model, self.core_output_model)
+        )
+        if not isinstance(result, valid_types):
+            expected = " or ".join(model.__name__ for model in valid_types)
+            raise TypeError(
+                f"{type(self).__name__} expected {expected}, got {type(result).__name__}."
+            )
 
     @abstractmethod
     def sample(self, source: SourceRef) -> str:

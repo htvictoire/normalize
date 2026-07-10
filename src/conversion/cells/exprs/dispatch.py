@@ -4,17 +4,37 @@ from __future__ import annotations
 
 from shared.models.column import (
     BooleanColumnConfig,
+    CategoricalColumnConfig,
     ColumnConfig,
+    CountryCodeColumnConfig,
+    CurrencyCodeColumnConfig,
     DateColumnConfig,
     DateTimeColumnConfig,
     DecimalSyntaxColumnConfig,
+    EmailColumnConfig,
     IntegerColumnConfig,
+    IpAddressColumnConfig,
+    LanguageCodeColumnConfig,
+    PhoneColumnConfig,
     StringColumnConfig,
     TimeColumnConfig,
+    UrlColumnConfig,
 )
 from shared.parsing.normalizer import build_value_candidate_expr
 
+from conversion.cells.exprs.ai_only import (
+    build_categorical_exprs,
+    build_email_exprs,
+    build_ip_address_exprs,
+    build_phone_exprs,
+    build_url_exprs,
+)
 from conversion.cells.exprs.boolean import build_boolean_exprs
+from conversion.cells.exprs.code import (
+    build_country_code_exprs,
+    build_currency_code_exprs,
+    build_language_code_exprs,
+)
 from conversion.cells.exprs.column_exprs import ColumnExprs
 from conversion.cells.exprs.date import (
     build_date_exprs,
@@ -71,6 +91,67 @@ def build_column_exprs(
             nullish_predicate,
             raw_value=raw_value,
             time_format=config.time_format,
+            issue_label=issue_label,
+        )
+    elif isinstance(config, CountryCodeColumnConfig):
+        exprs = build_country_code_exprs(
+            column_name,
+            nullish_predicate,
+            raw_value=raw_value,
+            code_format=config.code_format,
+            issue_label=issue_label,
+        )
+    elif isinstance(config, CurrencyCodeColumnConfig):
+        exprs = build_currency_code_exprs(
+            column_name,
+            nullish_predicate,
+            raw_value=raw_value,
+            issue_label=issue_label,
+        )
+    elif isinstance(config, LanguageCodeColumnConfig):
+        exprs = build_language_code_exprs(
+            column_name,
+            nullish_predicate,
+            raw_value=raw_value,
+            code_format=config.code_format,
+            issue_label=issue_label,
+        )
+    elif isinstance(config, CategoricalColumnConfig):
+        exprs = build_categorical_exprs(
+            column_name,
+            nullish_predicate,
+            raw_value=raw_value,
+            value_map=config.value_map,
+            unknown_value_policy=config.unknown_value_policy,
+            issue_label=issue_label,
+        )
+    elif isinstance(config, EmailColumnConfig):
+        exprs = build_email_exprs(
+            column_name,
+            nullish_predicate,
+            raw_value=raw_value,
+            issue_label=issue_label,
+        )
+    elif isinstance(config, UrlColumnConfig):
+        exprs = build_url_exprs(
+            column_name,
+            nullish_predicate,
+            raw_value=raw_value,
+            issue_label=issue_label,
+        )
+    elif isinstance(config, IpAddressColumnConfig):
+        exprs = build_ip_address_exprs(
+            column_name,
+            nullish_predicate,
+            raw_value=raw_value,
+            version=config.version,
+            issue_label=issue_label,
+        )
+    elif isinstance(config, PhoneColumnConfig):
+        exprs = build_phone_exprs(
+            column_name,
+            nullish_predicate,
+            raw_value=raw_value,
             issue_label=issue_label,
         )
     elif isinstance(config, IntegerColumnConfig):

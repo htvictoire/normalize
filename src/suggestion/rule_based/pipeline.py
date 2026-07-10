@@ -24,8 +24,7 @@ from dataclasses import dataclass
 from shared.db.column_index import build_position_to_name
 from shared.models.column import ColumnConfig
 from shared.models.operation import CsvSourceFormat, ExcelSourceFormat, SourceFormat
-from shared.models.source import SourceRef
-from shared.models.suggestion import SuggestionConfidence, SuggestionOutput
+from shared.models.suggestion import SuggestionConfidence, SuggestionInput, SuggestionOutput
 
 from suggestion.assembly import build_suggestion_output
 from suggestion.display import read_sample_values
@@ -60,10 +59,17 @@ def _rule_based_confidence(
     )
 
 
-def _run_core(reading: SourceReading, position_to_name: dict[str, str]) -> _CoreSuggestion:
+def _run_core(
+    reading: SourceReading,
+    position_to_name: dict[str, str],
+    extended_type_detection: bool,
+) -> _CoreSuggestion:
     sampled_values_by_position = sample_column_values(reading.inference_rows, position_to_name)
     column_configs = {
-        pos: infer_column_type(sampled_values_by_position[pos])
+        pos: infer_column_type(
+            sampled_values_by_position[pos],
+            extended_type_detection=extended_type_detection,
+        )
         for pos in position_to_name
     }
     sample_values_by_position = read_sample_values(reading.inference_rows, position_to_name)
@@ -73,9 +79,11 @@ def _run_core(reading: SourceReading, position_to_name: dict[str, str]) -> _Core
     )
 
 
-def run_suggestion(source: SourceRef) -> SuggestionOutput:
+def run_suggestion(
+    request: SuggestionInput,
+) -> SuggestionOutput:
     """Run the rule-based suggestion pipeline for one source file."""
-    reading = read_source(source)
+    reading = read_source(request)
 
     null_tokens = infer_null_tokens(reading.inference_rows, reading.column_names)
     position_to_name = build_position_to_name(reading.column_names)
@@ -85,7 +93,12 @@ def run_suggestion(source: SourceRef) -> SuggestionOutput:
             stats_future = executor.submit(
                 compute_source_stats, reading, null_tokens, position_to_name
             )
-            core_future = executor.submit(_run_core, reading, position_to_name)
+            core_future = executor.submit(
+                _run_core,
+                reading,
+                position_to_name,
+                request.extended_type_detection,
+            )
             stats = stats_future.result()
             core = core_future.result()
     finally:

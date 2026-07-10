@@ -10,16 +10,24 @@ from shared.models.base import MainModel
 from shared.models.column import (
     AccountingColumnConfig,
     BooleanColumnConfig,
+    CategoricalColumnConfig,
     ColumnConfig,
+    CountryCodeColumnConfig,
+    CurrencyCodeColumnConfig,
     CurrencyColumnConfig,
     DateColumnConfig,
     DateTimeColumnConfig,
     DecimalColumnConfig,
+    EmailColumnConfig,
     IntegerColumnConfig,
+    IpAddressColumnConfig,
+    LanguageCodeColumnConfig,
     PercentageColumnConfig,
+    PhoneColumnConfig,
     SignedColumnConfig,
     StringColumnConfig,
     TimeColumnConfig,
+    UrlColumnConfig,
 )
 from shared.models.profiling.base import (
     AccountingSignProfile,
@@ -27,6 +35,7 @@ from shared.models.profiling.base import (
     DecimalStatsProfile,
     MonetaryProfile,
     ParseMatchProfile,
+    ValidityProfile,
 )
 
 
@@ -82,6 +91,18 @@ class DateColumnProfile(MainModel):
     format_match_ratio: float
 
 
+class CountryCodeColumnProfile(ValidityProfile):
+    profile_type: Literal["country_code"] = "country_code"
+
+
+class CurrencyCodeColumnProfile(ValidityProfile):
+    profile_type: Literal["currency_code"] = "currency_code"
+
+
+class LanguageCodeColumnProfile(ValidityProfile):
+    profile_type: Literal["language_code"] = "language_code"
+
+
 class DateTimeColumnProfile(MainModel):
     profile_type: Literal["datetime"] = "datetime"
     format_match_count: int
@@ -94,6 +115,26 @@ class TimeColumnProfile(MainModel):
     format_match_ratio: float
 
 
+class CategoricalColumnProfile(ValidityProfile):
+    profile_type: Literal["categorical"] = "categorical"
+
+
+class EmailColumnProfile(ValidityProfile):
+    profile_type: Literal["email"] = "email"
+
+
+class UrlColumnProfile(ValidityProfile):
+    profile_type: Literal["url"] = "url"
+
+
+class IpAddressColumnProfile(ValidityProfile):
+    profile_type: Literal["ip_address"] = "ip_address"
+
+
+class PhoneColumnProfile(ValidityProfile):
+    profile_type: Literal["phone"] = "phone"
+
+
 type ColumnProfileClass = (
     type[StringColumnProfile]
     | type[BooleanColumnProfile]
@@ -104,8 +145,16 @@ type ColumnProfileClass = (
     | type[CurrencyColumnProfile]
     | type[AccountingColumnProfile]
     | type[DateColumnProfile]
+    | type[CountryCodeColumnProfile]
+    | type[CurrencyCodeColumnProfile]
+    | type[LanguageCodeColumnProfile]
     | type[DateTimeColumnProfile]
     | type[TimeColumnProfile]
+    | type[CategoricalColumnProfile]
+    | type[EmailColumnProfile]
+    | type[UrlColumnProfile]
+    | type[IpAddressColumnProfile]
+    | type[PhoneColumnProfile]
 )
 
 _PROFILE_CLASS_BY_CONFIG: dict[type[object], ColumnProfileClass] = {
@@ -118,8 +167,16 @@ _PROFILE_CLASS_BY_CONFIG: dict[type[object], ColumnProfileClass] = {
     SignedColumnConfig: SignedColumnProfile,
     AccountingColumnConfig: AccountingColumnProfile,
     DateColumnConfig: DateColumnProfile,
+    CountryCodeColumnConfig: CountryCodeColumnProfile,
+    CurrencyCodeColumnConfig: CurrencyCodeColumnProfile,
+    LanguageCodeColumnConfig: LanguageCodeColumnProfile,
     DateTimeColumnConfig: DateTimeColumnProfile,
     TimeColumnConfig: TimeColumnProfile,
+    CategoricalColumnConfig: CategoricalColumnProfile,
+    EmailColumnConfig: EmailColumnProfile,
+    UrlColumnConfig: UrlColumnProfile,
+    IpAddressColumnConfig: IpAddressColumnProfile,
+    PhoneColumnConfig: PhoneColumnProfile,
 }
 
 
@@ -160,11 +217,49 @@ def profile_class_for_config(config: DateColumnConfig) -> type[DateColumnProfile
 
 
 @overload
+def profile_class_for_config(config: CountryCodeColumnConfig) -> type[CountryCodeColumnProfile]: ...
+
+
+@overload
+def profile_class_for_config(
+    config: CurrencyCodeColumnConfig,
+) -> type[CurrencyCodeColumnProfile]: ...
+
+
+@overload
+def profile_class_for_config(
+    config: LanguageCodeColumnConfig,
+) -> type[LanguageCodeColumnProfile]: ...
+
+
+@overload
 def profile_class_for_config(config: DateTimeColumnConfig) -> type[DateTimeColumnProfile]: ...
 
 
 @overload
 def profile_class_for_config(config: TimeColumnConfig) -> type[TimeColumnProfile]: ...
+
+
+@overload
+def profile_class_for_config(
+    config: CategoricalColumnConfig,
+) -> type[CategoricalColumnProfile]: ...
+
+
+@overload
+def profile_class_for_config(config: EmailColumnConfig) -> type[EmailColumnProfile]: ...
+
+
+@overload
+def profile_class_for_config(config: UrlColumnConfig) -> type[UrlColumnProfile]: ...
+
+
+@overload
+def profile_class_for_config(config: IpAddressColumnConfig) -> type[IpAddressColumnProfile]: ...
+
+
+@overload
+def profile_class_for_config(config: PhoneColumnConfig) -> type[PhoneColumnProfile]: ...
 
 
 def profile_class_for_config(config: ColumnConfig) -> ColumnProfileClass:
@@ -183,8 +278,16 @@ ColumnProfile = Annotated[
         | CurrencyColumnProfile
         | AccountingColumnProfile
         | DateColumnProfile
+        | CountryCodeColumnProfile
+        | CurrencyCodeColumnProfile
+        | LanguageCodeColumnProfile
         | DateTimeColumnProfile
         | TimeColumnProfile
+        | CategoricalColumnProfile
+        | EmailColumnProfile
+        | UrlColumnProfile
+        | IpAddressColumnProfile
+        | PhoneColumnProfile
     ),
     Field(discriminator="profile_type"),
 ]

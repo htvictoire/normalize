@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Annotated, Any, Literal, cast
 
-from pydantic import Field, TypeAdapter, field_validator
+from pydantic import Field, TypeAdapter, field_validator, model_validator
 
 from shared.models.base import MainModel
 from shared.models.column.base import (
@@ -144,22 +144,123 @@ class TimeColumnConfig(MainModel):
         return value
 
 
-ColumnConfig = Annotated[
-    (
-        StringColumnConfig
-        | BooleanColumnConfig
-        | IntegerColumnConfig
-        | DecimalColumnConfig
-        | CurrencyColumnConfig
-        | PercentageColumnConfig
-        | SignedColumnConfig
-        | AccountingColumnConfig
-        | DateColumnConfig
-        | DateTimeColumnConfig
-        | TimeColumnConfig
-    ),
+class CountryCodeColumnConfig(MainModel):
+    """Declared ISO 3166-1 country-code column configuration."""
+
+    code_format: Literal["alpha_2", "alpha_3"]
+    type: Literal["country_code"] = "country_code"
+
+
+class CurrencyCodeColumnConfig(MainModel):
+    """Declared ISO 4217 alpha-3 currency-code column configuration."""
+
+    type: Literal["currency_code"] = "currency_code"
+
+
+class LanguageCodeColumnConfig(MainModel):
+    """Declared ISO 639 language-code column configuration."""
+
+    code_format: Literal["alpha_2", "alpha_3"]
+    type: Literal["language_code"] = "language_code"
+
+
+class CategoricalColumnConfig(MainModel):
+    """AI-only declared categorical column with explicit confirmed value mapping."""
+
+    canonical_values: tuple[str, ...]
+    value_map: dict[str, str]
+    unknown_value_policy: Literal["issue_and_keep", "issue_and_null", "keep"]
+    type: Literal["categorical"] = "categorical"
+
+    @model_validator(mode="after")
+    def _validate_mapping_targets(self) -> CategoricalColumnConfig:
+        canonical = set(self.canonical_values)
+        invalid_targets = sorted(
+            {target for target in self.value_map.values() if target not in canonical}
+        )
+        if invalid_targets:
+            raise ValueError(
+                f"value_map targets must be canonical_values, got {invalid_targets!r}"
+            )
+        return self
+
+
+class EmailColumnConfig(MainModel):
+    """AI-only declared email-address column."""
+
+    type: Literal["email"] = "email"
+
+
+class UrlColumnConfig(MainModel):
+    """AI-only declared URL column."""
+
+    type: Literal["url"] = "url"
+
+
+class IpAddressColumnConfig(MainModel):
+    """AI-only declared IP-address column."""
+
+    version: Literal["any", "v4", "v6"] = "any"
+    type: Literal["ip_address"] = "ip_address"
+
+
+class PhoneColumnConfig(MainModel):
+    """AI-only declared phone-number column with deterministic E.164-like validation."""
+
+    type: Literal["phone"] = "phone"
+
+
+# Suggestion schema contract:
+# - CoreColumnConfig is available in every suggestion mode.
+# - RuleBasedExtendedColumnConfig is additionally available to rule-based and AI when
+#   extended_type_detection=true.
+# - AiOnlyColumnConfig is available only to AI when extended_type_detection=true.
+# All variants remain executable after confirmation through ColumnConfig.
+type CoreColumnConfigModel = (
+    StringColumnConfig
+    | BooleanColumnConfig
+    | IntegerColumnConfig
+    | DecimalColumnConfig
+    | CurrencyColumnConfig
+    | PercentageColumnConfig
+    | SignedColumnConfig
+    | AccountingColumnConfig
+    | DateColumnConfig
+    | DateTimeColumnConfig
+    | TimeColumnConfig
+)
+
+
+type RuleBasedExtendedColumnConfigModel = (
+    CountryCodeColumnConfig
+    | CurrencyCodeColumnConfig
+    | LanguageCodeColumnConfig
+)
+
+
+type AiOnlyColumnConfigModel = (
+    CategoricalColumnConfig
+    | EmailColumnConfig
+    | UrlColumnConfig
+    | IpAddressColumnConfig
+    | PhoneColumnConfig
+)
+
+
+CoreColumnConfig = Annotated[CoreColumnConfigModel, Field(discriminator="type")]
+RuleBasedExtendedColumnConfig = Annotated[
+    RuleBasedExtendedColumnConfigModel,
     Field(discriminator="type"),
 ]
+AiOnlyColumnConfig = Annotated[AiOnlyColumnConfigModel, Field(discriminator="type")]
+
+type ColumnConfigModel = (
+    CoreColumnConfigModel
+    | RuleBasedExtendedColumnConfigModel
+    | AiOnlyColumnConfigModel
+)
+
+ColumnConfig = Annotated[ColumnConfigModel, Field(discriminator="type")]
 
 _COLUMN_CONFIG_ADAPTER: TypeAdapter[ColumnConfig] = TypeAdapter(ColumnConfig)
 

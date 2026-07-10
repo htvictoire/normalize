@@ -14,6 +14,7 @@ from shared.models.column import (
 )
 
 from suggestion.rule_based.boolean import is_boolean
+from suggestion.rule_based.code import infer_code_type
 from suggestion.rule_based.constants import BOOLEAN_TOKEN_PAIRS, TYPE_MATCH_MIN_RATIO
 from suggestion.rule_based.date import (
     best_date_format,
@@ -42,7 +43,10 @@ def _infer_temporal_type(
     return None
 
 
-def infer_column_type(values: Sequence[str]) -> ColumnConfig:
+def infer_column_type(
+    values: Sequence[str],
+    extended_type_detection: bool,
+) -> ColumnConfig:
     """Infer and return a ColumnConfig for one sampled column."""
     if not values:
         return StringColumnConfig()
@@ -71,5 +75,10 @@ def infer_column_type(values: Sequence[str]) -> ColumnConfig:
     temporal = _infer_temporal_type(values, meets_threshold)
     if temporal is not None:
         return temporal
+
+    if extended_type_detection:
+        code = infer_code_type(values, sample_count)
+        if code is not None:
+            return code
 
     return StringColumnConfig()

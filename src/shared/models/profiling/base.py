@@ -29,6 +29,14 @@ class ParseMatchProfile(MainModel):
     parse_match_ratio: float
 
 
+class ValidityProfile(MainModel):
+    """Base for profiles that measure valid values against a declared value set/pattern."""
+
+    valid_count: int
+    invalid_count: int
+    valid_ratio: float
+
+
 class SeparatorMismatchProfile(ParseMatchProfile):
     """Base for decimal-style profiles that also detect separator swap."""
 

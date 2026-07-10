@@ -23,6 +23,21 @@ def parse_date_alias(column_name: str) -> str:
     return f"__p_date__{column_name}"
 
 
+def parse_code_alias(column_name: str) -> str:
+    """Alias for the pre-computed canonical standardized code in the parse CTE."""
+    return f"__p_code__{column_name}"
+
+
+def parse_categorical_alias(column_name: str) -> str:
+    """Alias for the pre-computed categorical raw value in the parse CTE."""
+    return f"__p_category__{column_name}"
+
+
+def parse_structured_alias(column_name: str) -> str:
+    """Alias for the pre-computed structured-string value in the parse CTE."""
+    return f"__p_structured__{column_name}"
+
+
 def parse_datetime_alias(column_name: str) -> str:
     """Alias for the pre-computed TRY_CAST timestamp result in the parse CTE."""
     return f"__p_datetime__{column_name}"

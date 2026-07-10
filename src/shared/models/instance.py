@@ -55,6 +55,7 @@ class InstanceModel(MainModel):
     source_type: FileSource
     source_checksum: str
     suggestion_method: SuggestionMethod
+    extended_type_detection: bool
     webhook_url: str | None = None
     suggested_config: InstanceConfig | None = None
     suggestion_display: SuggestionDisplay | None = None
@@ -73,6 +74,7 @@ class InstanceModel(MainModel):
         source_file_format: FileFormat,
         source_checksum: str,
         suggestion_method: SuggestionMethod,
+        extended_type_detection: bool,
         tenant_id: str = "default",
         instance_id: UUID | None = None,
     ) -> InstanceModel:
@@ -87,6 +89,7 @@ class InstanceModel(MainModel):
             source_type=source_type,
             source_checksum=source_checksum,
             suggestion_method=suggestion_method,
+            extended_type_detection=extended_type_detection,
         )
 
     def set_suggestion_output(

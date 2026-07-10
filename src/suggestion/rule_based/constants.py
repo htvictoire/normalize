@@ -39,6 +39,11 @@ CURRENCY_MATCH_MIN_RATIO = 0.1
 # from CURRENCY_MATCH_MIN_RATIO to allow independent tuning.
 SIGNED_MATCH_MIN_RATIO = 0.1
 
+# Minimum match ratio for standardized-code types. Short string tokens can overlap
+# ordinary categorical values, so code inference is intentionally stricter than
+# generic type inference.
+CODE_MATCH_MIN_RATIO = 0.95
+
 # ---------------------------------------------------------------------------
 # Boolean tokens
 # ---------------------------------------------------------------------------

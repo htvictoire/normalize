@@ -25,9 +25,7 @@ def health() -> dict[str, str]:
 
 @router.post("/normalize/suggest", response_model=InstanceModel)
 def suggest_endpoint(request: Request, payload: SuggestRequest) -> InstanceModel:
-    return _orchestrator(request).suggest(
-        payload, payload.source_checksum, payload.suggestion_method
-    )
+    return _orchestrator(request).suggest(payload)
 
 
 @router.get("/normalize/instances/{instance_id}", response_model=InstanceModel)

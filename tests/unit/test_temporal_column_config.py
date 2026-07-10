@@ -48,9 +48,13 @@ def test_temporal_configs_reject_non_strptime_notation() -> None:
 
 def test_rule_based_inference_suggests_datetime_and_time_configs() -> None:
     datetime_config = infer_column_type(
-        ["2026-07-10 09:15:30", "2026-07-11 10:20:45", "2026-07-12 11:25:00"]
+        ["2026-07-10 09:15:30", "2026-07-11 10:20:45", "2026-07-12 11:25:00"],
+        extended_type_detection=False,
     )
-    time_config = infer_column_type(["09:15:30", "10:20:45", "11:25:00"])
+    time_config = infer_column_type(
+        ["09:15:30", "10:20:45", "11:25:00"],
+        extended_type_detection=False,
+    )
 
     assert datetime_config == DateTimeColumnConfig(datetime_format="%Y-%m-%d %H:%M:%S")
     assert time_config == TimeColumnConfig(time_format="%H:%M:%S")

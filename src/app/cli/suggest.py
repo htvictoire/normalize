@@ -6,7 +6,7 @@ import hashlib
 import sys
 from pathlib import Path
 
-from shared.models.source import SourceRef
+from shared.models.suggestion import SuggestionInput
 
 from app.bootstrap.orchestrator import MainOrchestrator
 from app.cli.utils import (
@@ -18,7 +18,16 @@ from app.cli.utils import (
     write_output,
 )
 
-_USAGE = "Usage: main.py suggest <filename> [output_name]"
+_USAGE = "Usage: main.py suggest <filename> <extended_type_detection:true|false> [output_name]"
+
+
+def _parse_bool(value: str) -> bool:
+    normalized = value.strip().lower()
+    if normalized == "true":
+        return True
+    if normalized == "false":
+        return False
+    raise ValueError("extended_type_detection must be exactly 'true' or 'false'")
 
 
 def _sha256_stream(path: Path, chunk_size: int = 1_048_576) -> str:
@@ -35,7 +44,7 @@ def _sha256_stream(path: Path, chunk_size: int = 1_048_576) -> str:
 
 def run(args: list[str]) -> None:
     try:
-        filename, *rest = args
+        filename, extended_type_detection_raw, *rest = args
     except ValueError:
         print(_USAGE, file=sys.stderr)
         sys.exit(1)
@@ -44,17 +53,17 @@ def run(args: list[str]) -> None:
 
     try:
         input_path = resolve_input_file(filename)
-        source = SourceRef(
+        extended_type_detection = _parse_bool(extended_type_detection_raw)
+        request = SuggestionInput(
             source_file=str(input_path),
             source_file_name=input_path.name,
             source_type="local",
             source_file_format=infer_format_type(input_path),
+            source_checksum=_sha256_stream(input_path),
+            suggestion_method="rule_based",
+            extended_type_detection=extended_type_detection,
         )
-        instance = MainOrchestrator().suggest(
-            source,
-            _sha256_stream(input_path),
-            "rule_based",
-        )
+        instance = MainOrchestrator().suggest(request)
     except (ValueError, FileNotFoundError) as exc:
         die(str(exc))
         return

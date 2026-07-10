@@ -13,8 +13,7 @@ this module composes them and is blind to both.
 from __future__ import annotations
 
 from shared.db.column_index import build_position_to_name
-from shared.models.source import SourceRef
-from shared.models.suggestion import SuggestionOutput
+from shared.models.suggestion import SuggestionInput, SuggestionOutput
 
 from suggestion.ai.formats import FORMATS
 from suggestion.ai.providers import FileInferenceProvider, get_inference_provider
@@ -25,19 +24,20 @@ from suggestion.stats import compute_source_stats
 
 
 def run_suggestion(
-    source: SourceRef,
+    request: SuggestionInput,
     provider: FileInferenceProvider | None = None,
 ) -> SuggestionOutput:
     """Run the AI suggestion pipeline for one source file.
 
     ``provider`` is injectable for tests; production reads it from settings.
     """
-    fmt = FORMATS[source.source_file_format]
+    fmt = FORMATS[request.source_file_format]
     provider = provider or get_inference_provider()
 
-    sample = fmt.sample(source)
-    result = provider.infer_schema(fmt.build_prompt(sample), fmt.output_model)
-    reconciled = fmt.reconcile(result, source)
+    sample = fmt.sample(request)
+    output_model = fmt.output_model_for_options(request.extended_type_detection)
+    result = provider.infer_schema(fmt.build_prompt(sample), output_model)
+    reconciled = fmt.reconcile(result, request)
     reading = reconciled.reading
 
     try:

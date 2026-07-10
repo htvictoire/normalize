@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import cast
 
 from shared.models.operation import HeaderMode
 from shared.models.source import SourceRef
@@ -24,6 +25,7 @@ from suggestion.ai.formats.base import (
     AiInferenceResult,
     FormatInference,
     ReconciledInference,
+    make_core_output_model,
     pair_columns_by_position,
 )
 from suggestion.source import SourceReading
@@ -59,6 +61,10 @@ class ExcelFormatInference(FormatInference):
     """Excel prompt, sampling, and reconciliation."""
 
     output_model = ExcelAiInferenceResult
+    core_output_model = make_core_output_model(
+        "CoreExcelAiInferenceResult",
+        ExcelAiInferenceResult,
+    )
 
     def sample(self, source: SourceRef) -> str:
         _, all_rows = _load_rows(source)
@@ -70,10 +76,8 @@ class ExcelFormatInference(FormatInference):
         return _PROMPT.format(sample=sample)
 
     def reconcile(self, result: AiInferenceResult, source: SourceRef) -> ReconciledInference:
-        if not isinstance(result, ExcelAiInferenceResult):
-            raise TypeError(
-                f"Excel reconcile expected ExcelAiInferenceResult, got {type(result).__name__}."
-            )
+        self.validate_result_type(result)
+        result = cast(ExcelAiInferenceResult, result)
         sheet_name, all_rows = _load_rows(source)
         source_format, sample_rows, column_names, inference_rows = assemble_excel_reading(
             sheet_name,

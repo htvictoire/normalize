@@ -68,3 +68,4 @@ class OperationConfig(MainModel):
     approximate_unique: bool
     trace_mode: TraceMode
     decision_thresholds: DecisionThresholds
+

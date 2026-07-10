@@ -16,9 +16,9 @@ from uuid import UUID
 from shared.models.instance import InstanceModel, InstanceStatus
 from shared.models.instance_config import InstanceConfig
 from shared.models.issues import IssueSeverity
-from shared.models.operation import SuggestionMethod
 from shared.models.profiling import ProfilingOutput
 from shared.models.source import SourceRef
+from shared.models.suggestion import SuggestionInput
 from shared.settings import get_settings
 
 from app.bootstrap.conversion import ConversionService
@@ -46,20 +46,19 @@ class MainOrchestrator:
 
     def suggest(
         self,
-        source: SourceRef,
-        source_checksum: str,
-        suggestion_method: SuggestionMethod = "rule_based",
+        request: SuggestionInput,
     ) -> InstanceModel:
         started_at = datetime.now(UTC)
-        validate_file_format(source)
-        result = self._suggestion_service.suggest(source, suggestion_method)
+        validate_file_format(request)
+        result = self._suggestion_service.suggest(request)
         instance = InstanceModel.create(
-            source_file=source.source_file,
-            source_file_name=source.source_file_name,
-            source_type=source.source_type,
-            source_file_format=source.source_file_format,
-            source_checksum=source_checksum,
-            suggestion_method=suggestion_method,
+            source_file=request.source_file,
+            source_file_name=request.source_file_name,
+            source_type=request.source_type,
+            source_file_format=request.source_file_format,
+            source_checksum=request.source_checksum,
+            suggestion_method=request.suggestion_method,
+            extended_type_detection=request.extended_type_detection,
         )
         instance.set_suggestion_output(
             suggested_config=result.suggested_config,
@@ -86,7 +85,7 @@ class MainOrchestrator:
         if webhook_url:
             fire_webhook(webhook_url, instance_id, instance.status)
         if proceed_with_pipeline:
-            from app.worker.app import celery_app
+            from app.worker.app import celery_app  # noqa: PLC0415
             celery_app.send_task(
                 "app.worker.tasks.run_post_confirmation_pipeline",
                 args=[str(instance_id)],
