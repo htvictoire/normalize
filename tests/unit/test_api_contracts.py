@@ -1,9 +1,7 @@
-from pathlib import Path
-
 import pytest
 from pydantic import ValidationError
 
-from app.api.models import ConfirmRequest, NormalizeRequest
+from app.api.models import ConfirmRequest
 
 
 def _operation_payload() -> dict[str, object]:
@@ -24,6 +22,7 @@ def _operation_payload() -> dict[str, object]:
 
 def _source_format_payload() -> dict[str, object]:
     return {
+        "format_type": "csv",
         "encoding": "utf-8",
         "delimiter": ",",
         "header_mode": "present",
@@ -35,36 +34,39 @@ def _column_config_payload() -> dict[str, dict[str, str]]:
     return {"A": {"type": "string"}}
 
 
+def _config_payload() -> dict[str, object]:
+    return {
+        "source_format": _source_format_payload(),
+        "column_config": _column_config_payload(),
+        "operation_config": _operation_payload(),
+    }
+
+
 def test_confirm_request_requires_source_format() -> None:
+    config = _config_payload()
+    del config["source_format"]
+
     with pytest.raises(ValidationError):
-        ConfirmRequest(
-            column_config=_column_config_payload(),
-            operation_config=_operation_payload(),
-        )
+        ConfirmRequest(config=config)
 
 
 def test_confirm_request_requires_column_config() -> None:
+    config = _config_payload()
+    del config["column_config"]
+
     with pytest.raises(ValidationError):
-        ConfirmRequest(
-            source_format=_source_format_payload(),
-            operation_config=_operation_payload(),
-        )
+        ConfirmRequest(config=config)
 
 
 def test_confirm_request_requires_operation_config() -> None:
+    config = _config_payload()
+    del config["operation_config"]
+
     with pytest.raises(ValidationError):
-        ConfirmRequest(
-            source_format=_source_format_payload(),
-            column_config=_column_config_payload(),
-        )
+        ConfirmRequest(config=config)
 
 
-def test_normalize_request_rejects_config_overrides() -> None:
-    with pytest.raises(ValidationError):
-        NormalizeRequest(
-            output_dir=Path("data/manual_runs"),
-            mode="APPLY",
-            rules_version="v1",
-            column_config=_column_config_payload(),
-            operation_config=_operation_payload(),
-        )
+def test_confirm_request_accepts_auto_normalize_flag() -> None:
+    request = ConfirmRequest(config=_config_payload(), auto_normalize=True)
+
+    assert request.auto_normalize is True

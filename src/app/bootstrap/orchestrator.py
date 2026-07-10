@@ -44,6 +44,14 @@ class MainOrchestrator:
     def get_instance(self, instance_id: UUID) -> InstanceModel | None:
         return self._repository.get(instance_id)
 
+    def _enqueue_post_confirmation_pipeline(self, instance_id: UUID) -> None:
+        from app.worker.app import celery_app  # noqa: PLC0415
+
+        celery_app.send_task(
+            "app.worker.tasks.run_post_confirmation_pipeline",
+            args=[str(instance_id)],
+        )
+
     def suggest(
         self,
         request: SuggestionInput,
@@ -69,13 +77,18 @@ class MainOrchestrator:
         instance.timings.suggest_ended_at = datetime.now(UTC)
         instance.timings.estimated_pipeline_seconds = result.estimated_pipeline_seconds
         self._repository.save(instance)
+        if request.auto_confirm:
+            instance.confirm(result.suggested_config)
+            self._repository.save(instance)
+            if request.auto_normalize:
+                self._enqueue_post_confirmation_pipeline(instance.instance_id)
         return instance
 
     def confirm(
         self,
         instance_id: UUID,
         confirmed_config: InstanceConfig,
-        proceed_with_pipeline: bool = False,
+        auto_normalize: bool = False,
         webhook_url: str | None = None,
     ) -> InstanceModel:
         instance = self._repository.get_required(instance_id)
@@ -84,12 +97,8 @@ class MainOrchestrator:
         self._repository.save(instance)
         if webhook_url:
             fire_webhook(webhook_url, instance_id, instance.status)
-        if proceed_with_pipeline:
-            from app.worker.app import celery_app  # noqa: PLC0415
-            celery_app.send_task(
-                "app.worker.tasks.run_post_confirmation_pipeline",
-                args=[str(instance_id)],
-            )
+        if auto_normalize:
+            self._enqueue_post_confirmation_pipeline(instance_id)
         return instance
 
     def profile(self, instance_id: UUID) -> InstanceModel:

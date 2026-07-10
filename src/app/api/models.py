@@ -15,5 +15,5 @@ class ConfirmRequest(MainModel):
     """Request payload for instance confirmation."""
 
     config: InstanceConfig
-    proceed_with_pipeline: bool = False
+    auto_normalize: bool = False
     webhook_url: str | None = None

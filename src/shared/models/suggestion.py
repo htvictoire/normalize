@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from pydantic import Field
+from pydantic import Field, model_validator
 
 from shared.models.base import MainModel
 from shared.models.instance_config import InstanceConfig
@@ -20,6 +20,14 @@ class SuggestionInput(SourceRef):
     )
     suggestion_method: SuggestionMethod
     extended_type_detection: bool
+    auto_confirm: bool = False
+    auto_normalize: bool = False
+
+    @model_validator(mode="after")
+    def _require_auto_confirm_for_auto_normalize(self) -> SuggestionInput:
+        if self.auto_normalize and not self.auto_confirm:
+            raise ValueError("auto_normalize requires auto_confirm")
+        return self
 
 
 class SuggestedColumnDisplay(MainModel):

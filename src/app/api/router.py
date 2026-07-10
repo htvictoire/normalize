@@ -41,7 +41,7 @@ def confirm_endpoint(request: Request, instance_id: UUID, payload: ConfirmReques
     return _orchestrator(request).confirm(
         instance_id,
         payload.config,
-        payload.proceed_with_pipeline,
+        payload.auto_normalize,
         payload.webhook_url,
     )
 
