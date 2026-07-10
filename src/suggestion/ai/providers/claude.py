@@ -14,5 +14,5 @@ T = TypeVar("T", bound=MainModel)
 class ClaudeInferenceProvider(FileInferenceProvider):
     """Structured-output inference backed by Anthropic Claude."""
 
-    def infer_schema(self, sample_rows: str, prompt: str, output_model: type[T]) -> T:
+    def infer_schema(self, prompt: str, output_model: type[T]) -> T:
         raise NotImplementedError("Claude inference provider is not yet implemented.")

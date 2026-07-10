@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Annotated, Any, Literal, cast
 
-from pydantic import Field, TypeAdapter
+from pydantic import Field, TypeAdapter, field_validator
 
 from shared.models.base import MainModel
 from shared.models.column.base import (
@@ -69,8 +69,28 @@ class AccountingColumnConfig(SignedNotationColumnConfig):
 class DateColumnConfig(MainModel):
     """Declared date column configuration."""
 
-    date_format: str
+    date_format: str = Field(
+        description=(
+            "A DuckDB strptime format (e.g. %Y-%m-%d, %d/%m/%Y, %d %b %Y), or the "
+            "literal EXCEL_SERIAL for spreadsheet serial-number dates. The engine "
+            "parses dates with TRY_STRPTIME, so the format must be one it can "
+            "execute. If the column's dates cannot be expressed as such a format "
+            "(e.g. localized month names or ordinal suffixes), classify the column "
+            "as string instead of date."
+        )
+    )
     type: Literal["date"] = "date"
+
+    @field_validator("date_format")
+    @classmethod
+    def _require_strptime_or_sentinel(cls, value: str) -> str:
+        """Reject formats the engine cannot execute (e.g. human notation 'yyyy-mm-dd')."""
+        if value != "EXCEL_SERIAL" and "%" not in value:
+            raise ValueError(
+                f"date_format must be a strptime pattern containing '%' "
+                f"or the literal 'EXCEL_SERIAL', got {value!r}"
+            )
+        return value
 
 
 ColumnConfig = Annotated[

@@ -14,5 +14,5 @@ T = TypeVar("T", bound=MainModel)
 class OpenAIInferenceProvider(FileInferenceProvider):
     """Structured-output inference backed by OpenAI GPT."""
 
-    def infer_schema(self, sample_rows: str, prompt: str, output_model: type[T]) -> T:
+    def infer_schema(self, prompt: str, output_model: type[T]) -> T:
         raise NotImplementedError("OpenAI inference provider is not yet implemented.")

@@ -17,12 +17,12 @@ T = TypeVar("T", bound=MainModel)
 
 
 class FakeInferenceProvider(FileInferenceProvider):
-    """Returns a pre-built result, ignoring the sample and prompt."""
+    """Returns a pre-built result, ignoring the prompt."""
 
     def __init__(self, result: MainModel) -> None:
         self._result = result
 
-    def infer_schema(self, sample_rows: str, prompt: str, output_model: type[T]) -> T:  # noqa: ARG002 — canned result ignores inputs
+    def infer_schema(self, prompt: str, output_model: type[T]) -> T:  # noqa: ARG002 — canned result ignores the prompt
         if not isinstance(self._result, output_model):
             raise TypeError(
                 f"FakeInferenceProvider was given a {type(self._result).__name__} "

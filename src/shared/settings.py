@@ -22,6 +22,8 @@ class Settings(BaseSettings):
     redis_url: str
     ai_provider: AiProvider = "claude"
     ai_sample_row_count: int = 50
+    gemini_api_key: str = ""
+    gemini_model: str = "gemini-3.5-flash"
 
     model_config = SettingsConfigDict(
         env_prefix="NORMALIZE_",

@@ -8,6 +8,8 @@ read them); everything structural is the model's call.
 
 from __future__ import annotations
 
+from typing import Literal
+
 from shared.ingestion import resolve_ingestion_setup
 from shared.models.operation import CsvSourceFormat, HeaderMode
 from shared.models.source import SourceRef
@@ -30,6 +32,16 @@ from suggestion.source.csv import (
     read_csv_sample_rows,
 )
 
+# The model names the delimiter (unambiguous, avoids escaping tab/newline in JSON);
+# we map the name to the actual character for parsing.
+DelimiterName = Literal["comma", "semicolon", "tab", "pipe"]
+_DELIMITER_CHARS: dict[DelimiterName, str] = {
+    "comma": ",",
+    "semicolon": ";",
+    "tab": "\t",
+    "pipe": "|",
+}
+
 _PROMPT = """\
 You are given the first lines of a CSV file, exactly as stored (no parsing applied).
 
@@ -50,7 +62,7 @@ CSV sample:
 class CsvAiInferenceResult(AiInferenceResult):
     """Model output for a CSV source."""
 
-    delimiter: str
+    delimiter: DelimiterName
     delimiter_confidence: float
     header_mode: HeaderMode
     header_row_index: int | None
@@ -77,23 +89,24 @@ class CsvFormatInference(FormatInference):
                 f"CSV reconcile expected CsvAiInferenceResult, got {type(result).__name__}."
             )
         encoding, text = _read_decoded(source)
+        delimiter = _DELIMITER_CHARS[result.delimiter]
 
         source_format = CsvSourceFormat(
             encoding=encoding,
-            delimiter=result.delimiter,
+            delimiter=delimiter,
             header_mode=result.header_mode,
             header_row_index=result.header_row_index,
         )
         column_names, inference_rows = read_csv_column_names_and_inference_rows(
             text,
-            delimiter=result.delimiter,
+            delimiter=delimiter,
             header_mode=result.header_mode,
             header_row_index=result.header_row_index,
         )
         setup = resolve_ingestion_setup(source, source_format)
         reading = SourceReading(
             source_format=source_format,
-            sample_rows=read_csv_sample_rows(text, result.delimiter),
+            sample_rows=read_csv_sample_rows(text, delimiter),
             column_names=column_names,
             inference_rows=inference_rows,
             ingestion_source_url=setup.url,

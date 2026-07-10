@@ -36,7 +36,7 @@ def run_suggestion(
     provider = provider or get_inference_provider()
 
     sample = fmt.sample(source)
-    result = provider.infer_schema(sample, fmt.build_prompt(sample), fmt.output_model)
+    result = provider.infer_schema(fmt.build_prompt(sample), fmt.output_model)
     reconciled = fmt.reconcile(result, source)
     reading = reconciled.reading
 
