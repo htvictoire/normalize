@@ -6,11 +6,16 @@ from shared.models.column import ColumnConfig, DecimalSyntaxColumnConfig
 from shared.models.issues import IssueSeverity, NormalizationIssue
 from shared.models.profiling import (
     ColumnProfile,
+    IdentifierColumnProfile,
     SeparatorMismatchProfile,
     SymbolDistributionProfile,
 )
 
-from profiling.constants import ISSUE_CODE_MIXED_CURRENCY, ISSUE_CODE_SEPARATOR_MISMATCH
+from profiling.constants import (
+    ISSUE_CODE_IDENTIFIER_DUPLICATES,
+    ISSUE_CODE_MIXED_CURRENCY,
+    ISSUE_CODE_SEPARATOR_MISMATCH,
+)
 
 
 def collect_column_issues(
@@ -30,6 +35,16 @@ def collect_column_issues(
                 symbol_detected_ratio=profile.symbol_detected_ratio,
                 dominant_symbol=profile.dominant_symbol,
                 dominant_symbol_ratio=profile.dominant_symbol_ratio,
+            )
+        )
+
+    if isinstance(profile, IdentifierColumnProfile) and profile.duplicate_count > 0:
+        issues.append(
+            build_identifier_duplicates_issue(
+                column_name=column_name,
+                duplicate_count=profile.duplicate_count,
+                uniqueness_ratio=profile.uniqueness_ratio,
+                distinct_count=profile.distinct_count,
             )
         )
 
@@ -55,6 +70,25 @@ def collect_column_issues(
         )
 
     return issues
+
+
+def build_identifier_duplicates_issue(
+    column_name: str,
+    duplicate_count: int,
+    uniqueness_ratio: float,
+    distinct_count: int,
+) -> NormalizationIssue:
+    return NormalizationIssue(
+        code=ISSUE_CODE_IDENTIFIER_DUPLICATES,
+        severity=IssueSeverity.WARNING,
+        message=f"Identifier column {column_name!r} contains duplicate values",
+        location=column_name,
+        evidence={
+            "duplicate_count": duplicate_count,
+            "distinct_count": distinct_count,
+            "uniqueness_ratio": uniqueness_ratio,
+        },
+    )
 
 
 def build_mixed_currency_issue(

@@ -28,6 +28,7 @@ from shared.models.column.configs import (
     DateTimeColumnConfig,
     DecimalColumnConfig,
     EmailColumnConfig,
+    IdentifierColumnConfig,
     IntegerColumnConfig,
     IpAddressColumnConfig,
     LanguageCodeColumnConfig,
@@ -45,6 +46,7 @@ type ColumnCapability = Literal[
     "signed_notation",
     "monetary_symbol",
     "boolean_tokens",
+    "identifier",
     "date_format",
     "datetime_format",
     "time_format",
@@ -56,6 +58,7 @@ type ColumnCapability = Literal[
 
 type ColumnConfigClass = (
     type[StringColumnConfig]
+    | type[IdentifierColumnConfig]
     | type[BooleanColumnConfig]
     | type[IntegerColumnConfig]
     | type[DecimalColumnConfig]
@@ -88,6 +91,7 @@ class ColumnTypeSpec:
 
 COLUMN_TYPE_SPECS: tuple[ColumnTypeSpec, ...] = (
     ColumnTypeSpec("string", StringColumnConfig, frozenset()),
+    ColumnTypeSpec("identifier", IdentifierColumnConfig, frozenset({"identifier"})),
     ColumnTypeSpec("boolean", BooleanColumnConfig, frozenset({"boolean_tokens"})),
     ColumnTypeSpec("integer", IntegerColumnConfig, frozenset({"numeric_formatting"})),
     ColumnTypeSpec(

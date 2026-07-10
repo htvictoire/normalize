@@ -12,6 +12,7 @@ from shared.models.column import (
     DateTimeColumnConfig,
     DecimalSyntaxColumnConfig,
     EmailColumnConfig,
+    IdentifierColumnConfig,
     IntegerColumnConfig,
     IpAddressColumnConfig,
     LanguageCodeColumnConfig,
@@ -57,6 +58,9 @@ def build_column_exprs(
     """Route to the appropriate type-specific expression builder."""
     if isinstance(config, StringColumnConfig):
         normalized = f"CASE WHEN {nullish_predicate} THEN NULL ELSE {raw_value} END"
+        return ColumnExprs(parse_cte_entries=(), normalized_expr=normalized, issue_expr="NULL")
+    if isinstance(config, IdentifierColumnConfig):
+        normalized = f"CASE WHEN {nullish_predicate} THEN NULL ELSE TRIM({raw_value}) END"
         return ColumnExprs(parse_cte_entries=(), normalized_expr=normalized, issue_expr="NULL")
 
     issue_label = f"INVALID_{config.type.upper()}"

@@ -15,6 +15,7 @@ from shared.models.column import (
     DateTimeColumnConfig,
     DecimalColumnConfig,
     EmailColumnConfig,
+    IdentifierColumnConfig,
     IntegerColumnConfig,
     IpAddressColumnConfig,
     LanguageCodeColumnConfig,
@@ -52,6 +53,10 @@ from profiling.column_stats.decimal import (
     DecimalStatsBatchEntry,
     compute_decimal_stats_profiles_batch,
 )
+from profiling.column_stats.identifier import (
+    IdentifierBatchEntry,
+    compute_identifier_column_profiles_batch,
+)
 from profiling.column_stats.integer import IntegerBatchEntry, compute_integer_column_profiles_batch
 from profiling.column_stats.string import StringBatchEntry, compute_string_column_profiles_batch
 from profiling.column_stats.symbol import (
@@ -76,6 +81,7 @@ def compute_column_profiles(
     separate metric types, because splitting them would add another grouped scan.
     """
     string_batch: list[StringBatchEntry] = []
+    identifier_batch: list[IdentifierBatchEntry] = []
     boolean_batch: list[BooleanBatchEntry] = []
     date_batch: list[DateBatchEntry] = []
     datetime_batch: list[DateTimeBatchEntry] = []
@@ -92,6 +98,8 @@ def compute_column_profiles(
 
         if isinstance(config, StringColumnConfig):
             string_batch.append(StringBatchEntry(col_name, counts))
+        elif isinstance(config, IdentifierColumnConfig):
+            identifier_batch.append(IdentifierBatchEntry(col_name, counts))
         elif isinstance(config, BooleanColumnConfig):
             boolean_batch.append(make_boolean_batch_entry(col_name, config, counts))
         elif isinstance(config, DateColumnConfig):
@@ -134,6 +142,7 @@ def compute_column_profiles(
 
     profiles: dict[str, ColumnProfile] = {}
     profiles |= compute_string_column_profiles_batch(conn, string_batch, null_tokens)
+    profiles |= compute_identifier_column_profiles_batch(conn, identifier_batch, null_tokens)
     profiles |= compute_boolean_column_profiles_batch(conn, boolean_batch, null_tokens)
     profiles |= compute_date_column_profiles_batch(conn, date_batch, null_tokens)
     profiles |= compute_datetime_column_profiles_batch(conn, datetime_batch, null_tokens)

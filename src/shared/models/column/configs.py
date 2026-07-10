@@ -22,6 +22,13 @@ class StringColumnConfig(MainModel):
     type: Literal["string"] = "string"
 
 
+class IdentifierColumnConfig(MainModel):
+    """Declared identifier column; values are preserved as strings."""
+
+    identifier_kind: Literal["primary", "foreign", "business_key", "opaque"] = "opaque"
+    type: Literal["identifier"] = "identifier"
+
+
 class BooleanColumnConfig(MainModel):
     """Declared boolean column configuration."""
 
@@ -218,6 +225,7 @@ class PhoneColumnConfig(MainModel):
 # All variants remain executable after confirmation through ColumnConfig.
 type CoreColumnConfigModel = (
     StringColumnConfig
+    | IdentifierColumnConfig
     | BooleanColumnConfig
     | IntegerColumnConfig
     | DecimalColumnConfig

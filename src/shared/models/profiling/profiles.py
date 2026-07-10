@@ -19,6 +19,7 @@ from shared.models.column import (
     DateTimeColumnConfig,
     DecimalColumnConfig,
     EmailColumnConfig,
+    IdentifierColumnConfig,
     IntegerColumnConfig,
     IpAddressColumnConfig,
     LanguageCodeColumnConfig,
@@ -43,6 +44,16 @@ class StringColumnProfile(MainModel):
     profile_type: Literal["string"] = "string"
     distinct_count: int
     distinct_ratio: float
+    min_length: int
+    max_length: int
+
+
+class IdentifierColumnProfile(MainModel):
+    profile_type: Literal["identifier"] = "identifier"
+    distinct_count: int
+    distinct_ratio: float
+    duplicate_count: int
+    uniqueness_ratio: float
     min_length: int
     max_length: int
 
@@ -137,6 +148,7 @@ class PhoneColumnProfile(ValidityProfile):
 
 type ColumnProfileClass = (
     type[StringColumnProfile]
+    | type[IdentifierColumnProfile]
     | type[BooleanColumnProfile]
     | type[IntegerColumnProfile]
     | type[DecimalColumnProfile]
@@ -159,6 +171,7 @@ type ColumnProfileClass = (
 
 _PROFILE_CLASS_BY_CONFIG: dict[type[object], ColumnProfileClass] = {
     StringColumnConfig: StringColumnProfile,
+    IdentifierColumnConfig: IdentifierColumnProfile,
     BooleanColumnConfig: BooleanColumnProfile,
     IntegerColumnConfig: IntegerColumnProfile,
     DecimalColumnConfig: DecimalColumnProfile,
@@ -182,6 +195,10 @@ _PROFILE_CLASS_BY_CONFIG: dict[type[object], ColumnProfileClass] = {
 
 @overload
 def profile_class_for_config(config: StringColumnConfig) -> type[StringColumnProfile]: ...
+
+
+@overload
+def profile_class_for_config(config: IdentifierColumnConfig) -> type[IdentifierColumnProfile]: ...
 
 
 @overload
@@ -270,6 +287,7 @@ def profile_class_for_config(config: ColumnConfig) -> ColumnProfileClass:
 ColumnProfile = Annotated[
     (
         StringColumnProfile
+        | IdentifierColumnProfile
         | BooleanColumnProfile
         | IntegerColumnProfile
         | DecimalColumnProfile
