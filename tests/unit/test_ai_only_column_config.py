@@ -3,8 +3,7 @@ import tempfile
 from pathlib import Path
 
 import pyarrow.parquet as pq
-import pytest
-from pydantic import TypeAdapter, ValidationError
+from pydantic import TypeAdapter
 
 from shared.db.duckdb import DuckDBManager
 from shared.models.column import (
@@ -47,14 +46,8 @@ def test_ai_only_configs_round_trip_through_column_config_union() -> None:
         {
             "type": "categorical",
             "canonical_values": ["completed", "on_hold"],
-            "value_map": {"Complete": "completed", "On hold": "on_hold"},
-            "unknown_value_policy": "issue_and_keep",
         }
-    ) == CategoricalColumnConfig(
-        canonical_values=("completed", "on_hold"),
-        value_map={"Complete": "completed", "On hold": "on_hold"},
-        unknown_value_policy="issue_and_keep",
-    )
+    ) == CategoricalColumnConfig(canonical_values=("completed", "on_hold"))
     assert adapter.validate_python({"type": "email"}) == EmailColumnConfig()
     assert adapter.validate_python({"type": "url"}) == UrlColumnConfig()
     assert adapter.validate_python(
@@ -63,13 +56,27 @@ def test_ai_only_configs_round_trip_through_column_config_union() -> None:
     assert adapter.validate_python({"type": "phone"}) == PhoneColumnConfig()
 
 
-def test_categorical_config_rejects_noncanonical_mapping_targets() -> None:
-    with pytest.raises(ValidationError):
-        CategoricalColumnConfig(
-            canonical_values=("completed",),
-            value_map={"Complete": "done"},
-            unknown_value_policy="issue_and_keep",
+def test_categorical_matches_case_insensitively_and_never_nulls() -> None:
+    """Case/whitespace variants normalize to the canonical spelling; unknowns are kept + flagged."""
+    with DuckDBManager() as conn:
+        conn.execute("CREATE TABLE raw_input (region VARCHAR)")
+        conn.execute(
+            "INSERT INTO raw_input VALUES (' Europe '), ('ASIA'), ('asia'), ('Atlantis')"
         )
+        run_conversion(
+            conn,
+            confirmed_column_config={
+                "A": CategoricalColumnConfig(canonical_values=("Europe", "Asia"))
+            },
+            operation_config=_operation_config(),
+        )
+        rows = conn.execute(
+            "SELECT region, _parse_error_count FROM raw_input ORDER BY _row_index"
+        ).fetchall()
+
+    # ' Europe ' trimmed and 'ASIA'/'asia' case-folded to the canonical spelling;
+    # 'Atlantis' is unknown, so it is kept and flagged.
+    assert rows == [("Europe", 0), ("Asia", 0), ("Asia", 0), ("Atlantis", 1)]
 
 
 def test_rule_based_inference_does_not_suggest_ai_only_configs() -> None:
@@ -117,7 +124,7 @@ def test_ai_only_conversion_and_parquet_export() -> None:
                 """
                 INSERT INTO raw_input VALUES
                     (
-                        'Complete',
+                        'COMPLETED',
                         'USER@Example.COM',
                         'https://example.com/a',
                         '192.168.0.1',
@@ -138,11 +145,6 @@ def test_ai_only_conversion_and_parquet_export() -> None:
                 confirmed_column_config={
                     "A": CategoricalColumnConfig(
                         canonical_values=("completed", "on_hold"),
-                        value_map={
-                            "Complete": "completed",
-                            "On hold": "on_hold",
-                        },
-                        unknown_value_policy="issue_and_null",
                     ),
                     "B": EmailColumnConfig(),
                     "C": UrlColumnConfig(),
@@ -178,7 +180,8 @@ def test_ai_only_conversion_and_parquet_export() -> None:
             0,
             None,
         )
-        assert rows[1][0:6] == (None, None, None, None, None, 5)
+        # 'Unexpected' is not canonical: it is KEPT (never nulled) and flagged.
+        assert rows[1][0:6] == ("Unexpected", None, None, None, None, 5)
         issue_payload = json.loads(rows[1][6])
         assert issue_payload == {
             "status": "INVALID_CATEGORICAL",
@@ -199,6 +202,6 @@ def test_ai_only_conversion_and_parquet_export() -> None:
             "_raw_row",
             "_parse_issues",
         ]
-        assert normalized.to_pydict()["status"] == ["completed", None]
+        assert normalized.to_pydict()["status"] == ["completed", "Unexpected"]
         assert normalized.to_pydict()["email"] == ["user@example.com", None]
         assert normalized.to_pydict()["phone"] == ["+14155552671", None]

@@ -240,24 +240,21 @@ class LanguageCodeColumnConfig(MainModel):
 
 
 class CategoricalColumnConfig(MainModel):
-    """AI-only declared categorical column with explicit confirmed value mapping."""
+    """AI-only declared categorical column.
 
-    canonical_values: tuple[str, ...]
-    value_map: dict[str, str]
-    unknown_value_policy: Literal["issue_and_keep", "issue_and_null", "keep"]
-    type: Literal["categorical"] = "categorical"
+    Matching is case-insensitive and whitespace-trimmed: a source value that
+    equals a canonical value once both are trimmed and lowercased is normalized
+    to that canonical spelling. Anything else is kept as-is and flagged.
+    """
 
-    @model_validator(mode="after")
-    def _validate_mapping_targets(self) -> CategoricalColumnConfig:
-        canonical = set(self.canonical_values)
-        invalid_targets = sorted(
-            {target for target in self.value_map.values() if target not in canonical}
+    canonical_values: tuple[str, ...] = Field(
+        description=(
+            "The distinct categories this column can hold, each written once in its "
+            "canonical form. List each category a single time; do not include case "
+            "or whitespace variants of the same category."
         )
-        if invalid_targets:
-            raise ValueError(
-                f"value_map targets must be canonical_values, got {invalid_targets!r}"
-            )
-        return self
+    )
+    type: Literal["categorical"] = "categorical"
 
 
 class EmailColumnConfig(MainModel):

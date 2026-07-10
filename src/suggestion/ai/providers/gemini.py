@@ -1,11 +1,19 @@
 """Google Gemini inference provider.
 
-Gemini's native ``response_schema`` rejects several shapes our output models
-rely on — discriminated unions (googleapis/python-genai#652), unions
-(#861), and fields with default values (#699), and every ColumnConfig variant
-has a defaulted ``type`` discriminator. So instead of native schema
-enforcement we force JSON output, embed the JSON Schema in the prompt, and
-validate the reply client-side with pydantic, retrying on validation failure.
+We force JSON output, embed the JSON Schema in the prompt, and validate the reply
+client-side with pydantic, retrying on failure.
+
+We deliberately do NOT use Gemini's native ``response_schema`` enforcement. It is
+technically possible (after adapting the schema to Gemini's subset), but it
+regresses type-detection quality badly: the model loses effective access to our
+field descriptions — the "classify as X when Y" guidance those descriptions carry
+— and an enforced ``anyOf`` biases it toward the trivially-valid ``string``
+branch. Measured on this workload, native enforcement made the model type nearly
+every column as ``string``, while the embedded schema (descriptions visible in the
+prompt as reasoning material) typed them correctly. Enforcement is also
+unnecessary: the output models are kept simple enough — no free-form maps, no
+jargon enums — that the model reliably returns valid JSON, and the retry covers
+the rare miss.
 """
 
 from __future__ import annotations
@@ -23,6 +31,10 @@ from suggestion.ai.providers.base import FileInferenceProvider
 T = TypeVar("T", bound=MainModel)
 
 _MAX_ATTEMPTS = 3
+# Retries reuse the same prompt, so at temperature 0 they'd regenerate the same
+# reply. A small non-zero temperature perturbs the retry enough to break out of a
+# stuck output while keeping the first (best-quality) attempt greedy.
+_RETRY_TEMPERATURE = 0.3
 
 # Optional dependency (the "ai" extra). Held as Any so this module type-checks
 # whether or not google-genai is installed in the current environment.
@@ -52,32 +64,45 @@ class GeminiInferenceProvider(FileInferenceProvider):
             raise RuntimeError("NORMALIZE_GEMINI_API_KEY is not set.")
 
         client = _genai.Client(api_key=settings.gemini_api_key)
-        contents = (
+        base_contents = (
             f"{prompt}\n\n"
             "Respond with ONLY a JSON object — no prose, no code fences — matching "
             f"this JSON Schema:\n{json.dumps(output_model.model_json_schema())}"
         )
-        config = _genai_types.GenerateContentConfig(
-            response_mime_type="application/json",
-            temperature=0.0,
-            # Column typing is pattern recognition, not multi-step reasoning, so model
-            # "thinking" adds latency + tokens for no quality gain (measured: +42s and
-            # +12k tokens on a thinking model, marginal result change). Disable it;
-            # non-thinking models ignore this.
-            thinking_config=_genai_types.ThinkingConfig(thinking_budget=0),
-        )
 
+        contents = base_contents
         last_error: ValidationError | None = None
-        for _ in range(_MAX_ATTEMPTS):
+        for attempt in range(_MAX_ATTEMPTS):
+            config = _genai_types.GenerateContentConfig(
+                response_mime_type="application/json",
+                temperature=0.0 if attempt == 0 else _RETRY_TEMPERATURE,
+                # Column typing is pattern recognition, not multi-step reasoning, so model
+                # "thinking" adds latency + tokens for no quality gain (measured: +42s and
+                # +12k tokens on a thinking model, marginal result change). Disable it;
+                # non-thinking models ignore this.
+                thinking_config=_genai_types.ThinkingConfig(thinking_budget=0),
+            )
             response = client.models.generate_content(
                 model=settings.gemini_model,
                 contents=contents,
                 config=config,
             )
+            raw = response.text or ""
             try:
-                return output_model.model_validate_json(response.text or "")
+                return output_model.model_validate_json(raw)
             except ValidationError as exc:
                 last_error = exc
+                # Show the model its own broken output and the error so the next
+                # attempt can correct it, rather than blindly regenerating.
+                contents = (
+                    f"{base_contents}\n\n"
+                    "Your previous response was not valid for the schema:\n"
+                    f"{raw}\n\n"
+                    f"It failed with:\n{exc}\n\n"
+                    "Return a corrected JSON object that fixes every error above. "
+                    "Emit only valid JSON — escape quotes and special characters "
+                    "inside string values."
+                )
         raise RuntimeError(
             f"Gemini did not return valid {output_model.__name__} JSON after "
             f"{_MAX_ATTEMPTS} attempts: {last_error}"

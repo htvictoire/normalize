@@ -125,8 +125,7 @@ def build_column_exprs(
             column_name,
             nullish_predicate,
             raw_value=raw_value,
-            value_map=config.value_map,
-            unknown_value_policy=config.unknown_value_policy,
+            canonical_values=config.canonical_values,
             issue_label=issue_label,
         )
     elif isinstance(config, EmailColumnConfig):

@@ -52,10 +52,10 @@ class AiOnlyBatchEntry:
 def _valid_predicate(quoted_column: str, config: AiOnlyProfileConfig) -> str:
     trimmed = trim_cast_expr(quoted_column)
     if isinstance(config, CategoricalColumnConfig):
-        allowed_values = frozenset(config.value_map)
+        allowed_values = frozenset(value.strip().lower() for value in config.canonical_values)
         if not allowed_values:
             return "FALSE"
-        return f"{trimmed} IN ({sql_in_list(allowed_values)})"
+        return f"LOWER({trimmed}) IN ({sql_in_list(allowed_values)})"
     if isinstance(config, EmailColumnConfig):
         return regex_full_match_expr(lowercase_email_expr(quoted_column), EMAIL_PATTERN)
     if isinstance(config, UrlColumnConfig):

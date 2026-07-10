@@ -22,45 +22,39 @@ from conversion.cells.exprs.column_exprs import ColumnExprs
 from conversion.cells.naming import parse_categorical_alias, parse_structured_alias
 
 
-def _map_case_expr(value_alias: str, value_map: dict[str, str]) -> str:
-    cases = [
-        f"WHEN {value_alias} = {quote_string(raw)} THEN {quote_string(canonical)}"
-        for raw, canonical in sorted(value_map.items())
-    ]
-    if not cases:
-        return value_alias
-    return "CASE " + " ".join(cases) + f" ELSE {value_alias} END"
-
-
 def build_categorical_exprs(
     column_name: str,
     nullish_predicate: str,
     raw_value: str,
-    value_map: dict[str, str],
-    unknown_value_policy: str,
+    canonical_values: tuple[str, ...],
     issue_label: str = "INVALID_CATEGORICAL",
 ) -> ColumnExprs:
-    """Build ColumnExprs for a confirmed categorical mapping."""
+    """Build ColumnExprs for a confirmed categorical column.
+
+    Matching is case-insensitive and whitespace-trimmed: a value equal to a
+    canonical value once both are trimmed and lowercased is normalized to that
+    canonical spelling. An unrecognized value is kept as-is and flagged — never
+    nulled.
+    """
     value_alias = quote_identifier(parse_categorical_alias(column_name))
-    mapped_expr = _map_case_expr(value_alias, value_map)
-    known_predicate = f"{value_alias} IN ({', '.join(quote_string(v) for v in sorted(value_map))})"
-    if not value_map:
+    folded = f"LOWER({value_alias})"
+    match_cases = " ".join(
+        f"WHEN {folded} = {quote_string(canonical.strip().lower())} THEN {quote_string(canonical)}"
+        for canonical in canonical_values
+    )
+    mapped_expr = f"CASE {match_cases} ELSE {value_alias} END" if match_cases else value_alias
+    if canonical_values:
+        folded_keys = ", ".join(quote_string(c.strip().lower()) for c in canonical_values)
+        known_predicate = f"{folded} IN ({folded_keys})"
+    else:
         known_predicate = "FALSE"
 
-    unknown_expr = "NULL" if unknown_value_policy == "issue_and_null" else value_alias
-    normalized = (
+    normalized = f"CASE WHEN {nullish_predicate} THEN NULL ELSE {mapped_expr} END"
+    issue = (
         f"CASE WHEN {nullish_predicate} THEN NULL "
-        f"WHEN {known_predicate} THEN {mapped_expr} "
-        f"ELSE {unknown_expr} END"
+        f"WHEN NOT ({known_predicate}) THEN '{issue_label}' "
+        "ELSE NULL END"
     )
-    if unknown_value_policy == "keep":
-        issue = "NULL"
-    else:
-        issue = (
-            f"CASE WHEN {nullish_predicate} THEN NULL "
-            f"WHEN NOT ({known_predicate}) THEN '{issue_label}' "
-            "ELSE NULL END"
-        )
     return ColumnExprs(
         parse_cte_entries=((value_alias, f"TRIM({raw_value})"),),
         normalized_expr=normalized,

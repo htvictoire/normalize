@@ -20,10 +20,10 @@ class Settings(BaseSettings):
     s3_bucket: str
     conversion_output_dir: str
     redis_url: str
-    ai_provider: AiProvider = "claude"
+    ai_provider: AiProvider
     ai_sample_row_count: int = 50
     gemini_api_key: str = ""
-    gemini_model: str = "gemini-3.5-flash"
+    gemini_model: str
 
     model_config = SettingsConfigDict(
         env_prefix="NORMALIZE_",
