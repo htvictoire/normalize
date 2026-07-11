@@ -6,6 +6,7 @@ from shared.models.column.base import (
     SignedNotationColumnConfig,
 )
 from shared.models.column.configs import (
+    SUPPORTED_REASON_LOCALES,
     AccountingColumnConfig,
     AiOnlyColumnConfig,
     BooleanColumnConfig,
@@ -23,6 +24,7 @@ from shared.models.column.configs import (
     IntegerColumnConfig,
     IpAddressColumnConfig,
     LanguageCodeColumnConfig,
+    LocalizedReasons,
     PercentageColumnConfig,
     PhoneColumnConfig,
     RuleBasedExtendedColumnConfig,
@@ -49,6 +51,7 @@ from shared.models.column.specs import (
 
 __all__ = [
     "COLUMN_TYPE_SPECS",
+    "SUPPORTED_REASON_LOCALES",
     "AccountingColumnConfig",
     "AiOnlyColumnConfig",
     "BooleanColumnConfig",
@@ -71,6 +74,7 @@ __all__ = [
     "IntegerColumnConfig",
     "IpAddressColumnConfig",
     "LanguageCodeColumnConfig",
+    "LocalizedReasons",
     "NumericFormattingColumnConfig",
     "PercentageColumnConfig",
     "PhoneColumnConfig",

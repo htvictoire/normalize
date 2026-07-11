@@ -2,10 +2,16 @@ from __future__ import annotations
 
 import json
 
-from pydantic import TypeAdapter
+import pytest
+from pydantic import TypeAdapter, ValidationError
 
 from shared.db.duckdb import DuckDBManager
-from shared.models.column import ColumnConfig, IdentifierColumnConfig, IntegerColumnConfig
+from shared.models.column import (
+    ColumnConfig,
+    IdentifierColumnConfig,
+    IntegerColumnConfig,
+    LocalizedReasons,
+)
 from shared.models.operation import DecisionThresholds, OperationConfig
 
 from suggestion.rule_based.inference import infer_column, infer_column_type
@@ -32,12 +38,91 @@ def _operation_config() -> OperationConfig:
     )
 
 
+def _primary_reasons() -> LocalizedReasons:
+    trio = (
+        "Column name matches a primary-key naming convention.",
+        "Sampled values are 100% unique.",
+        "Values follow the canonical UUID/GUID format.",
+    )
+    return LocalizedReasons(en=trio, fr=trio, es=trio, ar=trio)
+
+
 def test_identifier_config_round_trips_through_column_config_union() -> None:
     adapter = TypeAdapter(ColumnConfig)
 
+    reasons = _primary_reasons()
     assert adapter.validate_python(
-        {"type": "identifier", "identifier_kind": "primary"}
-    ) == IdentifierColumnConfig(identifier_kind="primary")
+        {
+            "type": "identifier",
+            "identifier_kind": "primary",
+            "reasons": reasons.model_dump(),
+        }
+    ) == IdentifierColumnConfig(identifier_kind="primary", reasons=reasons)
+
+
+def test_primary_identifier_requires_reasons() -> None:
+    adapter = TypeAdapter(ColumnConfig)
+
+    with pytest.raises(ValidationError):
+        adapter.validate_python({"type": "identifier", "identifier_kind": "primary"})
+
+
+def test_primary_identifier_requires_three_reasons_per_locale() -> None:
+    adapter = TypeAdapter(ColumnConfig)
+    reasons = _primary_reasons().model_dump()
+    reasons["fr"] = ["only", "two"]
+
+    with pytest.raises(ValidationError):
+        adapter.validate_python(
+            {"type": "identifier", "identifier_kind": "primary", "reasons": reasons}
+        )
+
+
+def test_non_primary_identifier_rejects_reasons() -> None:
+    adapter = TypeAdapter(ColumnConfig)
+
+    with pytest.raises(ValidationError):
+        adapter.validate_python(
+            {
+                "type": "identifier",
+                "identifier_kind": "foreign",
+                "reasons": _primary_reasons().model_dump(),
+            }
+        )
+
+
+def test_primary_identifier_rejects_overlong_reason() -> None:
+    adapter = TypeAdapter(ColumnConfig)
+    reasons = _primary_reasons().model_dump()
+    reasons["en"] = ["ok", "also ok", "x" * 200]
+
+    with pytest.raises(ValidationError):
+        adapter.validate_python(
+            {"type": "identifier", "identifier_kind": "primary", "reasons": reasons}
+        )
+
+
+def test_rule_based_primary_identifier_emits_localized_bounded_reasons() -> None:
+    inference = infer_column(
+        [
+            "3f2504e0-4f89-41d3-9a0c-0305e82c3301",
+            "6ba7b810-9dad-11d1-80b4-00c04fd430c8",
+            "6ba7b811-9dad-11d1-80b4-00c04fd430c8",
+            "6ba7b812-9dad-11d1-80b4-00c04fd430c8",
+        ],
+        extended_type_detection=False,
+        column_name="id",
+    )
+
+    assert isinstance(inference.config, IdentifierColumnConfig)
+    assert inference.config.identifier_kind == "primary"
+    reasons = inference.config.reasons
+    assert reasons is not None
+    assert "UUID" in reasons.en[2]
+    assert "UUID/GUID" in reasons.fr[2]
+    for locale in (reasons.en, reasons.fr, reasons.es, reasons.ar):
+        assert len(locale) == 3
+        assert all(len(reason) <= 160 for reason in locale)
 
 
 def test_rule_based_identifier_inference_uses_header_and_sample_uniqueness() -> None:
@@ -71,7 +156,9 @@ def test_identifier_conversion_preserves_leading_zeroes_and_profiles_duplicates(
             """
         )
 
-        config = {"A": IdentifierColumnConfig(identifier_kind="primary")}
+        config = {
+            "A": IdentifierColumnConfig(identifier_kind="primary", reasons=_primary_reasons())
+        }
         run_conversion(
             conn,
             confirmed_column_config=config,
@@ -104,7 +191,11 @@ def test_identifier_profiling_reports_duplicate_values() -> None:
         profile_results = compute_profile_results(
             conn,
             columns=["order_id"],
-            column_config={"order_id": IdentifierColumnConfig(identifier_kind="primary")},
+            column_config={
+                "order_id": IdentifierColumnConfig(
+                    identifier_kind="primary", reasons=_primary_reasons()
+                )
+            },
             null_tokens=("", "null"),
             counts_by_name=counts.column_counts,
             row_count=counts.row_count,

@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Annotated, Any, Literal, cast
 
-from pydantic import Field, TypeAdapter, field_validator, model_validator
+from pydantic import Field, StringConstraints, TypeAdapter, field_validator, model_validator
 
 from shared.models.base import MainModel
 from shared.models.column.base import (
@@ -14,6 +14,51 @@ from shared.models.column.base import (
     NumericFormattingColumnConfig,
     SignedNotationColumnConfig,
 )
+
+_PRIMARY_KEY_REASON_MAX_LENGTH = 160
+
+# One primary-key justification: a non-empty, single-sentence-sized string.
+PrimaryKeyReason = Annotated[
+    str,
+    StringConstraints(
+        strip_whitespace=True,
+        min_length=1,
+        max_length=_PRIMARY_KEY_REASON_MAX_LENGTH,
+    ),
+]
+
+# The three reasons for one locale, in a stable order (name, uniqueness, shape).
+ReasonTrio = tuple[PrimaryKeyReason, PrimaryKeyReason, PrimaryKeyReason]
+
+
+class LocalizedReasons(MainModel):
+    """Three primary-key justifications, English canonical plus translations.
+
+    Each locale carries the same three reasons in the same order; only the
+    language differs. English is authored first and the rest translate it.
+    """
+
+    en: ReasonTrio = Field(
+        description=(
+            "The three canonical reasons, in English. Each is one short sentence "
+            "grounded in THIS column's name, uniqueness, and value shape."
+        )
+    )
+    fr: ReasonTrio = Field(
+        description="French translation of the three English reasons, same order."
+    )
+    es: ReasonTrio = Field(
+        description="Spanish translation of the three English reasons, same order."
+    )
+    ar: ReasonTrio = Field(
+        description="Arabic translation of the three English reasons, same order."
+    )
+
+
+# Locales every primary-key reason is provided in; the model is the source of
+# truth for both the set and their canonical order. English is authored first
+# and the rest translate it.
+SUPPORTED_REASON_LOCALES: tuple[str, ...] = tuple(LocalizedReasons.model_fields)
 
 
 class StringColumnConfig(MainModel):
@@ -26,7 +71,30 @@ class IdentifierColumnConfig(MainModel):
     """Declared identifier column; values are preserved as strings."""
 
     identifier_kind: Literal["primary", "foreign", "business_key", "opaque"] = "opaque"
+    reasons: LocalizedReasons | None = Field(
+        default=None,
+        description=(
+            "Localized justifications for classifying THIS column as the primary key. "
+            "English ('en') is the source of truth, authored fresh from the column's "
+            "own name, uniqueness, and value shape; every other locale must be a "
+            "faithful translation of those same reasons. Required only when "
+            "identifier_kind is 'primary'; leave null for every other identifier_kind."
+        ),
+    )
     type: Literal["identifier"] = "identifier"
+
+    @model_validator(mode="after")
+    def _reasons_scoped_to_primary(self) -> IdentifierColumnConfig:
+        """Require localized reasons for primary keys; forbid them otherwise."""
+        if self.identifier_kind == "primary":
+            if self.reasons is None:
+                raise ValueError("primary identifier columns require localized reasons")
+        elif self.reasons is not None:
+            raise ValueError(
+                f"reasons are only valid for primary identifiers, "
+                f"not identifier_kind={self.identifier_kind!r}"
+            )
+        return self
 
 
 class BooleanColumnConfig(MainModel):
