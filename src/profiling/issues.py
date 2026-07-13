@@ -3,21 +3,26 @@
 from __future__ import annotations
 
 from shared.models.column import ColumnConfig, IdentifierColumnConfig
-from shared.models.issues import IssueSeverity, NormalizationIssue
+from shared.models.issues import (
+    IdentifierDuplicatesEvidence,
+    IdentifierDuplicatesIssue,
+    IssueSeverity,
+    MixedCurrencyEvidence,
+    MixedCurrencyIssue,
+    MixedNumberFormatEvidence,
+    MixedNumberFormatIssue,
+    MultiplePrimaryKeysEvidence,
+    MultiplePrimaryKeysIssue,
+    NormalizationIssue,
+    PreambleRowsSkippedEvidence,
+    PreambleRowsSkippedIssue,
+)
 from shared.models.operation import CsvSourceFormat, ExcelSourceFormat, SourceFormat
 from shared.models.profiling import (
     ColumnProfile,
     IdentifierColumnProfile,
     MixedNumberFormatProfile,
     SymbolDistributionProfile,
-)
-
-from profiling.constants import (
-    ISSUE_CODE_IDENTIFIER_DUPLICATES,
-    ISSUE_CODE_MIXED_CURRENCY,
-    ISSUE_CODE_MIXED_NUMBER_FORMAT,
-    ISSUE_CODE_MULTIPLE_PRIMARY_KEYS,
-    ISSUE_CODE_PREAMBLE_ROWS_SKIPPED,
 )
 
 
@@ -97,38 +102,35 @@ def collect_column_issues(
     return issues
 
 
-def build_preamble_rows_skipped_issue(skipped_count: int) -> NormalizationIssue:
+def build_preamble_rows_skipped_issue(skipped_count: int) -> PreambleRowsSkippedIssue:
     """Rows above the header row, dropped at ingestion.
 
-    Informational: the header marks where the table begins, so what precedes it is
-    not data. It is reported because a misdetected header row deletes real rows with
-    no other trace, and this count is the only evidence they were there.
+    Informational: the header marks where the table begins, so preceding rows are not
+    data. Reported because a misdetected header row deletes real rows with no other trace.
     """
     rows = "1 row was" if skipped_count == 1 else f"{skipped_count} rows were"
-    return NormalizationIssue(
-        code=ISSUE_CODE_PREAMBLE_ROWS_SKIPPED,
+    return PreambleRowsSkippedIssue(
         severity=IssueSeverity.INFO,
         message=(
             f"{rows} skipped as preamble above the header; "
             "verify the header row if the source was not expected to have one"
         ),
-        evidence={
-            "skipped_count": skipped_count,
-            "header_row_index": skipped_count + 1,
-        },
+        evidence=PreambleRowsSkippedEvidence(
+            skipped_count=skipped_count,
+            header_row_index=skipped_count + 1,
+        ),
     )
 
 
-def build_multiple_primary_keys_issue(column_names: list[str]) -> NormalizationIssue:
+def build_multiple_primary_keys_issue(column_names: list[str]) -> MultiplePrimaryKeysIssue:
     """A dataset has one primary key. Two declared keys means neither can be trusted."""
-    return NormalizationIssue(
-        code=ISSUE_CODE_MULTIPLE_PRIMARY_KEYS,
+    return MultiplePrimaryKeysIssue(
         severity=IssueSeverity.ERROR,
         message=(
             f"{len(column_names)} columns are declared primary keys "
             f"({', '.join(repr(name) for name in column_names)}); a dataset has one"
         ),
-        evidence={"columns": column_names},
+        evidence=MultiplePrimaryKeysEvidence(columns=column_names),
     )
 
 
@@ -138,7 +140,7 @@ def build_identifier_duplicates_issue(
     duplicate_count: int,
     uniqueness_ratio: float,
     distinct_count: int,
-) -> NormalizationIssue:
+) -> IdentifierDuplicatesIssue:
     """Duplicate identifier values.
 
     ERROR on a primary key: uniqueness is the whole contract, and a consumer joining
@@ -146,17 +148,16 @@ def build_identifier_duplicates_issue(
     repetition is expected (a foreign key repeats by definition).
     """
     kind = "Primary key" if is_primary_key else "Identifier"
-    return NormalizationIssue(
-        code=ISSUE_CODE_IDENTIFIER_DUPLICATES,
+    return IdentifierDuplicatesIssue(
         severity=IssueSeverity.ERROR if is_primary_key else IssueSeverity.WARNING,
         message=f"{kind} column {column_name!r} contains duplicate values",
         location=column_name,
-        evidence={
-            "is_primary_key": is_primary_key,
-            "duplicate_count": duplicate_count,
-            "distinct_count": distinct_count,
-            "uniqueness_ratio": uniqueness_ratio,
-        },
+        evidence=IdentifierDuplicatesEvidence(
+            is_primary_key=is_primary_key,
+            duplicate_count=duplicate_count,
+            distinct_count=distinct_count,
+            uniqueness_ratio=uniqueness_ratio,
+        ),
     )
 
 
@@ -166,18 +167,17 @@ def build_mixed_currency_issue(
     symbol_detected_ratio: float,
     dominant_symbol: str | None,
     dominant_symbol_ratio: float,
-) -> NormalizationIssue:
-    return NormalizationIssue(
-        code=ISSUE_CODE_MIXED_CURRENCY,
+) -> MixedCurrencyIssue:
+    return MixedCurrencyIssue(
         severity=IssueSeverity.WARNING,
         message=f"Column {column_name!r} contains mixed currency symbols",
         location=column_name,
-        evidence={
-            "symbols": symbols,
-            "symbol_detected_ratio": symbol_detected_ratio,
-            "dominant_symbol": dominant_symbol,
-            "dominant_symbol_ratio": dominant_symbol_ratio,
-        },
+        evidence=MixedCurrencyEvidence(
+            symbols=symbols,
+            symbol_detected_ratio=symbol_detected_ratio,
+            dominant_symbol=dominant_symbol,
+            dominant_symbol_ratio=dominant_symbol_ratio,
+        ),
     )
 
 
@@ -185,15 +185,13 @@ def build_mixed_number_format_issue(
     column_name: str,
     comma_decimal_count: int,
     dot_decimal_count: int,
-) -> NormalizationIssue:
+) -> MixedNumberFormatIssue:
     """Report a column carrying both european and western decimal notation.
 
-    Informational: the parser resolves each value's separator individually, so
-    both notations normalize correctly. The warning exists because a column that
-    mixes locales is usually a sign of an upstream merge worth knowing about.
+    Informational: each value is parsed on its own notation, so both normalize
+    correctly. A column that mixes locales usually indicates an upstream merge.
     """
-    return NormalizationIssue(
-        code=ISSUE_CODE_MIXED_NUMBER_FORMAT,
+    return MixedNumberFormatIssue(
         severity=IssueSeverity.INFO,
         message=(
             f"Column {column_name!r} mixes decimal notations "
@@ -201,8 +199,8 @@ def build_mixed_number_format_issue(
             "each value is parsed on its own notation"
         ),
         location=column_name,
-        evidence={
-            "comma_decimal_count": comma_decimal_count,
-            "dot_decimal_count": dot_decimal_count,
-        },
+        evidence=MixedNumberFormatEvidence(
+            comma_decimal_count=comma_decimal_count,
+            dot_decimal_count=dot_decimal_count,
+        ),
     )
