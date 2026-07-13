@@ -1,6 +1,0 @@
-amount,note
-"$1,234.56",sale
-(100.00),refund
-100.00-,adjustment
-100.00 CR,credit
-100.00 DR,debit

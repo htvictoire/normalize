@@ -1,6 +1,0 @@
-amount,description
-(100.00),paren
-100.00-,trailing_minus
-100.00 CR,credit
-100.00 DR,debit
-($5.00),symbol_in_paren
