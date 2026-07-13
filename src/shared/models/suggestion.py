@@ -52,8 +52,10 @@ class SuggestionConfidence(MainModel):
     Sibling of the suggested InstanceConfig, not nested inside it: InstanceConfig
     is reused as the user-authored confirmed_config, where confidence is meaningless.
     delimiter and header are optional because not every source format has them
-    (Excel has no delimiter; JSON has neither). The rule-based strategy is
-    deterministic and reports 1.0 for everything it infers.
+    (Excel has no delimiter; JSON has neither).
+
+    Only the AI strategy estimates these. The rule-based strategy reports a uniform
+    RULE_BASED_CONFIDENCE for every inference because it does not score its guesses.
     """
 
     delimiter: float | None = Field(default=None, ge=0.0, le=1.0)

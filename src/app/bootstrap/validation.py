@@ -6,6 +6,7 @@ from pathlib import Path
 
 from shared.models.operation import FileFormat
 from shared.models.source import SourceRef
+from shared.models.suggestion import SuggestionInput
 from shared.storage.probe import read_source_probe
 
 _VALID_EXTENSION: dict[FileFormat, str] = {
@@ -23,6 +24,21 @@ def _json_probe_payload(probe: bytes) -> bytes:
     if probe.startswith(_UTF8_BOM):
         probe = probe[len(_UTF8_BOM) :]
     return probe.lstrip()
+
+
+def validate_auto_confirm(request: SuggestionInput) -> None:
+    """Reject auto-confirmation of a rule-based config.
+
+    Auto mode converts without a human reading the config. The rule-based strategy
+    reports a fixed confidence and cannot signal a column it failed to type, so a
+    defeated inference is indistinguishable from a successful one. Only a strategy
+    that scores its own guesses may be confirmed unattended.
+    """
+    if request.auto_confirm and request.suggestion_method == "rule_based":
+        raise ValueError(
+            "auto_confirm requires suggestion_method='ai'. The rule-based strategy does "
+            "not score its inferences and must be confirmed before conversion."
+        )
 
 
 def validate_file_format(source: SourceRef) -> None:

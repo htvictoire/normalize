@@ -29,7 +29,8 @@ from shared.models.suggestion import SuggestionConfidence, SuggestionInput, Sugg
 from suggestion.assembly import build_suggestion_output
 from suggestion.display import read_sample_values
 from suggestion.null_tokens import infer_null_tokens
-from suggestion.rule_based import infer_column, sample_column_values
+from suggestion.rule_based import infer_column_type, sample_column_values
+from suggestion.rule_based.constants import RULE_BASED_CONFIDENCE
 from suggestion.rule_based.source import read_source
 from suggestion.source import SourceReading
 from suggestion.stats import compute_source_stats
@@ -38,22 +39,27 @@ from suggestion.stats import compute_source_stats
 @dataclass(frozen=True)
 class _CoreSuggestion:
     column_configs: dict[str, ColumnConfig]
-    column_confidences: dict[str, float]
     sample_values_by_position: dict[str, list[str]]
 
 
 def _rule_based_confidence(
     source_format: SourceFormat,
     position_to_name: dict[str, str],
-    column_confidences: dict[str, float],
 ) -> SuggestionConfidence:
-    """Return rule-based confidence values for format and column inferences."""
+    """Return the fixed confidence reported for every rule-based inference.
+
+    Known limitation: this strategy does not estimate confidence. Detectors commit to
+    the first type clearing a match threshold and discard the alternatives, so a column
+    typed `string` for want of a match is indistinguishable from one typed `string` on
+    evidence. A uniform value marks every inference as unscored. Confidence estimation
+    belongs to the AI strategy; this path is for consumers that confirm before converting.
+    """
     is_csv = isinstance(source_format, CsvSourceFormat)
     is_excel = isinstance(source_format, ExcelSourceFormat)
     return SuggestionConfidence(
-        delimiter=1.0 if is_csv else None,
-        header=1.0 if (is_csv or is_excel) else None,
-        column_config={pos: column_confidences[pos] for pos in position_to_name},
+        delimiter=RULE_BASED_CONFIDENCE if is_csv else None,
+        header=RULE_BASED_CONFIDENCE if (is_csv or is_excel) else None,
+        column_config=dict.fromkeys(position_to_name, RULE_BASED_CONFIDENCE),
     )
 
 
@@ -63,8 +69,8 @@ def _run_core(
     extended_type_detection: bool,
 ) -> _CoreSuggestion:
     sampled_values_by_position = sample_column_values(reading.inference_rows, position_to_name)
-    inferences = {
-        pos: infer_column(
+    column_configs = {
+        pos: infer_column_type(
             sampled_values_by_position[pos],
             extended_type_detection=extended_type_detection,
             column_name=position_to_name[pos],
@@ -73,8 +79,7 @@ def _run_core(
     }
     sample_values_by_position = read_sample_values(reading.inference_rows, position_to_name)
     return _CoreSuggestion(
-        column_configs={pos: inference.config for pos, inference in inferences.items()},
-        column_confidences={pos: inference.confidence for pos, inference in inferences.items()},
+        column_configs=column_configs,
         sample_values_by_position=sample_values_by_position,
     )
 
@@ -109,11 +114,7 @@ def run_suggestion(
         source_format=reading.source_format,
         column_config=core.column_configs,
         null_tokens=null_tokens,
-        confidence=_rule_based_confidence(
-            reading.source_format,
-            position_to_name,
-            core.column_confidences,
-        ),
+        confidence=_rule_based_confidence(reading.source_format, position_to_name),
         stats=stats,
         sample_values_by_position=core.sample_values_by_position,
         sample_rows=reading.sample_rows,

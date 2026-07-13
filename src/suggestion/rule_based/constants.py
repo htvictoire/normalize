@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+# Confidence reported for every rule-based inference. This strategy does not score its
+# guesses; see _rule_based_confidence in pipeline.py.
+RULE_BASED_CONFIDENCE = 0.5
+
 # ---------------------------------------------------------------------------
 # Source format inference (delimiter and header-row detection heuristics)
 # ---------------------------------------------------------------------------
@@ -60,6 +64,10 @@ BOOLEAN_TOKEN_PAIRS: tuple[tuple[str, str], ...] = (
 
 BOOLEAN_TRUE_TOKENS: frozenset[str] = frozenset(t for t, _ in BOOLEAN_TOKEN_PAIRS)
 BOOLEAN_FALSE_TOKENS: frozenset[str] = frozenset(f for _, f in BOOLEAN_TOKEN_PAIRS)
+
+# Boolean tokens that are also integers. Not evidence of a boolean on their own; still
+# valid tokens for a column confirmed as boolean.
+NUMERIC_BOOLEAN_TOKENS: frozenset[str] = frozenset({"0", "1"})
 
 # ---------------------------------------------------------------------------
 # Date formats

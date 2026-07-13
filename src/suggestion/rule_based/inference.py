@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Sequence
-from dataclasses import dataclass
 
 from shared.models.column import (
     BooleanColumnConfig,
@@ -16,7 +15,11 @@ from shared.models.column import (
 
 from suggestion.rule_based.boolean import is_boolean
 from suggestion.rule_based.code import infer_code_type
-from suggestion.rule_based.constants import BOOLEAN_TOKEN_PAIRS, TYPE_MATCH_MIN_RATIO
+from suggestion.rule_based.constants import (
+    BOOLEAN_TOKEN_PAIRS,
+    NUMERIC_BOOLEAN_TOKENS,
+    TYPE_MATCH_MIN_RATIO,
+)
 from suggestion.rule_based.date import (
     best_date_format,
     best_datetime_format,
@@ -24,12 +27,6 @@ from suggestion.rule_based.date import (
 )
 from suggestion.rule_based.identifier import infer_identifier_type
 from suggestion.rule_based.numeric import infer_numeric_type
-
-
-@dataclass(frozen=True)
-class ColumnInference:
-    config: ColumnConfig
-    confidence: float
 
 
 def _infer_temporal_type(
@@ -51,57 +48,59 @@ def _infer_temporal_type(
     return None
 
 
+def _infer_boolean_type(observed_tokens: set[str]) -> BooleanColumnConfig | None:
+    """Infer a boolean column from the boolean tokens observed in the sample.
+
+    Returns None unless an observed token is non-numeric. `0` and `1` are equally an
+    integer, and boolean is tested before numeric, so numeric-only evidence would claim
+    identifier and quantity columns. A boolean written solely as `0`/`1` therefore types
+    as integer: lossless, and correctable at confirmation.
+    """
+    if observed_tokens <= NUMERIC_BOOLEAN_TOKENS:
+        return None
+
+    active_pairs = [
+        (t, f)
+        for t, f in BOOLEAN_TOKEN_PAIRS
+        if t in observed_tokens or f in observed_tokens
+    ]
+    return BooleanColumnConfig(
+        true_tokens=tuple(sorted(t for t, _ in active_pairs)),
+        false_tokens=tuple(sorted(f for _, f in active_pairs)),
+    )
+
+
 def infer_column_type(
     values: Sequence[str],
     extended_type_detection: bool,
     column_name: str = "",
 ) -> ColumnConfig:
     """Infer and return a ColumnConfig for one sampled column."""
-    return infer_column(values, extended_type_detection, column_name).config
-
-
-def infer_column(
-    values: Sequence[str],
-    extended_type_detection: bool,
-    column_name: str = "",
-) -> ColumnInference:
-    """Infer one sampled column's config and confidence."""
     if not values:
-        return ColumnInference(StringColumnConfig(), 1.0)
+        return StringColumnConfig()
 
     sample_count = len(values)
-    value_list = list(values)
-    result: ColumnConfig | None = None
-    confidence = 1.0
 
-    identifier = infer_identifier_type(column_name, value_list)
+    identifier = infer_identifier_type(column_name, list(values))
     if identifier is not None:
-        result = identifier.config
-        confidence = identifier.confidence
-    else:
+        return identifier.config
 
-        def meets_threshold(matches: int) -> bool:
-            return matches / sample_count >= TYPE_MATCH_MIN_RATIO
+    def meets_threshold(matches: int) -> bool:
+        return matches / sample_count >= TYPE_MATCH_MIN_RATIO
 
-        boolean_matches = [v.strip().lower() for v in values if is_boolean(v)]
-        if meets_threshold(len(boolean_matches)):
-            observed_boolean_tokens = set(boolean_matches)
-            active_pairs = [
-                (t, f)
-                for t, f in BOOLEAN_TOKEN_PAIRS
-                if t in observed_boolean_tokens or f in observed_boolean_tokens
-            ]
-            true_tokens = tuple(sorted(t for t, _ in active_pairs))
-            false_tokens = tuple(sorted(f for _, f in active_pairs))
-            result = BooleanColumnConfig(true_tokens=true_tokens, false_tokens=false_tokens)
-        else:
-            numeric = infer_numeric_type(values, sample_count)
-            result = numeric
+    result: ColumnConfig | None = None
 
-        if result is None:
-            result = _infer_temporal_type(values, meets_threshold)
+    boolean_matches = [v.strip().lower() for v in values if is_boolean(v)]
+    if meets_threshold(len(boolean_matches)):
+        result = _infer_boolean_type(set(boolean_matches))
 
-        if result is None and extended_type_detection:
-            result = infer_code_type(values, sample_count)
+    if result is None:
+        result = infer_numeric_type(values, sample_count)
 
-    return ColumnInference(result or StringColumnConfig(), confidence)
+    if result is None:
+        result = _infer_temporal_type(values, meets_threshold)
+
+    if result is None and extended_type_detection:
+        result = infer_code_type(values, sample_count)
+
+    return result or StringColumnConfig()
