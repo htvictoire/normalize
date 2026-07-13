@@ -33,9 +33,9 @@ def run_post_confirmation_pipeline(self: object, instance_id: str) -> None:  # t
 
 @celery_app.task  # type: ignore[misc]
 def sweep_stuck_jobs() -> None:
-    from shared.settings import get_settings
+    from shared.settings import get_settings  # noqa: PLC0415
 
-    from app.infra.postgres.repository import PostgresRunRepository
+    from app.infra.postgres.repository import PostgresRunRepository  # noqa: PLC0415
 
     settings = get_settings()
     repo = PostgresRunRepository(settings.postgres_dsn)

@@ -12,7 +12,7 @@ from shared.models.issues import NormalizationIssue
 from shared.models.profiling import ColumnCounts, ColumnProfileStats, SymbolDistributionProfile
 
 from profiling.column_stats import compute_column_profiles
-from profiling.issues import collect_column_issues
+from profiling.issues import collect_column_issues, collect_dataset_issues
 
 
 @dataclass(frozen=True)
@@ -42,7 +42,7 @@ def compute_profile_results(
         counts_by_name=counts_by_name,
     )
 
-    issues: list[NormalizationIssue] = []
+    issues: list[NormalizationIssue] = collect_dataset_issues(column_config)
     column_stats: dict[str, ColumnProfileStats] = {}
     dominant_symbol_ratio_sum = 0.0
     dominant_symbol_ratio_count = 0
@@ -59,6 +59,7 @@ def compute_profile_results(
 
         issues.extend(collect_column_issues(
             column_name=col_name,
+            config=config,
             profile=type_profile,
         ))
 

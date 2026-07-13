@@ -12,6 +12,7 @@ from shared.models.column import (
     IntegerColumnConfig,
     LocalizedReasons,
 )
+from shared.models.issues import IssueSeverity
 from shared.models.operation import DecisionThresholds, OperationConfig
 
 from suggestion.rule_based.inference import infer_column, infer_column_type
@@ -204,7 +205,10 @@ def test_identifier_profiling_reports_duplicate_values() -> None:
     assert profile.distinct_count == 2
     assert profile.duplicate_count == 1
     assert [issue.code for issue in profile_results.issues] == ["IDENTIFIER_DUPLICATES"]
+    # Duplicates in a primary key are an ERROR: uniqueness is the column's whole
+    # contract, and a consumer joining on it would silently multiply rows.
+    assert profile_results.issues[0].severity is IssueSeverity.ERROR
     assert json.dumps(profile_results.issues[0].evidence) == (
-        '{"duplicate_count": 1, "distinct_count": 2, "uniqueness_ratio": '
-        "0.6666666666666666}"
+        '{"is_primary_key": true, "duplicate_count": 1, "distinct_count": 2, '
+        '"uniqueness_ratio": 0.6666666666666666}'
     )

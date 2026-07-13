@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Annotated, Literal
 
-from pydantic import Field
+from pydantic import Field, model_validator
 
 from shared.models.base import MainModel
 
@@ -48,10 +48,25 @@ SourceFormat = Annotated[
 
 
 class DecisionThresholds(MainModel):
-    """Readiness thresholds for decision evaluation."""
+    """Readiness thresholds for decision evaluation, as quality scores in [0, 100]."""
 
-    ready: float
-    warning: float
+    ready: float = Field(ge=0.0, le=100.0)
+    warning: float = Field(ge=0.0, le=100.0)
+
+    @model_validator(mode="after")
+    def _warning_not_above_ready(self) -> DecisionThresholds:
+        """Reject inverted thresholds.
+
+        A score below `warning` is BLOCKED and a score below `ready` is
+        READY_WITH_WARNINGS, so `warning > ready` inverts the gate into one that
+        blocks nearly everything — silently, since both bounds are individually legal.
+        """
+        if self.warning > self.ready:
+            raise ValueError(
+                f"decision thresholds must satisfy warning <= ready, "
+                f"got warning={self.warning}, ready={self.ready}"
+            )
+        return self
 
 
 class OperationConfig(MainModel):

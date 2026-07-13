@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from datetime import datetime
+from decimal import Decimal
 from enum import StrEnum
 from uuid import UUID, uuid4
 
@@ -10,8 +12,14 @@ from pydantic import Field
 
 from shared.models.base import MainModel
 from shared.models.instance_config import InstanceConfig
+from shared.models.issues import IssueSeverity, NormalizationIssue
 from shared.models.normalization import NormalizationOutput
-from shared.models.operation import FileFormat, FileSource, SuggestionMethod
+from shared.models.operation import (
+    DecisionThresholds,
+    FileFormat,
+    FileSource,
+    SuggestionMethod,
+)
 from shared.models.profiling import ProfilingOutput
 from shared.models.suggestion import SuggestionConfidence, SuggestionDisplay
 
@@ -41,6 +49,36 @@ class InstanceStatus(StrEnum):
     READY_WITH_WARNINGS = "READY_WITH_WARNINGS"
     BLOCKED = "BLOCKED"
     FAILED = "FAILED"
+
+
+def evaluate_decision(
+    quality_score: Decimal,
+    worst_column_score: Decimal,
+    issues: Iterable[NormalizationIssue],
+    thresholds: DecisionThresholds,
+) -> InstanceStatus:
+    """Derive the terminal status of a completed run from its scores and issues.
+
+    BLOCKED is a verdict on the data; FAILED means the pipeline itself crashed.
+    Consumers gate on this status, so the two must never be conflated.
+
+    Thresholds apply to the worse of the table score and the worst single column:
+    a mean hides an annihilated column, and a run is only as trustworthy as its
+    least trustworthy column.
+    """
+    effective_score = min(quality_score, worst_column_score)
+    severities = {issue.severity for issue in issues}
+    if IssueSeverity.ERROR in severities:
+        return InstanceStatus.BLOCKED
+    if effective_score < Decimal(str(thresholds.warning)):
+        return InstanceStatus.BLOCKED
+    if effective_score < Decimal(str(thresholds.ready)):
+        return InstanceStatus.READY_WITH_WARNINGS
+    if IssueSeverity.WARNING in severities:
+        # Warnings rest on evidence the score cannot see (mixed currency,
+        # duplicate identifiers), so a clean score does not overrule them.
+        return InstanceStatus.READY_WITH_WARNINGS
+    return InstanceStatus.READY
 
 
 class InstanceModel(MainModel):
@@ -115,17 +153,31 @@ class InstanceModel(MainModel):
         self.profiling_output = profiling_output
         self.status = InstanceStatus.PROFILED
 
-    def set_normalization_output(self, normalization_output: NormalizationOutput) -> None:
-        """Store normalization output and advance status to terminal state."""
+    def set_normalization_output(
+        self,
+        normalization_output: NormalizationOutput,
+        issues: Iterable[NormalizationIssue],
+        thresholds: DecisionThresholds,
+    ) -> None:
+        """Store normalization output and advance to the decided terminal state."""
         self.normalization_output = normalization_output
-        self.status = InstanceStatus.READY
+        quality = normalization_output.quality_output
+        self.status = evaluate_decision(
+            quality_score=Decimal(quality.quality_score),
+            worst_column_score=Decimal(quality.worst_column_score),
+            issues=issues,
+            thresholds=thresholds,
+        )
+
+    def begin_phase(self, status: InstanceStatus) -> None:
+        """Enter an in-flight phase, discarding any failure left by a previous attempt."""
+        self.failure_reason = None
+        self.status = status
 
     def fail(self, reason: str) -> None:
-        """Move the instance to the terminal FAILED state, recording why.
+        """Terminate as FAILED: the pipeline crashed, recording what threw.
 
-        Every pipeline exit must be terminal. Without this, a run that raises
-        mid-phase keeps its in-flight status forever and any caller polling for
-        completion polls forever.
+        Not BLOCKED — BLOCKED is a verdict on the data, this is a bug to debug.
         """
         self.failure_reason = reason
         self.status = InstanceStatus.FAILED
