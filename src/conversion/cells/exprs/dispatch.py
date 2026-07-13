@@ -21,6 +21,7 @@ from shared.models.column import (
     TimeColumnConfig,
     UrlColumnConfig,
 )
+from shared.models.profiling import ColumnProfile, MixedNumberFormatProfile
 from shared.parsing.normalizer import build_value_candidate_expr
 
 from conversion.cells.exprs.ai_only import (
@@ -51,6 +52,7 @@ from conversion.cells.exprs.numeric import (
 def build_column_exprs(
     column_name: str,
     config: ColumnConfig,
+    profile: ColumnProfile,
     nullish_predicate: str,
     raw_value: str,
     normalized_raw_value: str,
@@ -164,7 +166,9 @@ def build_column_exprs(
             raw_value=raw_value,
             issue_label=issue_label,
         )
-    elif isinstance(config, DecimalSyntaxColumnConfig):
+    elif isinstance(config, DecimalSyntaxColumnConfig) and isinstance(
+        profile, MixedNumberFormatProfile
+    ):
         # Decimal-syntax types preprocess via the shared normalizer before matching/casting.
         candidate = build_value_candidate_expr(raw_value, config)
         exprs = build_decimal_exprs(
@@ -172,6 +176,7 @@ def build_column_exprs(
             nullish_predicate,
             raw_value=candidate,
             allow_leading_decimal_point=config.allow_leading_decimal_point,
+            profile=profile,
             issue_label=issue_label,
         )
     else:

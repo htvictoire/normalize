@@ -89,6 +89,8 @@ class SymbolBaseProfileFields(TypedDict):
     comma_decimal_count: int
     dot_decimal_count: int
     mixed_number_format_detected: bool
+    max_scale: int
+    max_integer_digits: int
 
 
 def _ordered_count_dict(counts: Mapping[str, int]) -> dict[str, int]:
@@ -371,6 +373,8 @@ def _symbol_base_profile_fields(
         comma_decimal_count=parse_stats.comma_decimal_count,
         dot_decimal_count=parse_stats.dot_decimal_count,
         mixed_number_format_detected=parse_stats.mixed_number_format_detected,
+        max_scale=parse_stats.max_scale,
+        max_integer_digits=parse_stats.max_integer_digits,
     )
 
 

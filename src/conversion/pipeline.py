@@ -8,12 +8,15 @@ Phase 3  quality_metrics — compute parse and completeness metrics from the nor
 
 from __future__ import annotations
 
+from collections.abc import Mapping
+
 from duckdb import DuckDBPyConnection
 
 from shared.db.column_index import resolve_column_config_by_canonical
 from shared.db.sql import read_columns
 from shared.models.column import ColumnConfig
 from shared.models.operation import OperationConfig
+from shared.models.profiling import ColumnProfileStats
 
 from conversion.cells import plan_cells
 from conversion.models import TransformResult
@@ -26,6 +29,7 @@ def run_conversion(
     conn: DuckDBPyConnection,
     confirmed_column_config: dict[str, ColumnConfig],
     operation_config: OperationConfig,
+    column_stats: Mapping[str, ColumnProfileStats],
 ) -> TransformResult:
     """Run the conversion transform and quality computation against an open DuckDB connection."""
     raw_columns = read_columns(conn)
@@ -48,6 +52,7 @@ def run_conversion(
         column_config=resolved_column_config,
         null_tokens=operation_config.null_tokens,
         columns=raw_columns,
+        column_stats=column_stats,
         full_raw_row=operation_config.full_raw_row,
     )
 

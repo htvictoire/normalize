@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from pathlib import Path
 
 from shared.db.duckdb import DuckDBManager, resolve_db_path
@@ -9,6 +10,7 @@ from shared.models.column import ColumnConfig
 from shared.models.issues import NormalizationIssue
 from shared.models.normalization import NormalizationOutput
 from shared.models.operation import OperationConfig
+from shared.models.profiling import ColumnProfileStats
 from shared.models.source import SourceRef
 from shared.settings import get_settings
 
@@ -26,6 +28,7 @@ class ConversionService:
         confirmed_column_config: dict[str, ColumnConfig],
         operation_config: OperationConfig,
         profiling_issues: list[NormalizationIssue],
+        column_stats: Mapping[str, ColumnProfileStats],
         output_root: str | Path,
         run_id: str,
         persisted_db_path: Path,
@@ -39,7 +42,12 @@ class ConversionService:
             threads=settings.duckdb_threads,
             database=resolve_db_path(str(persisted_db_path)),
         ) as conn:
-            result = run_conversion(conn, confirmed_column_config, operation_config)
+            result = run_conversion(
+                conn,
+                confirmed_column_config,
+                operation_config,
+                column_stats,
+            )
             artifacts = materialize_artifacts(
                 conn,
                 output_dir=output_root,

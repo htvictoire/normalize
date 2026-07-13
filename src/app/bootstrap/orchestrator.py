@@ -194,6 +194,7 @@ class MainOrchestrator:
                 confirmed_column_config=confirmed.column_config,
                 operation_config=confirmed.operation_config,
                 profiling_issues=list(profiling_output.issues),
+                column_stats=profiling_output.column_stats,
                 output_root=settings.conversion_output_dir,
                 run_id=str(instance_id),
                 persisted_db_path=db_cache_path,

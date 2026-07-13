@@ -159,3 +159,44 @@ def decimal_normalize_sql(cleaned_expr: str) -> str:
 def integer_normalize_sql(cleaned_expr: str) -> str:
     """SQL: strip every grouping separator from an integer value."""
     return f"REPLACE(REPLACE({cleaned_expr}, ',', ''), '.', '')"
+
+
+def has_significant_digit_sql(value_expr: str) -> str:
+    """SQL predicate: this value carries a digit other than zero.
+
+    Separates a source zero from a quantity a narrower type rounded away to zero —
+    ``0.00`` and ``0.00000000000000000035`` are indistinguishable once stored, and
+    only the second lost anything.
+    """
+    return f"REGEXP_MATCHES({value_expr}, {quote_string('[1-9]')})"
+
+
+def significant_scale_sql(normalized_expr: str) -> str:
+    """SQL: how many fractional digits this value actually carries.
+
+    ``normalized_expr`` must be the output of ``decimal_normalize_sql`` — a plain
+    ``.``-decimal string with at most one separator.
+
+    Trailing zeros do not count: ``1.500`` carries one fractional digit, not three.
+    Padding a fraction with zeros changes no digit, so a column sized to hold it at
+    scale 1 holds it exactly.
+    """
+    point = f"STRPOS({normalized_expr}, '.')"
+    return (
+        f"CASE WHEN {point} = 0 THEN 0 "
+        f"ELSE LENGTH(RTRIM({normalized_expr}, '0')) - {point} END"
+    )
+
+
+def integer_digits_sql(normalized_expr: str) -> str:
+    """SQL: how many digits this value carries before the decimal point.
+
+    Leading zeros do not count and neither does the sign: ``-007.5`` needs one
+    integer digit, and ``0.5`` needs none.
+    """
+    point = f"STRPOS({normalized_expr}, '.')"
+    integer_part = (
+        f"CASE WHEN {point} = 0 THEN {normalized_expr} "
+        f"ELSE SUBSTRING({normalized_expr}, 1, {point} - 1) END"
+    )
+    return f"LENGTH(LTRIM(LTRIM({integer_part}, '+-'), '0'))"

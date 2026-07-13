@@ -38,15 +38,20 @@ class ValidityProfile(MainModel):
 
 
 class MixedNumberFormatProfile(ParseMatchProfile):
-    """Base for numeric profiles that track which decimal notations the column uses.
+    """Base for numeric profiles: the notations a column writes, and the digits it carries.
 
     Both notations parse correctly — the locale is resolved per value — so a mixed
     column is reported, never rejected.
+
+    The digit counts are over every row, not a sample, and size the DECIMAL the column
+    is stored as.
     """
 
     comma_decimal_count: int
     dot_decimal_count: int
     mixed_number_format_detected: bool
+    max_scale: int  # longest fraction any value carries, trailing zeros excluded
+    max_integer_digits: int  # digits before the point in the largest magnitude
 
 
 class DecimalStatsProfile(MixedNumberFormatProfile):

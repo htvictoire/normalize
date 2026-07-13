@@ -6,6 +6,7 @@ from collections.abc import Mapping, Sequence
 
 from shared.db.sql import quote_identifier
 from shared.models.column import ColumnConfig
+from shared.models.profiling import ColumnProfileStats
 
 from conversion.cells.exprs.dispatch import build_column_exprs
 from conversion.cells.exprs.nullish import build_nullish_predicate
@@ -22,6 +23,7 @@ def plan_cells(
     column_config: Mapping[str, ColumnConfig],
     null_tokens: Sequence[str],
     columns: list[str],
+    column_stats: Mapping[str, ColumnProfileStats],
     full_raw_row: bool = False,
 ) -> CellPlan:
     """
@@ -41,6 +43,7 @@ def plan_cells(
 
     for column_name in data_columns:
         spec = column_config[column_name]
+        profile = column_stats[column_name].type_profile
         quoted_column = quote_identifier(column_name)
         raw_alias = quote_identifier(parse_raw_alias(column_name))
         lower_alias = quote_identifier(parse_lower_alias(column_name))
@@ -53,7 +56,7 @@ def plan_cells(
         )
 
         col_exprs = build_column_exprs(
-            column_name, spec, nullish_alias,
+            column_name, spec, profile, nullish_alias,
             raw_value=raw_alias,
             normalized_raw_value=lower_alias,
         )

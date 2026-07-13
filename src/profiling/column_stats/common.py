@@ -14,8 +14,11 @@ from shared.db.sql import nullish_predicate, quote_identifier, quote_string
 from shared.models.column.base import DecimalSyntaxColumnConfig
 from shared.models.profiling import ColumnCounts
 from shared.parsing.numeric import (
+    decimal_normalize_sql,
     decimal_pattern_regex,
     decimal_separator_sql,
+    integer_digits_sql,
+    significant_scale_sql,
     strip_group_only_sql,
 )
 
@@ -28,6 +31,8 @@ class DecimalParseStats:
     parse_match_ratio: float
     comma_decimal_count: int
     dot_decimal_count: int
+    max_scale: int
+    max_integer_digits: int
 
     @property
     def mixed_number_format_detected(self) -> bool:
@@ -63,20 +68,32 @@ def _separator_alias(column_name: str) -> str:
     return quote_identifier(f"__sep__{column_name}")
 
 
+def _norm_alias(column_name: str) -> str:
+    return quote_identifier(f"__norm__{column_name}")
+
+
+# One group of aggregates per decimal column, in the order parse_match_count_exprs emits.
+DECIMAL_STATS_GROUP_SIZE = 5
+
+
 def parse_match_count_exprs(
     column_name: str,
     config: DecimalSyntaxColumnConfig,
-) -> tuple[str, str, str]:
-    """Return (parse_match, comma_decimal, dot_decimal) COUNT(*) FILTER fragments.
+) -> tuple[str, str, str, str, str]:
+    """Return (parse_match, comma_decimal, dot_decimal, max_scale, max_integer_digits).
 
     The notation counts exist to *report* a mixed-locale column, not to reject one:
     the parser resolves each value's separator on its own.
 
-    All three read values pre-computed by ``compute_decimal_parse_stats_batch``, so
-    the locale detection runs once per cell rather than once per aggregate.
+    The digit maxima are taken only over parseable values; an unparseable one has no
+    digits to count.
+
+    All five read values pre-computed by ``compute_decimal_parse_stats_batch``, so the
+    locale detection runs once per cell rather than once per aggregate.
     """
     cleaned = _clean_alias(column_name)
     separator = _separator_alias(column_name)
+    normalized = _norm_alias(column_name)
     pattern = quote_string(
         decimal_pattern_regex(allow_leading_decimal_point=config.allow_leading_decimal_point)
     )
@@ -85,6 +102,8 @@ def parse_match_count_exprs(
         f"COUNT(*) FILTER (WHERE {parseable})",
         f"COUNT(*) FILTER (WHERE {parseable} AND {separator} = ',')",
         f"COUNT(*) FILTER (WHERE {parseable} AND {separator} = '.')",
+        f"COALESCE(MAX({significant_scale_sql(normalized)}) FILTER (WHERE {parseable}), 0)",
+        f"COALESCE(MAX({integer_digits_sql(normalized)}) FILTER (WHERE {parseable}), 0)",
     )
 
 
@@ -109,7 +128,9 @@ def compute_decimal_parse_stats_batch(
     outer = ", ".join(
         f"{_clean_alias(entry.column_name)}, {_nullish_alias(entry.column_name)}, "
         f"{decimal_separator_sql(_clean_alias(entry.column_name))} "
-        f"AS {_separator_alias(entry.column_name)}"
+        f"AS {_separator_alias(entry.column_name)}, "
+        f"{decimal_normalize_sql(_clean_alias(entry.column_name))} "
+        f"AS {_norm_alias(entry.column_name)}"
         for entry in batch
     )
     exprs: list[str] = []
@@ -123,15 +144,18 @@ def compute_decimal_parse_stats_batch(
     )
 
     stats_by_name: dict[str, DecimalParseStats] = {}
-    count_groups = group_int_values(row, group_size=3, expected_groups=len(batch))
-    for entry, (parse_match_count, comma_decimal_count, dot_decimal_count) in zip(
-        batch, count_groups, strict=True
-    ):
+    count_groups = group_int_values(
+        row, group_size=DECIMAL_STATS_GROUP_SIZE, expected_groups=len(batch)
+    )
+    for entry, group in zip(batch, count_groups, strict=True):
+        parse_match_count, comma_decimal_count, dot_decimal_count, max_scale, max_int = group
         non_nullish = entry.counts.non_nullish_count
         stats_by_name[entry.column_name] = DecimalParseStats(
             parse_match_count=parse_match_count,
             parse_match_ratio=safe_ratio(parse_match_count, non_nullish),
             comma_decimal_count=comma_decimal_count,
             dot_decimal_count=dot_decimal_count,
+            max_scale=max_scale,
+            max_integer_digits=max_int,
         )
     return stats_by_name

@@ -46,5 +46,7 @@ def compute_decimal_stats_profiles_batch(
             comma_decimal_count=stats.comma_decimal_count,
             dot_decimal_count=stats.dot_decimal_count,
             mixed_number_format_detected=stats.mixed_number_format_detected,
+            max_scale=stats.max_scale,
+            max_integer_digits=stats.max_integer_digits,
         )
     return profiles
