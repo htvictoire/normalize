@@ -1,50 +1,26 @@
-"""Numeric token parsing: currency stripping, sign normalization, grouping validation."""
+"""Numeric token parsing: currency stripping, sign normalization, locale resolution.
+
+Mirrors the per-value locale rules in ``shared.parsing.numeric`` so the type the
+suggester infers is the type the conversion SQL can actually produce.
+"""
 
 from __future__ import annotations
 
-from shared.models.column import GroupingStyle
+import re
+
 from shared.parsing.currency import CURRENCY_DETECTION_RE
 from shared.parsing.markers import SIGN_MARKER_DETECTION_RE
+from shared.parsing.numeric import decimal_pattern_regex, strip_group_only_chars
 
-from suggestion.rule_based.constants import (
-    GROUP_FIRST_MAX_DIGITS,
-    GROUP_INDIAN_MIDDLE_SIZE,
-    GROUP_INDIAN_TWO_GROUP_CASE,
-    GROUP_WESTERN_SIZE,
-)
-from suggestion.rule_based.models import NumericCandidate, NumericParseResult
+from suggestion.rule_based.models import NumericParseResult
 
-
-def _valid_group_sizes(groups: list[str], grouping_style: GroupingStyle) -> bool:
-    if grouping_style == "western":
-        return all(len(group) == GROUP_WESTERN_SIZE for group in groups[1:])
-    if len(groups[-1]) != GROUP_WESTERN_SIZE:
-        return False
-    if len(groups) == GROUP_INDIAN_TWO_GROUP_CASE:
-        return True
-    return all(len(group) == GROUP_INDIAN_MIDDLE_SIZE for group in groups[1:-1])
-
-
-def _valid_grouping(
-    integer_part: str,
-    thousand_separator: str,
-    grouping_style: GroupingStyle,
-) -> bool:
-    if not integer_part:
-        return True
-    if not thousand_separator or thousand_separator not in integer_part:
-        return integer_part.isdigit()
-
-    groups = integer_part.split(thousand_separator)
-    if any((not group) or (not group.isdigit()) for group in groups):
-        return False
-    if not 1 <= len(groups[0]) <= GROUP_FIRST_MAX_DIGITS:
-        return False
-    return _valid_group_sizes(groups, grouping_style)
+_DECIMAL_RE = re.compile(decimal_pattern_regex(allow_leading_decimal_point=True))
+_ZERO_INTEGER_RE = re.compile(r"^[+-]?0?$")
+_GROUP_SIZE = 3
 
 
 def _strip_numeric_sign(value: str) -> tuple[str, bool] | None:
-    stripped = value.strip().replace(" ", "")
+    stripped = value.strip()
     if not stripped:
         return None
 
@@ -57,19 +33,37 @@ def _strip_numeric_sign(value: str) -> tuple[str, bool] | None:
     has_percentage = stripped.endswith("%")
     if has_percentage:
         stripped = stripped[:-1]
+    stripped = strip_group_only_chars(stripped).strip()
     if not stripped:
         return None
     return stripped, has_percentage
 
 
-def parse_numeric_token(
-    value: str,
-    candidate: NumericCandidate,
-) -> NumericParseResult | None:
-    """Parse one raw value under one candidate format.
+def _lone_separator_is_decimal(value: str, index: int) -> bool:
+    """Rules 3 and 4: a single separator is a decimal unless it groups thousands."""
+    tail_length = len(value) - index - 1
+    return tail_length != _GROUP_SIZE or bool(_ZERO_INTEGER_RE.fullmatch(value[:index]))
 
-    Strips any currency token first, then strips sign notation, then validates
-    grouping and decimal structure. Returns None if the value does not parse.
+
+def resolve_decimal_separator(value: str) -> str | None:
+    """Return the decimal separator this value uses, or None when it has none."""
+    last_dot = value.rfind(".")
+    last_comma = value.rfind(",")
+    if last_dot >= 0 and last_comma >= 0:
+        return "." if last_dot > last_comma else ","
+    if last_comma >= 0 and value.count(",") == 1 and _lone_separator_is_decimal(value, last_comma):
+        return ","
+    if last_dot >= 0 and value.count(".") == 1 and _lone_separator_is_decimal(value, last_dot):
+        return "."
+    return None
+
+
+def parse_numeric_token(value: str) -> NumericParseResult | None:
+    """Parse one raw value, resolving its locale from its own shape.
+
+    Strips any currency token first, then sign notation, then validates the shape
+    against every supported grouping convention. Returns None if the value is not
+    a number under any of them.
     """
     has_currency = CURRENCY_DETECTION_RE.search(value) is not None
     clean = CURRENCY_DETECTION_RE.sub("", value).strip() if has_currency else value
@@ -85,48 +79,34 @@ def parse_numeric_token(
         return None
     stripped, has_percentage = sign_result
 
-    decimal_separator = candidate.decimal_separator
-    thousand_separator = candidate.thousand_separator
-    used_decimal_separator = decimal_separator in stripped
-    used_thousand_separator = bool(thousand_separator) and thousand_separator in stripped
-    leading_decimal_point = False
+    if not _DECIMAL_RE.fullmatch(stripped):
+        return None
 
-    parse_ok = stripped.count(decimal_separator) <= 1
-    integer_part_raw = stripped
+    decimal_separator = resolve_decimal_separator(stripped)
     fractional_part: str | None = None
-    if parse_ok and decimal_separator in stripped:
-        integer_part_raw, fractional_part = stripped.split(decimal_separator, 1)
+    if decimal_separator is None:
+        integer_digits = stripped.replace(",", "").replace(".", "")
+    else:
+        grouping = "." if decimal_separator == "," else ","
+        integer_raw, fractional_part = stripped.rsplit(decimal_separator, 1)
+        integer_digits = integer_raw.replace(grouping, "")
 
-    if parse_ok and not _valid_grouping(
-        integer_part_raw,
-        thousand_separator,
-        candidate.grouping_style,
-    ):
-        parse_ok = False
-
-    integer_digits = (
-        integer_part_raw.replace(thousand_separator, "")
-        if thousand_separator
-        else integer_part_raw
-    )
-    if parse_ok and not integer_digits and fractional_part is None:
-        parse_ok = False
-    elif parse_ok and not integer_digits:
+    leading_decimal_point = False
+    if not integer_digits:
+        if fractional_part is None:
+            return None
         leading_decimal_point = True
         integer_digits = "0"
-    if parse_ok and not integer_digits.isdigit():
-        parse_ok = False
+    if not integer_digits.isdigit():
+        return None
 
     has_fractional_part = fractional_part is not None
     if fractional_part is not None:
-        if parse_ok and fractional_part and fractional_part.isdigit():
-            normalized = f"{integer_digits}.{fractional_part}"
-        else:
+        if not fractional_part.isdigit():
             return None
-    elif parse_ok:
-        normalized = integer_digits
+        normalized = f"{integer_digits}.{fractional_part}"
     else:
-        return None
+        normalized = integer_digits
 
     return NumericParseResult(
         normalized=normalized,
@@ -134,7 +114,5 @@ def parse_numeric_token(
         has_signed=has_signed,
         has_percentage=has_percentage,
         has_fractional_part=has_fractional_part,
-        used_decimal_separator=used_decimal_separator,
-        used_thousand_separator=used_thousand_separator,
         leading_decimal_point=leading_decimal_point,
     )

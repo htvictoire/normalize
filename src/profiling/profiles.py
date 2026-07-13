@@ -12,7 +12,6 @@ from shared.models.issues import NormalizationIssue
 from shared.models.profiling import ColumnCounts, ColumnProfileStats, SymbolDistributionProfile
 
 from profiling.column_stats import compute_column_profiles
-from profiling.constants import NUMERIC_MISMATCH_THRESHOLD
 from profiling.issues import collect_column_issues
 
 
@@ -60,9 +59,7 @@ def compute_profile_results(
 
         issues.extend(collect_column_issues(
             column_name=col_name,
-            config=config,
             profile=type_profile,
-            numeric_threshold=NUMERIC_MISMATCH_THRESHOLD,
         ))
 
         if isinstance(type_profile, SymbolDistributionProfile):

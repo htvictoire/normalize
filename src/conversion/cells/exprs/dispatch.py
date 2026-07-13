@@ -162,8 +162,6 @@ def build_column_exprs(
             column_name,
             nullish_predicate,
             raw_value=raw_value,
-            thousand_separator=config.thousand_separator,
-            grouping_style=config.grouping_style,
             issue_label=issue_label,
         )
     elif isinstance(config, DecimalSyntaxColumnConfig):
@@ -173,9 +171,6 @@ def build_column_exprs(
             column_name,
             nullish_predicate,
             raw_value=candidate,
-            decimal_separator=config.decimal_separator,
-            thousand_separator=config.thousand_separator,
-            grouping_style=config.grouping_style,
             allow_leading_decimal_point=config.allow_leading_decimal_point,
             issue_label=issue_label,
         )

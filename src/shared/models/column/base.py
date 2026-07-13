@@ -12,20 +12,21 @@ ColumnType = Literal[
     "country_code", "currency_code", "language_code",
     "categorical", "email", "url", "ip_address", "phone",
 ]
-GroupingStyle = Literal["western", "indian"]
 
 
 class NumericFormattingColumnConfig(MainModel):
-    """Capability base for configs with numeric grouping/formatting settings."""
+    """Capability base for numeric configs.
 
-    thousand_separator: str
-    grouping_style: GroupingStyle
+    Carries no separator or grouping settings: a column cannot declare a locale,
+    because one column routinely holds several. The decimal separator is resolved
+    per value in ``shared.parsing.numeric``, which handles western, european,
+    indian and apostrophe/space grouping alike.
+    """
 
 
 class DecimalSyntaxColumnConfig(NumericFormattingColumnConfig):
-    """Capability base for configs with decimal separator syntax settings."""
+    """Capability base for configs that admit a fractional part."""
 
-    decimal_separator: str
     allow_leading_decimal_point: bool
 
 

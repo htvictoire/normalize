@@ -43,8 +43,8 @@ def compute_decimal_stats_profiles_batch(
         profiles[entry.column_name] = profile_cls(
             parse_match_count=stats.parse_match_count,
             parse_match_ratio=stats.parse_match_ratio,
-            swapped_match_count=stats.swapped_match_count,
-            swapped_match_ratio=stats.swapped_match_ratio,
-            separator_mismatch_detected=stats.separator_mismatch_detected,
+            comma_decimal_count=stats.comma_decimal_count,
+            dot_decimal_count=stats.dot_decimal_count,
+            mixed_number_format_detected=stats.mixed_number_format_detected,
         )
     return profiles

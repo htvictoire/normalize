@@ -86,9 +86,9 @@ class SymbolBaseProfileFields(TypedDict):
     has_mixed_symbols: bool
     parse_match_count: int
     parse_match_ratio: float
-    swapped_match_count: int
-    swapped_match_ratio: float
-    separator_mismatch_detected: bool
+    comma_decimal_count: int
+    dot_decimal_count: int
+    mixed_number_format_detected: bool
 
 
 def _ordered_count_dict(counts: Mapping[str, int]) -> dict[str, int]:
@@ -368,9 +368,9 @@ def _symbol_base_profile_fields(
         has_mixed_symbols=coverage.has_mixed_symbols,
         parse_match_count=parse_stats.parse_match_count,
         parse_match_ratio=parse_stats.parse_match_ratio,
-        swapped_match_count=parse_stats.swapped_match_count,
-        swapped_match_ratio=parse_stats.swapped_match_ratio,
-        separator_mismatch_detected=parse_stats.separator_mismatch_detected,
+        comma_decimal_count=parse_stats.comma_decimal_count,
+        dot_decimal_count=parse_stats.dot_decimal_count,
+        mixed_number_format_detected=parse_stats.mixed_number_format_detected,
     )
 
 

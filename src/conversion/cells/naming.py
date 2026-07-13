@@ -13,6 +13,11 @@ def parse_match_alias(column_name: str) -> str:
     return f"__p_match__{column_name}"
 
 
+def parse_clean_alias(column_name: str) -> str:
+    """Alias for the pre-computed group-separator-stripped numeric value."""
+    return f"__p_clean__{column_name}"
+
+
 def parse_cast_alias(column_name: str) -> str:
     """Alias for the pre-computed TRY_CAST numeric result in the parse CTE."""
     return f"__p_cast__{column_name}"

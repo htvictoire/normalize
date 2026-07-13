@@ -139,7 +139,7 @@ def test_rule_based_identifier_inference_does_not_capture_plain_numeric_columns(
         ["001", "002", "003", "004"],
         extended_type_detection=False,
         column_name="amount",
-    ) == IntegerColumnConfig(thousand_separator="", grouping_style="western")
+    ) == IntegerColumnConfig()
 
 
 def test_identifier_conversion_preserves_leading_zeroes_and_profiles_duplicates() -> None:

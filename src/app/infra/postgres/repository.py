@@ -44,14 +44,16 @@ class PostgresRunRepository:
                     source_type, source_checksum, suggestion_method,
                     extended_type_detection,
                     suggested_config, suggestion_display, suggestion_confidence,
-                    confirmed_config, profiling_output, normalization_output, timings
+                    confirmed_config, profiling_output, normalization_output,
+                    failure_reason, timings
                 ) VALUES (
                     %s, %s, %s, %s,
                     %s, %s, %s,
                     %s, %s, %s,
                     %s,
                     %s::jsonb, %s::jsonb, %s::jsonb,
-                    %s::jsonb, %s::jsonb, %s::jsonb, %s::jsonb
+                    %s::jsonb, %s::jsonb, %s::jsonb,
+                    %s, %s::jsonb
                 )
                 ON CONFLICT (instance_id) DO UPDATE SET
                     status                = EXCLUDED.status,
@@ -62,6 +64,7 @@ class PostgresRunRepository:
                     confirmed_config      = EXCLUDED.confirmed_config,
                     profiling_output      = EXCLUDED.profiling_output,
                     normalization_output  = EXCLUDED.normalization_output,
+                    failure_reason        = EXCLUDED.failure_reason,
                     timings               = EXCLUDED.timings,
                     updated_at            = NOW()
                 """,
@@ -76,6 +79,7 @@ class PostgresRunRepository:
                     _as_jsonb(r["confirmed_config"]),
                     _as_jsonb(r["profiling_output"]),
                     _as_jsonb(r["normalization_output"]),
+                    r["failure_reason"],
                     _as_jsonb(r["timings"]),
                 ),
             )
@@ -90,7 +94,8 @@ class PostgresRunRepository:
                        source_type, source_checksum, suggestion_method,
                        extended_type_detection,
                        suggested_config, suggestion_display, suggestion_confidence,
-                       confirmed_config, profiling_output, normalization_output, timings
+                       confirmed_config, profiling_output, normalization_output,
+                       failure_reason, timings
                 FROM normalization_runs
                 WHERE instance_id = %s
                 """,
@@ -117,7 +122,8 @@ class PostgresRunRepository:
             "confirmed_config":     row[14],
             "profiling_output":     row[15],
             "normalization_output": row[16],
-            "timings":              row[17],
+            "failure_reason":       row[17],
+            "timings":              row[18],
         })
 
     def get_required(self, instance_id: UUID) -> InstanceModel:
@@ -126,16 +132,22 @@ class PostgresRunRepository:
             raise KeyError(f"instance not found: {instance_id}")
         return instance
 
-    def sweep_stuck_normalizing(self, threshold_minutes: int = 30) -> list[UUID]:
-        """Set NORMALIZING instances older than the threshold to FAILED and return their IDs."""
+    def sweep_stuck_jobs(self, threshold_minutes: int = 30) -> list[UUID]:
+        """Fail instances stranded in any in-flight phase past the threshold.
+
+        PROFILING strands just as easily as NORMALIZING — a sweeper that only
+        watches one of them leaves the other stuck forever.
+        """
         from datetime import timedelta  # noqa: PLC0415
 
         with self._psycopg.connect(self._dsn, autocommit=True) as conn, conn.cursor() as cur:
             cur.execute(
                 """
                 UPDATE normalization_runs
-                SET status = 'FAILED', updated_at = NOW()
-                WHERE status = 'NORMALIZING'
+                SET status = 'FAILED',
+                    failure_reason = 'stranded in ' || status || ' past threshold',
+                    updated_at = NOW()
+                WHERE status IN ('PROFILING', 'NORMALIZING')
                   AND updated_at < NOW() - %s
                 RETURNING instance_id
                 """,
@@ -166,6 +178,7 @@ class PostgresRunRepository:
                     confirmed_config      JSONB,
                     profiling_output      JSONB,
                     normalization_output  JSONB,
+                    failure_reason        TEXT,
                     timings               JSONB,
                     created_at            TIMESTAMPTZ NOT NULL DEFAULT NOW(),
                     updated_at            TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -188,6 +201,12 @@ class PostgresRunRepository:
                 """
                 ALTER TABLE normalization_runs
                     ADD COLUMN IF NOT EXISTS suggestion_confidence JSONB
+                """
+            )
+            cur.execute(
+                """
+                ALTER TABLE normalization_runs
+                    ADD COLUMN IF NOT EXISTS failure_reason TEXT
                 """
             )
 

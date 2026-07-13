@@ -101,10 +101,27 @@ class MainOrchestrator:
             self._enqueue_post_confirmation_pipeline(instance_id)
         return instance
 
+    def mark_failed(self, instance_id: UUID, reason: str) -> InstanceModel:
+        """Move an instance to FAILED and notify. Called when retries are exhausted."""
+        instance = self._repository.get_required(instance_id)
+        instance.fail(reason)
+        self._repository.save(instance)
+        if instance.webhook_url:
+            fire_webhook(instance.webhook_url, instance_id, instance.status)
+        return instance
+
     def profile(self, instance_id: UUID) -> InstanceModel:
         instance = self._repository.get_required(instance_id)
-        if instance.status is not InstanceStatus.CONFIRMED:
+        # PROFILING is accepted so a retry can re-enter after a failed attempt left
+        # the status behind. Without it, every retry dies on this guard instead of
+        # on the error that actually needs retrying.
+        if instance.status not in {InstanceStatus.CONFIRMED, InstanceStatus.PROFILING}:
             raise ValueError("instance must be CONFIRMED before profile")
+
+        # A previous attempt may have left a partially written cache behind.
+        cache_path = self._duckdb_cache_path(instance_id)
+        if instance.status is InstanceStatus.PROFILING and cache_path.exists():
+            cache_path.unlink()
 
         instance.timings.profile_started_at = datetime.now(UTC)
         instance.status = InstanceStatus.PROFILING
@@ -123,7 +140,7 @@ class MainOrchestrator:
             ),
             source_checksum=instance.source_checksum,
             confirmed_config=confirmed,
-            persisted_db_path=self._duckdb_cache_path(instance_id),
+            persisted_db_path=cache_path,
         )
         instance.set_profiling_output(profiling_output)
         instance.timings.profile_ended_at = datetime.now(UTC)
@@ -134,7 +151,9 @@ class MainOrchestrator:
 
     def normalize(self, instance_id: UUID) -> InstanceModel:
         instance = self._repository.get_required(instance_id)
-        if instance.status is not InstanceStatus.PROFILED:
+        # NORMALIZING is accepted for the same reason PROFILING is in profile():
+        # a retry must be able to re-enter the phase that failed.
+        if instance.status not in {InstanceStatus.PROFILED, InstanceStatus.NORMALIZING}:
             raise ValueError("instance must be PROFILED before normalize")
         # PROFILED status guarantees both fields were set atomically by set_profiling_output()
         # and confirm() respectively; PROFILED is only reachable from CONFIRMED.

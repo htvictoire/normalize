@@ -37,15 +37,19 @@ class ValidityProfile(MainModel):
     valid_ratio: float
 
 
-class SeparatorMismatchProfile(ParseMatchProfile):
-    """Base for decimal-style profiles that also detect separator swap."""
+class MixedNumberFormatProfile(ParseMatchProfile):
+    """Base for numeric profiles that track which decimal notations the column uses.
 
-    swapped_match_count: int
-    swapped_match_ratio: float
-    separator_mismatch_detected: bool
+    Both notations parse correctly — the locale is resolved per value — so a mixed
+    column is reported, never rejected.
+    """
+
+    comma_decimal_count: int
+    dot_decimal_count: int
+    mixed_number_format_detected: bool
 
 
-class DecimalStatsProfile(SeparatorMismatchProfile):
+class DecimalStatsProfile(MixedNumberFormatProfile):
     """Base for decimal/percentage/signed profiles with identical parse stats."""
 
 
@@ -62,7 +66,7 @@ class SymbolDistributionProfile(MainModel):
     has_mixed_symbols: bool
 
 
-class MonetaryProfile(SymbolDistributionProfile, SeparatorMismatchProfile):
+class MonetaryProfile(SymbolDistributionProfile, MixedNumberFormatProfile):
     """Base for monetary profiles that share symbol coverage and parse stats."""
 
 

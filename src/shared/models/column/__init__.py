@@ -1,7 +1,6 @@
 from shared.models.column.base import (
     ColumnType,
     DecimalSyntaxColumnConfig,
-    GroupingStyle,
     NumericFormattingColumnConfig,
     SignedNotationColumnConfig,
 )
@@ -69,7 +68,6 @@ __all__ = [
     "DecimalColumnConfig",
     "DecimalSyntaxColumnConfig",
     "EmailColumnConfig",
-    "GroupingStyle",
     "IdentifierColumnConfig",
     "IntegerColumnConfig",
     "IpAddressColumnConfig",

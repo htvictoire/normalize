@@ -56,6 +56,7 @@ def instance_to_record(instance: InstanceModel) -> dict[str, Any]:
             if instance.normalization_output is not None
             else None
         ),
+        "failure_reason": instance.failure_reason,
         "timings": instance.timings.model_dump(mode="json"),
     }
 
@@ -94,6 +95,7 @@ def record_to_instance(record: Mapping[str, Any]) -> InstanceModel:
             if record.get("confirmed_config") is not None
             else None
         ),
+        failure_reason=record.get("failure_reason"),
         profiling_output=(
             ProfilingOutput.model_validate(record["profiling_output"])
             if record.get("profiling_output") is not None

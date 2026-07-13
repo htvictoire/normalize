@@ -11,7 +11,7 @@ from shared.db.aggregates import fetch_aggregate_int_row, safe_ratio
 from shared.db.sql import nullish_predicate, quote_identifier, quote_string
 from shared.models.column import IntegerColumnConfig
 from shared.models.profiling import ColumnCounts, ColumnProfile, IntegerColumnProfile
-from shared.parsing.numeric import integer_pattern_regex
+from shared.parsing.numeric import integer_pattern_regex, strip_group_only_sql
 
 
 @dataclass(frozen=True)
@@ -35,13 +35,11 @@ def compute_integer_column_profiles_batch(
     for entry in batch:
         quoted = quote_identifier(entry.column_name)
         nullish = nullish_predicate(quoted, null_tokens)
-        pattern = integer_pattern_regex(
-            thousand_separator=entry.config.thousand_separator,
-            grouping_style=entry.config.grouping_style,
-        )
+        pattern = integer_pattern_regex()
         exprs.append(
             f"COUNT(*) FILTER (WHERE NOT ({nullish})"
-            f" AND REGEXP_FULL_MATCH({entry.value_expr}, {quote_string(pattern)}))"
+            f" AND REGEXP_FULL_MATCH({strip_group_only_sql(entry.value_expr)},"
+            f" {quote_string(pattern)}))"
         )
 
     row = fetch_aggregate_int_row(conn, f"SELECT {', '.join(exprs)} FROM {RAW_INPUT_TABLE_NAME}")

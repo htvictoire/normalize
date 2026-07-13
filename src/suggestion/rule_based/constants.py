@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from suggestion.rule_based.models import NumericCandidate
-
 # ---------------------------------------------------------------------------
 # Source format inference (delimiter and header-row detection heuristics)
 # ---------------------------------------------------------------------------
@@ -111,31 +109,7 @@ TIME_FORMAT_CANDIDATES = (
 
 TIME_FORMAT_RANK: dict[str, int] = {fmt: i for i, fmt in enumerate(TIME_FORMAT_CANDIDATES)}
 
-# ---------------------------------------------------------------------------
-# Numeric grouping
-# ---------------------------------------------------------------------------
-
-GROUP_FIRST_MAX_DIGITS = 3
-GROUP_WESTERN_SIZE = 3
-GROUP_INDIAN_MIDDLE_SIZE = 2
-GROUP_INDIAN_TWO_GROUP_CASE = 2
-
 # Minimum fraction of sampled values with a leading decimal point (e.g. ".5")
 # for the pattern to be recorded as intentional in the suggested config
 # (allow_leading_decimal_point).
 LEADING_DECIMAL_MIN_RATIO = 0.05
-
-# ---------------------------------------------------------------------------
-# Numeric candidates
-# ---------------------------------------------------------------------------
-
-# All candidate numeric formatting layouts scored during type inference.
-NUMERIC_CANDIDATES = (
-    NumericCandidate(decimal_separator=".", thousand_separator="", grouping_style="western"),
-    NumericCandidate(decimal_separator=",", thousand_separator="", grouping_style="western"),
-    NumericCandidate(decimal_separator=".", thousand_separator=",", grouping_style="western"),
-    NumericCandidate(decimal_separator=",", thousand_separator=".", grouping_style="western"),
-    NumericCandidate(decimal_separator=".", thousand_separator=",", grouping_style="indian"),
-    NumericCandidate(decimal_separator=",", thousand_separator=".", grouping_style="indian"),
-    NumericCandidate(decimal_separator=".", thousand_separator="'", grouping_style="western"),
-)

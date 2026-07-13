@@ -13,7 +13,7 @@ from app.bootstrap import MainOrchestrator
 
 
 @asynccontextmanager
-async def _lifespan(app: FastAPI) -> AsyncIterator[None]:  # noqa: RUF029 — FastAPI lifespan protocol requires async generator
+async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
     app.state.orchestrator = MainOrchestrator()
     yield
 

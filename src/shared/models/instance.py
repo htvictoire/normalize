@@ -63,6 +63,7 @@ class InstanceModel(MainModel):
     confirmed_config: InstanceConfig | None = None
     profiling_output: ProfilingOutput | None = None
     normalization_output: NormalizationOutput | None = None
+    failure_reason: str | None = None
     timings: StageTimings = Field(default_factory=StageTimings)
 
     @classmethod
@@ -118,3 +119,13 @@ class InstanceModel(MainModel):
         """Store normalization output and advance status to terminal state."""
         self.normalization_output = normalization_output
         self.status = InstanceStatus.READY
+
+    def fail(self, reason: str) -> None:
+        """Move the instance to the terminal FAILED state, recording why.
+
+        Every pipeline exit must be terminal. Without this, a run that raises
+        mid-phase keeps its in-flight status forever and any caller polling for
+        completion polls forever.
+        """
+        self.failure_reason = reason
+        self.status = InstanceStatus.FAILED

@@ -2,27 +2,24 @@
 
 from __future__ import annotations
 
-from shared.models.column import ColumnConfig, DecimalSyntaxColumnConfig
 from shared.models.issues import IssueSeverity, NormalizationIssue
 from shared.models.profiling import (
     ColumnProfile,
     IdentifierColumnProfile,
-    SeparatorMismatchProfile,
+    MixedNumberFormatProfile,
     SymbolDistributionProfile,
 )
 
 from profiling.constants import (
     ISSUE_CODE_IDENTIFIER_DUPLICATES,
     ISSUE_CODE_MIXED_CURRENCY,
-    ISSUE_CODE_SEPARATOR_MISMATCH,
+    ISSUE_CODE_MIXED_NUMBER_FORMAT,
 )
 
 
 def collect_column_issues(
     column_name: str,
-    config: ColumnConfig,
     profile: ColumnProfile,
-    numeric_threshold: float,
 ) -> list[NormalizationIssue]:
     """Return issues detected from the column profile."""
     issues: list[NormalizationIssue] = []
@@ -48,24 +45,12 @@ def collect_column_issues(
             )
         )
 
-    if (
-        isinstance(profile, SeparatorMismatchProfile)
-        and profile.separator_mismatch_detected
-        and profile.swapped_match_ratio >= numeric_threshold
-    ):
-        if not isinstance(config, DecimalSyntaxColumnConfig):
-            raise TypeError(
-                "Separator mismatch profile requires decimal syntax config, "
-                f"got {type(config).__name__}"
-            )
+    if isinstance(profile, MixedNumberFormatProfile) and profile.mixed_number_format_detected:
         issues.append(
-            build_separator_mismatch_issue(
+            build_mixed_number_format_issue(
                 column_name=column_name,
-                decimal_separator=config.decimal_separator,
-                thousand_separator=config.thousand_separator,
-                numeric_threshold=numeric_threshold,
-                declared_decimal_ratio=profile.parse_match_ratio,
-                swapped_decimal_ratio=profile.swapped_match_ratio,
+                comma_decimal_count=profile.comma_decimal_count,
+                dot_decimal_count=profile.dot_decimal_count,
             )
         )
 
@@ -112,33 +97,28 @@ def build_mixed_currency_issue(
     )
 
 
-def build_separator_mismatch_issue(
+def build_mixed_number_format_issue(
     column_name: str,
-    decimal_separator: str,
-    thousand_separator: str,
-    numeric_threshold: float,
-    declared_decimal_ratio: float,
-    swapped_decimal_ratio: float,
+    comma_decimal_count: int,
+    dot_decimal_count: int,
 ) -> NormalizationIssue:
+    """Report a column carrying both european and western decimal notation.
+
+    Informational: the parser resolves each value's separator individually, so
+    both notations normalize correctly. The warning exists because a column that
+    mixes locales is usually a sign of an upstream merge worth knowing about.
+    """
     return NormalizationIssue(
-        code=ISSUE_CODE_SEPARATOR_MISMATCH,
-        severity=IssueSeverity.WARNING,
+        code=ISSUE_CODE_MIXED_NUMBER_FORMAT,
+        severity=IssueSeverity.INFO,
         message=(
-            f"Column {column_name!r} appears numeric with swapped separators "
-            f"(declared decimal={decimal_separator!r}, thousand={thousand_separator!r})"
+            f"Column {column_name!r} mixes decimal notations "
+            f"({comma_decimal_count} comma-decimal, {dot_decimal_count} dot-decimal); "
+            "each value is parsed on its own notation"
         ),
         location=column_name,
         evidence={
-            "numeric_threshold": numeric_threshold,
-            "declared_decimal_ratio": declared_decimal_ratio,
-            "swapped_decimal_ratio": swapped_decimal_ratio,
-            "declared_separators": {
-                "decimal_separator": decimal_separator,
-                "thousand_separator": thousand_separator,
-            },
-            "suggested_separators": {
-                "decimal_separator": thousand_separator,
-                "thousand_separator": decimal_separator,
-            },
+            "comma_decimal_count": comma_decimal_count,
+            "dot_decimal_count": dot_decimal_count,
         },
     )
