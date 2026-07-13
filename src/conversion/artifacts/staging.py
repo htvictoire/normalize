@@ -67,8 +67,7 @@ def stage_artifacts(
         trace_path=trace_path,
         data_columns=data_columns,
         has_row_index=result.row_plan.assign_indices,
-        has_raw_row=result.cell_plan.emit_raw_row,
-        has_parse_issues=result.cell_plan.emit_parse_issues,
+        has_full_raw_row=result.cell_plan.full_raw_row,
         sparse=sparse,
         row_pre_filter=trace_pre_filter,
     )

@@ -49,8 +49,6 @@ def run_conversion(
         null_tokens=operation_config.null_tokens,
         columns=raw_columns,
         full_raw_row=operation_config.full_raw_row,
-        emit_raw_row=operation_config.emit_raw_row,
-        emit_parse_issues=operation_config.emit_parse_issues,
     )
 
     conn.execute(compose_transform_sql(row_plan, cell_plan))

@@ -28,9 +28,7 @@ def _operation_config() -> OperationConfig:
         null_tokens=("", "null"),
         assign_indices=True,
         drop_empty_rows=False,
-        emit_raw_row=True,
         full_raw_row=False,
-        emit_parse_issues=True,
         include_unique_ratio=True,
         include_per_column_parse_error_counts=False,
         approximate_unique=False,
@@ -184,11 +182,11 @@ def test_ai_only_conversion_and_parquet_export() -> None:
         assert rows[1][0:6] == ("Unexpected", None, None, None, None, 5)
         issue_payload = json.loads(rows[1][6])
         assert issue_payload == {
-            "status": "INVALID_CATEGORICAL",
-            "email": "INVALID_EMAIL",
-            "website": "INVALID_URL",
-            "ip": "INVALID_IP_ADDRESS",
-            "phone": "INVALID_PHONE",
+            "status": {"raw": "Unexpected", "code": "INVALID_CATEGORICAL"},
+            "email": {"raw": "not-email", "code": "INVALID_EMAIL"},
+            "website": {"raw": "ftp://example.com", "code": "INVALID_URL"},
+            "ip": {"raw": "999.0.0.1", "code": "INVALID_IP_ADDRESS"},
+            "phone": {"raw": "415-555-2671", "code": "INVALID_PHONE"},
         }
 
         normalized = pq.read_table(artifacts.normalized_parquet)

@@ -87,9 +87,7 @@ def test_run_conversion_normalizes_datetime_and_time_columns() -> None:
         null_tokens=("", "null"),
         assign_indices=True,
         drop_empty_rows=False,
-        emit_raw_row=True,
         full_raw_row=False,
-        emit_parse_issues=True,
         include_unique_ratio=True,
         include_per_column_parse_error_counts=False,
         approximate_unique=False,
@@ -138,5 +136,5 @@ def test_run_conversion_normalizes_datetime_and_time_columns() -> None:
     assert rows[1][1] is None
     assert rows[1][2] == 2
     issue_payload = json.loads(rows[1][3])
-    assert issue_payload["created_at"] == "INVALID_DATETIME"
-    assert issue_payload["starts_at"] == "INVALID_TIME"
+    assert issue_payload["created_at"] == {"raw": "invalid", "code": "INVALID_DATETIME"}
+    assert issue_payload["starts_at"] == {"raw": "bad-time", "code": "INVALID_TIME"}

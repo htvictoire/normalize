@@ -27,9 +27,7 @@ def _operation_config() -> OperationConfig:
         null_tokens=("", "null"),
         assign_indices=True,
         drop_empty_rows=False,
-        emit_raw_row=True,
         full_raw_row=False,
-        emit_parse_issues=True,
         include_unique_ratio=True,
         include_per_column_parse_error_counts=False,
         approximate_unique=False,
@@ -146,9 +144,9 @@ def test_standard_code_conversion_and_parquet_export() -> None:
         assert rows[1][0:4] == (None, None, None, 3)
         issue_payload = json.loads(rows[1][4])
         assert issue_payload == {
-            "country": "INVALID_COUNTRY_CODE",
-            "currency_code": "INVALID_CURRENCY_CODE",
-            "language": "INVALID_LANGUAGE_CODE",
+            "country": {"raw": "ZZ", "code": "INVALID_COUNTRY_CODE"},
+            "currency_code": {"raw": "bad", "code": "INVALID_CURRENCY_CODE"},
+            "language": {"raw": "zz", "code": "INVALID_LANGUAGE_CODE"},
         }
 
         normalized = pq.read_table(artifacts.normalized_parquet)

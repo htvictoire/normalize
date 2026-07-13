@@ -55,14 +55,21 @@ class DecisionThresholds(MainModel):
 
 
 class OperationConfig(MainModel):
-    """Confirmed operation flags and token policy."""
+    """Confirmed operation flags and token policy.
+
+    Parse issues are always emitted: whenever a cell fails to parse, its issue
+    code and its original text are written to ``_parse_issues``. Losing a value
+    without a record of it is never a configurable outcome.
+
+    ``full_raw_row`` is the one opt-in: it additionally preserves the original
+    text of cells that parsed *successfully*, which duplicates the whole source
+    dataset into the artifact.
+    """
 
     null_tokens: tuple[str, ...]
     assign_indices: bool
     drop_empty_rows: bool
-    emit_raw_row: bool
     full_raw_row: bool
-    emit_parse_issues: bool
     include_unique_ratio: bool
     include_per_column_parse_error_counts: bool
     approximate_unique: bool

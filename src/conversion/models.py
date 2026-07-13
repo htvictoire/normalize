@@ -28,13 +28,14 @@ class CellPlan:
     # SELECT expressions for the base CTE:
     #   normalized column AS col, issue expr AS __issue__col
     column_select_exprs: tuple[str, ...]
-    # Pairs for TO_JSON(STRUCT_PACK(...)) capturing pre-cast values
+    # Pairs for TO_JSON(STRUCT_PACK(...)) capturing pre-cast values for every
+    # column — only used when full_raw_row is set.
     raw_source_pairs: tuple[str, ...]
-    # Pairs for TO_JSON(STRUCT_PACK(...)) capturing issue codes
+    # Pairs for TO_JSON(STRUCT_PACK(...)) yielding, per failing cell,
+    # {"raw": <original text>, "code": <issue code>} and NULL for cells that
+    # parsed. Null keys are stripped downstream, so only failures survive.
     issue_pairs: tuple[str, ...]
-    emit_raw_row: bool
     full_raw_row: bool
-    emit_parse_issues: bool
 
 
 @dataclass(frozen=True)

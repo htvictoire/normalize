@@ -11,6 +11,7 @@ from conversion.constants import (
     CONDITIONAL_RAW_JSON_ALIAS,
     PARSE_ERROR_COUNT_COLUMN,
     PARSE_ISSUES_COLUMN,
+    PARSE_ISSUES_JSON_ALIAS,
     RAW_ROW_COLUMN,
     ROW_INDEX_COLUMN,
     ROWID_PASSTHROUGH_ALIAS,
@@ -82,70 +83,43 @@ def compose_transform_sql(
         else:
             base_parts.append(f"({rowid_ref} + 1)::BIGINT AS {ROW_INDEX_COLUMN}")
 
-    # Conditional JSON optimization: when full_raw_row=False, compute __error_cnt
-    # first (via lateral column alias) and only serialize JSON for rows with errors.
-    # This avoids TO_JSON(STRUCT_PACK(...)) for every row — saves ~10s on 10M rows
-    # when most rows have no parse errors.
-    use_conditional_json = (
-        cell_plan.emit_raw_row
-        and not cell_plan.full_raw_row
-        and cell_plan.raw_source_pairs
-    )
-    struct_json_expr = (
-        f"TO_JSON(STRUCT_PACK({', '.join(cell_plan.raw_source_pairs)}))"
-        if cell_plan.raw_source_pairs
-        else "NULL::VARCHAR"
-    )
+    # Error count is materialised first (as a lateral column alias) so the issue
+    # JSON below is only serialized for rows that actually failed. Clean rows
+    # never pay for TO_JSON(STRUCT_PACK(...)) — worth ~10s on 10M clean rows.
+    base_parts.append(f"({row_error_expr}) AS {CONDITIONAL_ERROR_COUNT_ALIAS}")
 
-    if use_conditional_json:
-        # Error count as lateral alias — referenced by conditional __raw_json below
-        base_parts.append(f"({row_error_expr}) AS {CONDITIONAL_ERROR_COUNT_ALIAS}")
+    # _parse_issues is unconditional: every failing cell records its issue code
+    # and its original text. json_merge_patch drops the null keys, so the object
+    # carries only the cells that failed, not one entry per column.
+    if cell_plan.issue_pairs:
         base_parts.append(
             f"CASE WHEN {CONDITIONAL_ERROR_COUNT_ALIAS} > 0 "
-            f"THEN {struct_json_expr} ELSE NULL END AS {CONDITIONAL_RAW_JSON_ALIAS}"
+            f"THEN json_merge_patch('{{}}', "
+            f"TO_JSON(STRUCT_PACK({', '.join(cell_plan.issue_pairs)}))) "
+            f"ELSE NULL END AS {PARSE_ISSUES_JSON_ALIAS}"
         )
-    elif cell_plan.emit_raw_row and cell_plan.raw_source_pairs:
-        base_parts.append(f"{struct_json_expr} AS {CONDITIONAL_RAW_JSON_ALIAS}")
+        parse_issues_sql = PARSE_ISSUES_JSON_ALIAS
+    else:
+        parse_issues_sql = "NULL::VARCHAR"
+
+    # _raw_row is the opt-in lineage column: originals for *every* cell, including
+    # the ones that parsed. Failing cells already carry their original in
+    # _parse_issues, so this is only needed for full-source provenance.
+    if cell_plan.full_raw_row and cell_plan.raw_source_pairs:
+        base_parts.append(
+            f"TO_JSON(STRUCT_PACK({', '.join(cell_plan.raw_source_pairs)})) "
+            f"AS {CONDITIONAL_RAW_JSON_ALIAS}"
+        )
+        raw_row_sql = CONDITIONAL_RAW_JSON_ALIAS
+    else:
+        raw_row_sql = "NULL::VARCHAR"
 
     # Final projection
     projected: list[str] = [quote_identifier(col) for col in cell_plan.data_columns]
     if row_plan.assign_indices:
         projected.append(ROW_INDEX_COLUMN)
 
-    # Error count expression — reuse __error_cnt when available
-    if use_conditional_json:
-        error_count_sql = f"{CONDITIONAL_ERROR_COUNT_ALIAS}::INTEGER"
-        # __raw_json is already conditional from the base CTE
-        raw_row_sql = CONDITIONAL_RAW_JSON_ALIAS
-        # _parse_issues also conditional on __error_cnt
-        if cell_plan.emit_parse_issues and cell_plan.issue_pairs:
-            parse_issues_sql = (
-                f"CASE WHEN {CONDITIONAL_ERROR_COUNT_ALIAS} > 0 "
-                f"THEN TO_JSON(STRUCT_PACK({', '.join(cell_plan.issue_pairs)})) "
-                "ELSE NULL END"
-            )
-        else:
-            parse_issues_sql = "NULL::VARCHAR"
-    else:
-        error_count_sql = f"({row_error_expr})::INTEGER"
-        if cell_plan.emit_raw_row and cell_plan.raw_source_pairs:
-            raw_row_sql = (
-                CONDITIONAL_RAW_JSON_ALIAS
-                if cell_plan.full_raw_row
-                else (
-                    f"CASE WHEN {PARSE_ERROR_COUNT_COLUMN} = 0 THEN NULL "
-                    f"ELSE {CONDITIONAL_RAW_JSON_ALIAS} END"
-                )
-            )
-        else:
-            raw_row_sql = "NULL::VARCHAR"
-        if cell_plan.emit_parse_issues and cell_plan.issue_pairs:
-            parse_issues_sql = (
-                f"CASE WHEN {PARSE_ERROR_COUNT_COLUMN} = 0 THEN NULL "
-                f"ELSE TO_JSON(STRUCT_PACK({', '.join(cell_plan.issue_pairs)})) END"
-            )
-        else:
-            parse_issues_sql = "NULL::VARCHAR"
+    error_count_sql = f"{CONDITIONAL_ERROR_COUNT_ALIAS}::INTEGER"
 
     ctes: list[str] = []
     base_source = RAW_INPUT_TABLE_NAME

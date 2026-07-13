@@ -10,6 +10,7 @@ PARSE_ERROR_COUNT_COLUMN = "_parse_error_count"
 ROWID_PASSTHROUGH_ALIAS = "__rowid"
 CONDITIONAL_ERROR_COUNT_ALIAS = "__error_cnt"
 CONDITIONAL_RAW_JSON_ALIAS = "__raw_json"
+PARSE_ISSUES_JSON_ALIAS = "__issues_json"
 PARQUET_COPY_OPTIONS = "(FORMAT PARQUET, COMPRESSION ZSTD, ROW_GROUP_SIZE 100000)"
 
 # Audit columns appended by the conversion transform — excluded from data column lists.

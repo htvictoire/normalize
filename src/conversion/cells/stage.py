@@ -23,12 +23,14 @@ def plan_cells(
     null_tokens: Sequence[str],
     columns: list[str],
     full_raw_row: bool = False,
-    emit_raw_row: bool = True,
-    emit_parse_issues: bool = True,
 ) -> CellPlan:
     """
     Derives per-column SQL expressions from the confirmed column configs and
     assembles them into a CellPlan for the transform.
+
+    Every failing cell contributes its issue code *and* its original text; a
+    normalized NULL is always attributable to either an empty source cell or a
+    recorded parse failure.
     """
     data_columns = list(columns)
 
@@ -57,17 +59,18 @@ def plan_cells(
         )
         parse_cte_entries.extend(col_exprs.parse_cte_entries)
 
-        issue_col = issue_alias(column_name)
+        issue_col = quote_identifier(issue_alias(column_name))
         base_exprs.append(f"{col_exprs.normalized_expr} AS {quote_identifier(column_name)}")
-        base_exprs.append(f"{col_exprs.issue_expr} AS {quote_identifier(issue_col)}")
+        base_exprs.append(f"{col_exprs.issue_expr} AS {issue_col}")
 
-        if emit_raw_row:
-            raw_source_pairs.append(
-                f"{quote_identifier(column_name)} := "
-                f"CAST({raw_alias} AS VARCHAR)"
-            )
-        if emit_parse_issues:
-            issue_pairs.append(f"{quote_identifier(column_name)} := {quote_identifier(issue_col)}")
+        raw_source_pairs.append(
+            f"{quote_identifier(column_name)} := CAST({raw_alias} AS VARCHAR)"
+        )
+        issue_pairs.append(
+            f"{quote_identifier(column_name)} := "
+            f"CASE WHEN {issue_col} IS NULL THEN NULL "
+            f"ELSE json_object('raw', CAST({raw_alias} AS VARCHAR), 'code', {issue_col}) END"
+        )
 
     return CellPlan(
         data_columns=tuple(data_columns),
@@ -75,7 +78,5 @@ def plan_cells(
         column_select_exprs=tuple(base_exprs),
         raw_source_pairs=tuple(raw_source_pairs),
         issue_pairs=tuple(issue_pairs),
-        emit_raw_row=emit_raw_row,
         full_raw_row=full_raw_row,
-        emit_parse_issues=emit_parse_issues,
     )

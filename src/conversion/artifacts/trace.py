@@ -23,15 +23,19 @@ from conversion.constants import (
 def build_trace_query(
     data_columns: list[str],
     has_row_index: bool,
-    has_raw_row: bool,
-    has_parse_issues: bool,
+    has_full_raw_row: bool,
     sparse: bool = False,
     row_pre_filter: str | None = None,
 ) -> str:
     """Build wide-to-long trace SQL query with one output row per input cell.
 
-    When sparse=True, only emit rows where the value changed (raw != normalized)
-    or an issue was detected. This reduces trace size dramatically for clean data.
+    ``raw_value`` for a failing cell always comes from ``_parse_issues``, which
+    carries the original text alongside the issue code. When ``has_full_raw_row``
+    is set, cells that parsed successfully additionally resolve their original
+    from ``_raw_row``.
+
+    When sparse=True, only emit rows where an issue was detected (or, under full
+    lineage, where the value changed).
 
     ``row_pre_filter`` is an optional SQL predicate applied *before* UNPIVOT in the
     base CTE, allowing the caller to skip entire rows cheaply (e.g. only process
@@ -43,41 +47,35 @@ def build_trace_query(
         for column_name in data_columns
     )
     unpivot_columns = ", ".join(quote_identifier(column_name) for column_name in data_columns)
-    extra_base_columns = []
-    if has_raw_row:
+    extra_base_columns = [PARSE_ISSUES_COLUMN]
+    if has_full_raw_row:
         extra_base_columns.append(RAW_ROW_COLUMN)
-    if has_parse_issues:
-        extra_base_columns.append(PARSE_ISSUES_COLUMN)
-    extra_projection = ""
-    if extra_base_columns:
-        extra_projection = ", " + ", ".join(extra_base_columns)
+    extra_projection = ", " + ", ".join(extra_base_columns)
 
-    raw_expr = (
-        f"JSON_EXTRACT_STRING({RAW_ROW_COLUMN}, '$.' || column_name)"
-        if has_raw_row
-        else "NULL::VARCHAR"
+    issue_raw_expr = (
+        f"JSON_EXTRACT_STRING({PARSE_ISSUES_COLUMN}, '$.' || column_name || '.raw')"
     )
     issue_expr = (
-        f"JSON_EXTRACT_STRING({PARSE_ISSUES_COLUMN}, '$.' || column_name)"
-        if has_parse_issues
-        else "NULL::VARCHAR"
+        f"JSON_EXTRACT_STRING({PARSE_ISSUES_COLUMN}, '$.' || column_name || '.code')"
+    )
+    raw_expr = (
+        f"COALESCE({issue_raw_expr}, "
+        f"JSON_EXTRACT_STRING({RAW_ROW_COLUMN}, '$.' || column_name))"
+        if has_full_raw_row
+        else issue_raw_expr
     )
 
-    # Sparse filter: only rows where raw != normalized or issue present
+    # Sparse filter: only cells that failed, plus — under full lineage — cells
+    # whose value the normalizer actually changed.
     sparse_filter = ""
     if sparse:
-        conditions = []
-        if has_raw_row:
+        conditions = [f"{issue_expr} IS NOT NULL"]
+        if has_full_raw_row:
             conditions.append(
                 f"JSON_EXTRACT_STRING({RAW_ROW_COLUMN}, '$.' || column_name) "
                 "IS DISTINCT FROM CAST(normalized_value AS VARCHAR)"
             )
-        if has_parse_issues:
-            conditions.append(
-                f"JSON_EXTRACT_STRING({PARSE_ISSUES_COLUMN}, '$.' || column_name) IS NOT NULL"
-            )
-        # No raw/issue data means sparse has nothing to filter on, so emit nothing.
-        sparse_filter = "WHERE " + " OR ".join(conditions) if conditions else "WHERE FALSE"
+        sparse_filter = "WHERE " + " OR ".join(conditions)
 
     base_where = f" WHERE {row_pre_filter}" if row_pre_filter else ""
     return (
@@ -109,8 +107,7 @@ def write_trace_parquet(
     trace_path: Path,
     data_columns: list[str],
     has_row_index: bool,
-    has_raw_row: bool,
-    has_parse_issues: bool,
+    has_full_raw_row: bool,
     sparse: bool = False,
     row_pre_filter: str | None = None,
 ) -> None:
@@ -118,8 +115,7 @@ def write_trace_parquet(
     trace_query = build_trace_query(
         data_columns=data_columns,
         has_row_index=has_row_index,
-        has_raw_row=has_raw_row,
-        has_parse_issues=has_parse_issues,
+        has_full_raw_row=has_full_raw_row,
         sparse=sparse,
         row_pre_filter=row_pre_filter,
     )
