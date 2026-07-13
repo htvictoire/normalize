@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from shared.errors import SourceError
 from shared.ingestion.contracts import HeaderMode
 
 SUPPORTED_ENCODINGS = {"utf-8", "utf-8-sig", "latin-1", "utf-16"}
@@ -18,20 +19,20 @@ def resolve_header_options(
     - `header`: value for DuckDB `header` option
     - `skip`: value for DuckDB `skip` option
 
-    Error codes surfaced via `ValueError` message:
+    Error codes surfaced via `SourceError` message:
     - `MISSING_HEADER_ROW_INDEX`
     - `INVALID_HEADER_ROW_INDEX`
     - `HEADER_ROW_INDEX_NOT_ALLOWED`
     """
     if header_mode is HeaderMode.PRESENT:
         if header_row_index is None:
-            raise ValueError("MISSING_HEADER_ROW_INDEX")
+            raise SourceError("MISSING_HEADER_ROW_INDEX")
         if header_row_index < 1:
-            raise ValueError("INVALID_HEADER_ROW_INDEX")
+            raise SourceError("INVALID_HEADER_ROW_INDEX")
         return (True, header_row_index - 1)
 
     if header_row_index is not None:
-        raise ValueError("HEADER_ROW_INDEX_NOT_ALLOWED")
+        raise SourceError("HEADER_ROW_INDEX_NOT_ALLOWED")
     return (False, 0)
 
 
@@ -43,15 +44,15 @@ def resolve_encoding_option(encoding: str) -> tuple[str, str]:
     - `display_encoding`: encoding reported in metadata
     - `duckdb_encoding`: encoding value used by DuckDB CSV loader
 
-    Error codes surfaced via `ValueError` message:
+    Error codes surfaced via `SourceError` message:
     - `MISSING_ENCODING`
     - `UNSUPPORTED_ENCODING`
     """
     normalized = encoding.strip().lower()
     if not normalized:
-        raise ValueError("MISSING_ENCODING")
+        raise SourceError("MISSING_ENCODING")
     if normalized not in SUPPORTED_ENCODINGS:
-        raise ValueError("UNSUPPORTED_ENCODING")
+        raise SourceError("UNSUPPORTED_ENCODING")
     if normalized == "utf-8-sig":
         return ("utf-8-sig", "utf-8")
     return (normalized, normalized)
@@ -65,12 +66,12 @@ def resolve_delimiter_option(delimiter: str) -> str:
     - delimiter is required
     - exactly one character
 
-    Error codes surfaced via `ValueError` message:
+    Error codes surfaced via `SourceError` message:
     - `MISSING_DELIMITER`
     - `INVALID_DELIMITER`
     """
     if not delimiter:
-        raise ValueError("MISSING_DELIMITER")
+        raise SourceError("MISSING_DELIMITER")
     if len(delimiter) != 1:
-        raise ValueError("INVALID_DELIMITER")
+        raise SourceError("INVALID_DELIMITER")
     return delimiter

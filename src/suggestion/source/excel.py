@@ -13,6 +13,7 @@ from typing import Any
 
 import openpyxl
 
+from shared.errors import SourceError
 from shared.models.operation import ExcelSourceFormat, HeaderMode
 
 from suggestion.constants import DISPLAY_RAW_ROWS
@@ -36,7 +37,7 @@ def _select_worksheet(workbook: Any) -> tuple[str, list[tuple[object, ...]]]:
         rows: list[tuple[object, ...]] = list(worksheet.iter_rows(values_only=True))
         if any(any(_has_visible_value(cell) for cell in row) for row in rows):
             return worksheet.title, rows
-    raise ValueError("Excel workbook must contain at least one visible non-empty worksheet.")
+    raise SourceError("Excel workbook must contain at least one visible non-empty worksheet.")
 
 
 def read_excel_raw_rows(local_path: Path) -> tuple[str, list[tuple[object, ...]]]:

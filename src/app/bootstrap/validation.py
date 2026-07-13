@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from shared.errors import InvalidRequestError, SourceError
 from shared.models.operation import FileFormat
 from shared.models.source import SourceRef
 from shared.models.suggestion import SuggestionInput
@@ -35,7 +36,7 @@ def validate_auto_confirm(request: SuggestionInput) -> None:
     that scores its own guesses may be confirmed unattended.
     """
     if request.auto_confirm and request.suggestion_method == "rule_based":
-        raise ValueError(
+        raise InvalidRequestError(
             "auto_confirm requires suggestion_method='ai'. The rule-based strategy does "
             "not score its inferences and must be confirmed before conversion."
         )
@@ -45,7 +46,7 @@ def validate_file_format(source: SourceRef) -> None:
     """
     Validate that the file extension and magic bytes both match the declared format.
 
-    Raises ValueError on any mismatch so the caller surfaces an error immediately.
+    Raises SourceError on any mismatch so the caller surfaces an error immediately.
     Validation is strict — ambiguity is an error, not a warning.
 
     JSON files must be a top-level array (first non-whitespace byte is '[').
@@ -53,7 +54,7 @@ def validate_file_format(source: SourceRef) -> None:
     """
     ext = Path(source.source_file_name).suffix.lower()
     if ext != _VALID_EXTENSION[source.source_file_format]:
-        raise ValueError(
+        raise SourceError(
             f"Extension {ext!r} is not valid for format {source.source_file_format!r}. "
             f"Expected {_VALID_EXTENSION[source.source_file_format]!r}."
         )
@@ -62,18 +63,18 @@ def validate_file_format(source: SourceRef) -> None:
     is_xlsx = probe.startswith(_XLSX_MAGIC)
 
     if source.source_file_format == "excel" and not is_xlsx:
-        raise ValueError(
+        raise SourceError(
             "Declared format is 'excel' but file does not have XLSX magic bytes."
         )
     if source.source_file_format != "excel" and is_xlsx:
-        raise ValueError(
+        raise SourceError(
             f"File has Excel magic bytes but declared format is {source.source_file_format!r}."
         )
 
     if source.source_file_format == "json":
         stripped = _json_probe_payload(probe)
         if not stripped or stripped[0:1] != b"[":
-            raise ValueError(
+            raise SourceError(
                 "JSON files must be a top-level array starting with '['. "
                 "Single-object and newline-delimited JSON are not supported."
             )

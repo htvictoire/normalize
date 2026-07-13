@@ -2,8 +2,13 @@
 
 from __future__ import annotations
 
+from pathlib import PurePosixPath
+
+import duckdb
+
 from shared.db.duckdb import DuckDBManager, configure_duckdb_s3
 from shared.db.sql import compute_column_counts_from_relation
+from shared.errors import SourceError
 from shared.ingestion.contracts import HeaderMode
 from shared.ingestion.csv.options import (
     resolve_delimiter_option,
@@ -22,6 +27,10 @@ def compute_source_stats(
     position_to_name: dict[str, str],
 ) -> ColumnCountResult:
     """Return exact (row_count, column_counts) without materializing a table."""
+    if not position_to_name:
+        name = PurePosixPath(reading.ingestion_source_url).name
+        raise SourceError(f"{name!r} contains no columns.")
+
     if isinstance(reading.source_format, ExcelSourceFormat):
         return _excel_stats(reading, null_tokens, position_to_name)
     if isinstance(reading.source_format, CsvSourceFormat):
@@ -57,18 +66,34 @@ def _scan_stats(
     relation_expr: str,
     extra_params: list[object],
 ) -> ColumnCountResult:
+    """Scan the source through DuckDB.
+
+    This is where DuckDB first parses the whole file, so a file it cannot parse — ragged
+    field counts, an undetectable dialect — surfaces here. Those are defects in the
+    source, not in the pipeline, and are reported to the caller as such.
+    """
     params = [reading.ingestion_source_url, *extra_params]
 
     with DuckDBManager() as conn:
         if reading.ingestion_source_type == "s3":
             configure_duckdb_s3(conn)
-        return compute_column_counts_from_relation(
-            conn,
-            relation_expr,
-            position_to_name,
-            null_tokens,
-            params,
-        )
+        try:
+            return compute_column_counts_from_relation(
+                conn,
+                relation_expr,
+                position_to_name,
+                null_tokens,
+                params,
+            )
+        except duckdb.Error as exc:
+            name = PurePosixPath(reading.ingestion_source_url).name
+            raise SourceError(
+                f"Cannot parse {name!r} with the detected format: {_first_line(exc)}"
+            ) from exc
+
+
+def _first_line(exc: Exception) -> str:
+    return str(exc).strip().splitlines()[0]
 
 
 def _excel_stats(

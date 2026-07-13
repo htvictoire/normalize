@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from collections.abc import Iterator
 
+from shared.errors import SourceError
 from shared.models.operation import JsonSourceFormat
 
 from suggestion.constants import DISPLAY_RAW_ROWS
@@ -23,7 +24,7 @@ def _iter_json_array_objects(
     text = sample.decode("utf-8-sig", errors="ignore")
     start = text.find("[")
     if start == -1:
-        raise ValueError("JSON files must be a top-level array of objects.")
+        raise SourceError("JSON files must be a top-level array of objects.")
 
     buf = text[start + 1 :]
     yielded_any = False
@@ -35,7 +36,7 @@ def _iter_json_array_objects(
             obj, end = decoder.raw_decode(buf)
         except json.JSONDecodeError as exc:
             if require_first_object and not yielded_any:
-                raise ValueError(
+                raise SourceError(
                     "The first JSON object exceeds the configured size budget or is malformed."
                 ) from exc
             return
@@ -53,7 +54,7 @@ def ensure_json_first_object_within_limit(sample: bytes) -> None:
 
 def _ordered_json_row(obj: dict[str, object], column_names: list[str]) -> list[str]:
     if set(obj.keys()) != set(column_names):
-        raise ValueError("JSON files must contain objects with a consistent key set.")
+        raise SourceError("JSON files must contain objects with a consistent key set.")
     return [str(obj[name]) if obj[name] is not None else "" for name in column_names]
 
 

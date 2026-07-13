@@ -50,7 +50,11 @@ def stage_artifacts(
     trace_path = output_root / "trace.parquet"
 
     data_columns = list(result.cell_plan.data_columns)
-    export_columns = build_export_columns(data_columns, result.row_plan.assign_indices)
+    export_columns = build_export_columns(
+        data_columns,
+        assign_indices=result.row_plan.assign_indices,
+        full_raw_row=result.cell_plan.full_raw_row,
+    )
 
     write_normalized_parquet(
         conn,

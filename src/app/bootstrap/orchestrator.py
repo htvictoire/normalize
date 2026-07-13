@@ -14,6 +14,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from uuid import UUID
 
+from shared.errors import InvalidStateError, SourceError
 from shared.models.instance import InstanceModel, InstanceStatus
 from shared.models.instance_config import InstanceConfig
 from shared.models.source import SourceRef
@@ -59,6 +60,10 @@ class MainOrchestrator:
         validate_auto_confirm(request)
         validate_file_format(request)
         result = self._suggestion_service.suggest(request)
+        # A source with no columns has nothing to normalize. Rejected here rather than
+        # left to fail downstream, where the absence surfaces as an internal lookup error.
+        if not result.suggested_config.column_config:
+            raise SourceError(f"{request.source_file_name!r} contains no columns.")
         instance = InstanceModel.create(
             source_file=request.source_file,
             source_file_name=request.source_file_name,
@@ -137,7 +142,7 @@ class MainOrchestrator:
         # re-enters from whatever state the failed attempt left behind.
         confirmed = instance.confirmed_config
         if confirmed is None:
-            raise ValueError("instance must be CONFIRMED before profile")
+            raise InvalidStateError("instance must be CONFIRMED before profile")
 
         # Discard any cache a previous attempt half-wrote; profiling rebuilds it.
         cache_path = self._duckdb_cache_path(instance_id)
@@ -172,7 +177,7 @@ class MainOrchestrator:
         profiling_output = instance.profiling_output
         confirmed = instance.confirmed_config
         if profiling_output is None or confirmed is None:
-            raise ValueError("instance must be PROFILED before normalize")
+            raise InvalidStateError("instance must be PROFILED before normalize")
 
         # A blocking issue does not skip conversion. BLOCKED is a verdict, and the
         # artifacts are the evidence for it: a consumer told its primary key has

@@ -23,9 +23,3 @@ AUDIT_COLUMNS: frozenset[str] = frozenset({
 
 # Row index columns — only present when assign_indices=True.
 AUDIT_INDEX_COLUMNS: tuple[str, ...] = (ROW_INDEX_COLUMN,)
-
-# Record-level audit columns — always written by the transform (NULL when disabled).
-AUDIT_RECORD_COLUMNS: tuple[str, ...] = (RAW_ROW_COLUMN, PARSE_ISSUES_COLUMN)
-
-# Ordered parquet output subset (excludes _parse_error_count).
-AUDIT_OUTPUT_COLUMNS: tuple[str, ...] = AUDIT_INDEX_COLUMNS + AUDIT_RECORD_COLUMNS

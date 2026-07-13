@@ -9,13 +9,30 @@ from duckdb import DuckDBPyConnection
 from shared.constants import RAW_INPUT_TABLE_NAME
 from shared.db.sql import quote_identifier, quote_string
 
-from conversion.constants import AUDIT_OUTPUT_COLUMNS, AUDIT_RECORD_COLUMNS, PARQUET_COPY_OPTIONS
+from conversion.constants import (
+    AUDIT_INDEX_COLUMNS,
+    PARQUET_COPY_OPTIONS,
+    PARSE_ISSUES_COLUMN,
+    RAW_ROW_COLUMN,
+)
 
 
-def build_export_columns(data_columns: list[str], assign_indices: bool) -> list[str]:
-    """Return output schema order: data columns first, then audit columns."""
-    audit = AUDIT_OUTPUT_COLUMNS if assign_indices else AUDIT_RECORD_COLUMNS
-    return data_columns + list(audit)
+def build_export_columns(
+    data_columns: list[str],
+    assign_indices: bool,
+    full_raw_row: bool,
+) -> list[str]:
+    """Return output schema order: data columns first, then audit columns.
+
+    _raw_row is exported only when full_raw_row is set. Publishing the column while the
+    option is off advertises per-cell lineage the artifact does not carry — a consumer
+    reading the schema would conclude every original was preserved.
+    """
+    audit: list[str] = list(AUDIT_INDEX_COLUMNS) if assign_indices else []
+    if full_raw_row:
+        audit.append(RAW_ROW_COLUMN)
+    audit.append(PARSE_ISSUES_COLUMN)
+    return data_columns + audit
 
 
 def write_normalized_parquet(

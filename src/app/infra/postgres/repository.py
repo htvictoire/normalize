@@ -6,6 +6,7 @@ import json
 from typing import Any
 from uuid import UUID
 
+from shared.errors import InstanceNotFoundError
 from shared.models.instance import InstanceModel
 
 from app.persistence.serialization import instance_to_record, record_to_instance
@@ -129,7 +130,7 @@ class PostgresRunRepository:
     def get_required(self, instance_id: UUID) -> InstanceModel:
         instance = self.get(instance_id)
         if instance is None:
-            raise KeyError(f"instance not found: {instance_id}")
+            raise InstanceNotFoundError(f"instance not found: {instance_id}")
         return instance
 
     def sweep_stuck_jobs(self, threshold_minutes: int = 30) -> list[UUID]:

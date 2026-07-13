@@ -10,7 +10,12 @@ from __future__ import annotations
 
 import csv
 
-from suggestion.constants import DISPLAY_RAW_ROWS
+from suggestion.constants import DISPLAY_RAW_ROWS, MAX_CSV_FIELD_BYTES
+
+# csv defaults to a 128 KB field limit and raises csv.Error beyond it. A large cell is
+# legal data, not a malformed file, so the limit is raised here, at the single module
+# that decodes CSV text. Every csv.reader in the suggestion layer runs after this import.
+csv.field_size_limit(MAX_CSV_FIELD_BYTES)
 
 
 def infer_csv_encoding(sample: bytes) -> str:

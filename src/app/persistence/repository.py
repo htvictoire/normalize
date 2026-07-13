@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Protocol
 from uuid import UUID
 
+from shared.errors import InstanceNotFoundError
 from shared.models.instance import InstanceModel
 
 
@@ -40,5 +41,5 @@ class InMemoryNormalizationInstanceRepository:
     def get_required(self, instance_id: UUID) -> InstanceModel:
         instance = self._instances.get(instance_id)
         if instance is None:
-            raise KeyError(f"instance not found: {instance_id}")
+            raise InstanceNotFoundError(f"instance not found: {instance_id}")
         return instance

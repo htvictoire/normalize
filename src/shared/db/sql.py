@@ -100,6 +100,20 @@ def _column_counts_from_row(
     return ColumnCountResult(row_count=row_count, column_counts=counts)
 
 
+def read_columns_from_relation(
+    conn: DuckDBPyConnection,
+    relation_expr: str,
+    params: Sequence[object] = (),
+) -> list[str]:
+    """Return the column names DuckDB gives a relation expression, in order.
+
+    Unlike read_relation_columns, the relation need not be a table — a `read_csv(...)`
+    call has no entry in table_info, so its names are taken from the result descriptor.
+    """
+    conn.execute(f"SELECT * FROM {relation_expr} LIMIT 0", params)
+    return [str(descriptor[0]) for descriptor in conn.description]
+
+
 def compute_column_counts_from_relation(
     conn: DuckDBPyConnection,
     relation_expr: str,
@@ -107,25 +121,26 @@ def compute_column_counts_from_relation(
     null_tokens: tuple[str, ...] = (),
     params: Sequence[object] = (),
 ) -> ColumnCountResult:
-    """Return ColumnCountResult from any DuckDB relation expression."""
+    """Return ColumnCountResult from any DuckDB relation expression.
+
+    The query is built from the names DuckDB gives the relation, not from the caller's
+    own header parse. DuckDB renames blank and duplicate headers (`` -> `column3`, a
+    repeated `id` -> `id_1`), so a caller that parsed the header itself holds names that
+    do not exist in the relation. Position is the join key, as it is for column config.
+    """
+    relation_columns = read_columns_from_relation(conn, relation_expr, params)
+    if len(relation_columns) != len(position_to_name):
+        raise ValueError(
+            f"relation has {len(relation_columns)} columns, "
+            f"caller supplied {len(position_to_name)} positions"
+        )
+    position_to_relation_name = dict(
+        zip(position_to_name, relation_columns, strict=True)
+    )
     query = _build_column_count_query(
         relation_expr,
-        position_to_name,
+        position_to_relation_name,
         null_tokens,
     )
     row = fetch_aggregate_int_row(conn, query, params)
-    return _column_counts_from_row(row, position_to_name)
-
-
-def compute_column_counts(
-    conn: DuckDBPyConnection,
-    position_to_name: Mapping[str, str],
-    null_tokens: tuple[str, ...] = (),
-) -> ColumnCountResult:
-    """Return ColumnCountResult from the working raw-input table."""
-    return compute_column_counts_from_relation(
-        conn,
-        RAW_INPUT_TABLE_NAME,
-        position_to_name,
-        null_tokens,
-    )
+    return _column_counts_from_row(row, position_to_relation_name)

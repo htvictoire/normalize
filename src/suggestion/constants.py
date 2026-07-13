@@ -53,3 +53,7 @@ PIPELINE_DURATION_TIERS: tuple[tuple[int, int], ...] = (
     (1_000_000, 180),
     (10_000_000, 900),
 )
+
+# Largest single CSV field accepted, in bytes. Raises csv's 128 KB default, which is a
+# guard against pathological input rather than a limit the data respects.
+MAX_CSV_FIELD_BYTES = 16 * 1024 * 1024
