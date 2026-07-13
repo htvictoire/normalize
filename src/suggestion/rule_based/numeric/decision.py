@@ -28,19 +28,15 @@ from suggestion.rule_based.numeric.scoring import infer_best_numeric_fits
 def infer_numeric_type(values: Sequence[str], sample_count: int) -> ColumnConfig | None:
     """Return the best-fit numeric ColumnConfig, or None if no numeric type fits."""
     fits = infer_best_numeric_fits(values)
-    if fits.integer.matches / sample_count >= TYPE_MATCH_MIN_RATIO:
+    if fits.integer / sample_count >= TYPE_MATCH_MIN_RATIO:
         return IntegerColumnConfig()
     currency_like = _infer_currency_like(values, sample_count, fits)
     if currency_like is not None:
         return currency_like
-    if fits.percentage.matches / sample_count >= TYPE_MATCH_MIN_RATIO:
-        return PercentageColumnConfig(
-            allow_leading_decimal_point=fits.percentage.allow_leading_decimal_point,
-        )
-    if fits.decimal.matches / sample_count >= TYPE_MATCH_MIN_RATIO:
-        return DecimalColumnConfig(
-            allow_leading_decimal_point=fits.decimal.allow_leading_decimal_point,
-        )
+    if fits.percentage / sample_count >= TYPE_MATCH_MIN_RATIO:
+        return PercentageColumnConfig()
+    if fits.decimal / sample_count >= TYPE_MATCH_MIN_RATIO:
+        return DecimalColumnConfig()
     return None
 
 
@@ -49,33 +45,28 @@ def _infer_currency_like(
     sample_count: int,
     fits: NumericFits,
 ) -> ColumnConfig | None:
-    if fits.accounting.matches / sample_count >= CURRENCY_MATCH_MIN_RATIO:
+    if fits.accounting / sample_count >= CURRENCY_MATCH_MIN_RATIO:
         markers = _detect_signed_markers(values)
         return AccountingColumnConfig(
-            allow_leading_decimal_point=fits.accounting.allow_leading_decimal_point,
             positive_markers=markers.positive,
             negative_markers=markers.negative,
             parentheses_as_negative=markers.parentheses_as_negative,
         )
-    if fits.signed.matches / sample_count >= SIGNED_MATCH_MIN_RATIO:
+    if fits.signed / sample_count >= SIGNED_MATCH_MIN_RATIO:
         markers = _detect_signed_markers(values)
         if any(CURRENCY_DETECTION_RE.search(v) for v in values):
             return AccountingColumnConfig(
-                allow_leading_decimal_point=fits.signed.allow_leading_decimal_point,
                 positive_markers=markers.positive,
                 negative_markers=markers.negative,
                 parentheses_as_negative=markers.parentheses_as_negative,
             )
         return SignedColumnConfig(
-            allow_leading_decimal_point=fits.signed.allow_leading_decimal_point,
             positive_markers=markers.positive,
             negative_markers=markers.negative,
             parentheses_as_negative=markers.parentheses_as_negative,
         )
-    if fits.currency.matches / sample_count >= CURRENCY_MATCH_MIN_RATIO:
-        return CurrencyColumnConfig(
-            allow_leading_decimal_point=fits.currency.allow_leading_decimal_point,
-        )
+    if fits.currency / sample_count >= CURRENCY_MATCH_MIN_RATIO:
+        return CurrencyColumnConfig()
     return None
 
 

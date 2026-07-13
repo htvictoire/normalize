@@ -78,7 +78,6 @@ DECIMAL_STATS_GROUP_SIZE = 5
 
 def parse_match_count_exprs(
     column_name: str,
-    config: DecimalSyntaxColumnConfig,
 ) -> tuple[str, str, str, str, str]:
     """Return (parse_match, comma_decimal, dot_decimal, max_scale, max_integer_digits).
 
@@ -94,9 +93,7 @@ def parse_match_count_exprs(
     cleaned = _clean_alias(column_name)
     separator = _separator_alias(column_name)
     normalized = _norm_alias(column_name)
-    pattern = quote_string(
-        decimal_pattern_regex(allow_leading_decimal_point=config.allow_leading_decimal_point)
-    )
+    pattern = quote_string(decimal_pattern_regex())
     parseable = f"NOT {_nullish_alias(column_name)} AND REGEXP_FULL_MATCH({cleaned}, {pattern})"
     return (
         f"COUNT(*) FILTER (WHERE {parseable})",
@@ -135,7 +132,7 @@ def compute_decimal_parse_stats_batch(
     )
     exprs: list[str] = []
     for entry in batch:
-        exprs.extend(parse_match_count_exprs(entry.column_name, entry.config))
+        exprs.extend(parse_match_count_exprs(entry.column_name))
 
     row = fetch_aggregate_int_row(
         conn,

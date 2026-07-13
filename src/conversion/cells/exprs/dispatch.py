@@ -175,7 +175,6 @@ def build_column_exprs(
             column_name,
             nullish_predicate,
             raw_value=candidate,
-            allow_leading_decimal_point=config.allow_leading_decimal_point,
             profile=profile,
             issue_label=issue_label,
         )

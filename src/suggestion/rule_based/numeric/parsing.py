@@ -14,7 +14,7 @@ from shared.parsing.numeric import decimal_pattern_regex, strip_group_only_chars
 
 from suggestion.rule_based.models import NumericParseResult
 
-_DECIMAL_RE = re.compile(decimal_pattern_regex(allow_leading_decimal_point=True))
+_DECIMAL_RE = re.compile(decimal_pattern_regex())
 _ZERO_INTEGER_RE = re.compile(r"^[+-]?0?$")
 _GROUP_SIZE = 3
 
@@ -91,11 +91,10 @@ def parse_numeric_token(value: str) -> NumericParseResult | None:
         integer_raw, fractional_part = stripped.rsplit(decimal_separator, 1)
         integer_digits = integer_raw.replace(grouping, "")
 
-    leading_decimal_point = False
     if not integer_digits:
+        # A leading decimal point (".5") has no integer digits; it is a plain 0.5.
         if fractional_part is None:
             return None
-        leading_decimal_point = True
         integer_digits = "0"
     if not integer_digits.isdigit():
         return None
@@ -114,5 +113,4 @@ def parse_numeric_token(value: str) -> NumericParseResult | None:
         has_signed=has_signed,
         has_percentage=has_percentage,
         has_fractional_part=has_fractional_part,
-        leading_decimal_point=leading_decimal_point,
     )

@@ -27,8 +27,6 @@ class NumericFormattingColumnConfig(MainModel):
 class DecimalSyntaxColumnConfig(NumericFormattingColumnConfig):
     """Capability base for configs that admit a fractional part."""
 
-    allow_leading_decimal_point: bool
-
 
 class SignedNotationColumnConfig(DecimalSyntaxColumnConfig):
     """Capability base for configs with explicit sign marker notation."""

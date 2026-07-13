@@ -75,7 +75,6 @@ def build_decimal_exprs(
     column_name: str,
     nullish_predicate: str,
     raw_value: str,
-    allow_leading_decimal_point: bool,
     profile: MixedNumberFormatProfile,
     issue_label: str = "INVALID_DECIMAL",
 ) -> ColumnExprs:
@@ -89,9 +88,7 @@ def build_decimal_exprs(
     destroys it rather than trimming it. Such a cell is reported instead of stored.
     """
     decimal_type = _decimal_column_type(profile)
-    decimal_pattern = decimal_pattern_regex(
-        allow_leading_decimal_point=allow_leading_decimal_point,
-    )
+    decimal_pattern = decimal_pattern_regex()
     clean_alias = quote_identifier(parse_clean_alias(column_name))
     norm_alias = quote_identifier(parse_norm_alias(column_name))
     match_alias = quote_identifier(parse_match_alias(column_name))

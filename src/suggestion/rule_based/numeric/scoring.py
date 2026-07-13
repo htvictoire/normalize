@@ -8,8 +8,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
-from suggestion.rule_based.constants import LEADING_DECIMAL_MIN_RATIO
-from suggestion.rule_based.models import NumericFits, NumericStats, NumericTypeFit
+from suggestion.rule_based.models import NumericFits, NumericStats
 from suggestion.rule_based.numeric.parsing import parse_numeric_token
 
 
@@ -21,14 +20,11 @@ def _score_values(values: Sequence[str]) -> NumericStats:
     accounting_matches = 0
     signed_matches = 0
     percentage_matches = 0
-    leading_decimal_matches = 0
 
     for value in values:
         parsed = parse_numeric_token(value)
         if parsed is None:
             continue
-        if parsed.leading_decimal_point:
-            leading_decimal_matches += 1
         if parsed.has_signed and parsed.has_currency:
             accounting_matches += 1
         elif parsed.has_signed:
@@ -49,24 +45,17 @@ def _score_values(values: Sequence[str]) -> NumericStats:
         accounting_matches=accounting_matches,
         signed_matches=signed_matches,
         percentage_matches=percentage_matches,
-        leading_decimal_matches=leading_decimal_matches,
     )
 
 
 def infer_best_numeric_fits(values: Sequence[str]) -> NumericFits:
-    """Return the integer/decimal/currency/accounting/percentage/signed fits."""
-    total = len(values)
+    """Return the integer/decimal/currency/accounting/percentage/signed match counts."""
     stats = _score_values(values)
-    allow_leading = total > 0 and stats.leading_decimal_matches / total >= LEADING_DECIMAL_MIN_RATIO
-
-    def fit(matches: int) -> NumericTypeFit:
-        return NumericTypeFit(matches=matches, allow_leading_decimal_point=allow_leading)
-
     return NumericFits(
-        integer=fit(stats.integer_matches),
-        decimal=fit(stats.decimal_matches),
-        currency=fit(stats.currency_matches),
-        accounting=fit(stats.accounting_matches),
-        percentage=fit(stats.percentage_matches),
-        signed=fit(stats.signed_matches),
+        integer=stats.integer_matches,
+        decimal=stats.decimal_matches,
+        currency=stats.currency_matches,
+        accounting=stats.accounting_matches,
+        percentage=stats.percentage_matches,
+        signed=stats.signed_matches,
     )

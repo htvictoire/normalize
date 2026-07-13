@@ -46,21 +46,24 @@ def strip_group_only_chars(value: str) -> str:
     return value
 
 
-def decimal_pattern_regex(allow_leading_decimal_point: bool) -> str:
+def decimal_pattern_regex() -> str:
     """Return a regex matching a valid decimal in any supported locale.
 
     Applied to values whose group-only characters are already removed. Malformed
     grouping (``1,2,3.45``, ``12,3456.7``) matches no alternative and is rejected:
     dropping declared separators does not mean dropping validation.
+
+    A leading decimal point (``.5``, ``,5``) is always accepted: it is an
+    unambiguous ``0.5``, so validating it can only decide accept-versus-reject,
+    never interpretation. Rejecting it would drop a recoverable value for no gain.
     """
     alternatives = [
         rf"{_WESTERN_GROUPED}(?:\.[0-9]*)?",
         rf"{_EUROPEAN_GROUPED}(?:,[0-9]*)?",
         rf"{_INDIAN_GROUPED}(?:\.[0-9]*)?",
         rf"{_UNGROUPED}(?:[.,][0-9]*)?",
+        r"[.,][0-9]+",
     ]
-    if allow_leading_decimal_point:
-        alternatives.append(r"[.,][0-9]+")
     return rf"^[+-]?(?:{'|'.join(alternatives)})$"
 
 

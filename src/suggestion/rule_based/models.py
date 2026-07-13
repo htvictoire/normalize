@@ -14,7 +14,6 @@ class NumericParseResult:
     has_signed: bool
     has_percentage: bool
     has_fractional_part: bool
-    leading_decimal_point: bool
 
 
 @dataclass(frozen=True)
@@ -27,15 +26,6 @@ class NumericStats:
     accounting_matches: int
     signed_matches: int
     percentage_matches: int
-    leading_decimal_matches: int
-
-
-@dataclass(frozen=True)
-class NumericTypeFit:
-    """Fit for one numeric family (integer/decimal/currency)."""
-
-    matches: int
-    allow_leading_decimal_point: bool
 
 
 @dataclass(frozen=True)
@@ -49,11 +39,11 @@ class SignedMarkers:
 
 @dataclass(frozen=True)
 class NumericFits:
-    """Fit result for each numeric type family."""
+    """Match count for each numeric type family."""
 
-    integer: NumericTypeFit
-    decimal: NumericTypeFit
-    currency: NumericTypeFit
-    accounting: NumericTypeFit
-    percentage: NumericTypeFit
-    signed: NumericTypeFit
+    integer: int
+    decimal: int
+    currency: int
+    accounting: int
+    percentage: int
+    signed: int

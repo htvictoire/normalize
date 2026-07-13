@@ -111,8 +111,3 @@ TIME_FORMAT_CANDIDATES = (
 )
 
 TIME_FORMAT_RANK: dict[str, int] = {fmt: i for i, fmt in enumerate(TIME_FORMAT_CANDIDATES)}
-
-# Minimum fraction of sampled values with a leading decimal point (e.g. ".5")
-# for the pattern to be recorded as intentional in the suggested config
-# (allow_leading_decimal_point).
-LEADING_DECIMAL_MIN_RATIO = 0.05
