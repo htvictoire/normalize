@@ -13,3 +13,6 @@ ISSUE_CODE_MIXED_NUMBER_FORMAT = "MIXED_NUMBER_FORMAT"
 ISSUE_CODE_IDENTIFIER_DUPLICATES = "IDENTIFIER_DUPLICATES"
 # MULTIPLE_PRIMARY_KEYS: more than one column is declared identifier_kind="primary".
 ISSUE_CODE_MULTIPLE_PRIMARY_KEYS = "MULTIPLE_PRIMARY_KEYS"
+# PREAMBLE_ROWS_SKIPPED: rows above the header row were dropped at ingestion.
+# Informational — the count is the only record that those rows existed.
+ISSUE_CODE_PREAMBLE_ROWS_SKIPPED = "PREAMBLE_ROWS_SKIPPED"

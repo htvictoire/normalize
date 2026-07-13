@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from shared.models.column import ColumnConfig, IdentifierColumnConfig
 from shared.models.issues import IssueSeverity, NormalizationIssue
+from shared.models.operation import CsvSourceFormat, ExcelSourceFormat, SourceFormat
 from shared.models.profiling import (
     ColumnProfile,
     IdentifierColumnProfile,
@@ -16,21 +17,39 @@ from profiling.constants import (
     ISSUE_CODE_MIXED_CURRENCY,
     ISSUE_CODE_MIXED_NUMBER_FORMAT,
     ISSUE_CODE_MULTIPLE_PRIMARY_KEYS,
+    ISSUE_CODE_PREAMBLE_ROWS_SKIPPED,
 )
+
+
+def _preamble_row_count(source_format: SourceFormat) -> int:
+    """Return the number of rows dropped at ingestion because they precede the header."""
+    if not isinstance(source_format, CsvSourceFormat | ExcelSourceFormat):
+        return 0
+    if source_format.header_mode != "present" or source_format.header_row_index is None:
+        return 0
+    return source_format.header_row_index - 1
 
 
 def collect_dataset_issues(
     column_config: dict[str, ColumnConfig],
+    source_format: SourceFormat,
 ) -> list[NormalizationIssue]:
     """Return issues detected from the config as a whole, not from any one column."""
+    issues: list[NormalizationIssue] = []
+
+    skipped_count = _preamble_row_count(source_format)
+    if skipped_count > 0:
+        issues.append(build_preamble_rows_skipped_issue(skipped_count))
+
     primary_keys = [
         name
         for name, config in column_config.items()
         if isinstance(config, IdentifierColumnConfig) and config.identifier_kind == "primary"
     ]
     if len(primary_keys) > 1:
-        return [build_multiple_primary_keys_issue(sorted(primary_keys))]
-    return []
+        issues.append(build_multiple_primary_keys_issue(sorted(primary_keys)))
+
+    return issues
 
 
 def collect_column_issues(
@@ -76,6 +95,28 @@ def collect_column_issues(
         )
 
     return issues
+
+
+def build_preamble_rows_skipped_issue(skipped_count: int) -> NormalizationIssue:
+    """Rows above the header row, dropped at ingestion.
+
+    Informational: the header marks where the table begins, so what precedes it is
+    not data. It is reported because a misdetected header row deletes real rows with
+    no other trace, and this count is the only evidence they were there.
+    """
+    rows = "1 row was" if skipped_count == 1 else f"{skipped_count} rows were"
+    return NormalizationIssue(
+        code=ISSUE_CODE_PREAMBLE_ROWS_SKIPPED,
+        severity=IssueSeverity.INFO,
+        message=(
+            f"{rows} skipped as preamble above the header; "
+            "verify the header row if the source was not expected to have one"
+        ),
+        evidence={
+            "skipped_count": skipped_count,
+            "header_row_index": skipped_count + 1,
+        },
+    )
 
 
 def build_multiple_primary_keys_issue(column_names: list[str]) -> NormalizationIssue:

@@ -9,6 +9,7 @@ from duckdb import DuckDBPyConnection
 from shared.db.aggregates import safe_ratio
 from shared.models.column import ColumnConfig, column_config_type
 from shared.models.issues import NormalizationIssue
+from shared.models.operation import SourceFormat
 from shared.models.profiling import ColumnCounts, ColumnProfileStats, SymbolDistributionProfile
 
 from profiling.column_stats import compute_column_profiles
@@ -29,6 +30,7 @@ def compute_profile_results(
     conn: DuckDBPyConnection,
     columns: list[str],
     column_config: dict[str, ColumnConfig],
+    source_format: SourceFormat,
     null_tokens: tuple[str, ...],
     counts_by_name: dict[str, ColumnCounts],
     row_count: int,
@@ -42,7 +44,7 @@ def compute_profile_results(
         counts_by_name=counts_by_name,
     )
 
-    issues: list[NormalizationIssue] = collect_dataset_issues(column_config)
+    issues: list[NormalizationIssue] = collect_dataset_issues(column_config, source_format)
     column_stats: dict[str, ColumnProfileStats] = {}
     dominant_symbol_ratio_sum = 0.0
     dominant_symbol_ratio_count = 0

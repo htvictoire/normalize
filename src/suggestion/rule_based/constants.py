@@ -12,11 +12,6 @@ DELIMITER_CANDIDATES = [",", ";", "\t", "|"]
 # Total rows read from the top of the file when scanning for the header row.
 HEADER_SCAN_ROWS = 15
 
-# Subsequent rows inspected after each header candidate to measure data
-# numeric density. The header scores highest because it has near-zero
-# numeric density compared to the data rows that follow it.
-HEADER_SCORE_LOOKAHEAD = 5
-
 # ---------------------------------------------------------------------------
 # Type inference sampling
 # ---------------------------------------------------------------------------

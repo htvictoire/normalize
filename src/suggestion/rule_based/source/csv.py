@@ -12,12 +12,8 @@ from collections import Counter
 
 from shared.models.operation import CsvSourceFormat
 
-from suggestion.rule_based.constants import (
-    DELIMITER_CANDIDATES,
-    HEADER_SCAN_ROWS,
-    HEADER_SCORE_LOOKAHEAD,
-)
-from suggestion.rule_based.source.heuristics import looks_numeric
+from suggestion.rule_based.constants import DELIMITER_CANDIDATES, HEADER_SCAN_ROWS
+from suggestion.rule_based.source.heuristics import is_header_like
 from suggestion.source.csv import infer_csv_encoding
 
 
@@ -32,6 +28,14 @@ def _read_rows(text: str, delimiter: str, limit: int) -> list[list[str]]:
 
 
 def _scan_for_header_row(text: str, delimiter: str) -> int | None:
+    """Return the 1-based header row, or None when the file has no header.
+
+    The topmost header-shaped row of the table's dominant width wins. Rows above it
+    are preamble and are skipped at ingestion.
+
+    None is a valid result, not a failure: a file whose rows all carry data has no
+    header, and reporting one would consume its first row as labels.
+    """
     rows = _read_rows(text, delimiter, HEADER_SCAN_ROWS)
     if not rows:
         return None
@@ -41,40 +45,9 @@ def _scan_for_header_row(text: str, delimiter: str) -> int | None:
     if modal_count == 0:
         return None
 
-    eligible_indices = [i for i, row in enumerate(rows) if len(row) == modal_count]
-
-    candidates: list[tuple[int, list[str]]] = []
-    for index in eligible_indices:
-        values = [value.strip() for value in rows[index]]
-        if any(values):
-            candidates.append((index, values))
-
-    if not candidates:
-        return None
-
-    best_row_index: int | None = None
-    best_score = float("-inf")
-    for original_index, values in candidates:
-        numeric_count = sum(1 for value in values if looks_numeric(value))
-        subsequent = [idx for idx in eligible_indices if idx > original_index][
-            :HEADER_SCORE_LOOKAHEAD
-        ]
-
-        if subsequent:
-            subsequent_numeric_avg = sum(
-                sum(1 for value in [cell.strip() for cell in rows[idx]] if looks_numeric(value))
-                for idx in subsequent
-            ) / len(subsequent)
-            score = subsequent_numeric_avg - numeric_count
-        else:
-            score = float(-numeric_count)
-
-        if score > best_score:
-            best_score = score
-            best_row_index = original_index
-
-    if best_row_index is not None and best_score > 0:
-        return best_row_index + 1
+    for index, row in enumerate(rows):
+        if len(row) == modal_count and is_header_like(list(row)):
+            return index + 1
     return None
 
 
@@ -89,7 +62,13 @@ def _detect_header_row(text: str, delimiter: str) -> int | None:
     except csv.Error:
         pass
 
-    return _scan_for_header_row(text, delimiter)
+    try:
+        return _scan_for_header_row(text, delimiter)
+    except csv.Error:
+        # A field wider than csv's field-size limit leaves no row readable, so there is
+        # no evidence of a header. Reporting none costs one misread row; raising would
+        # abort suggestion entirely.
+        return None
 
 
 def _infer_delimiter(text: str) -> str:

@@ -11,20 +11,19 @@ from pathlib import Path
 from shared.models.operation import ExcelSourceFormat, HeaderMode
 
 from suggestion.rule_based.constants import HEADER_SCAN_ROWS
-from suggestion.rule_based.source.heuristics import looks_numeric
+from suggestion.rule_based.source.heuristics import is_header_like
 from suggestion.source.excel import assemble_excel_reading, read_excel_raw_rows
 
 
-def _is_likely_header_row(row: tuple[object, ...]) -> bool:
-    values = [str(cell).strip() for cell in row if cell is not None]
-    if not values:
-        return False
-    return not any(looks_numeric(value) for value in values)
-
-
 def _detect_header_row(rows: list[tuple[object, ...]]) -> int | None:
+    """Return the 1-based header row, or None when the sheet has no header.
+
+    Empty cells are preserved as empty strings; discarding them would make a title
+    row indistinguishable from a header.
+    """
     for index, row in enumerate(rows):
-        if _is_likely_header_row(row):
+        values = ["" if cell is None else str(cell).strip() for cell in row]
+        if is_header_like(values):
             return index + 1
     return None
 

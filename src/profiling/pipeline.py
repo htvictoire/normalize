@@ -53,6 +53,7 @@ def run_profiling(
         conn=conn,
         columns=canonical_columns,
         column_config=column_config,
+        source_format=confirmed_config.source_format,
         null_tokens=null_tokens,
         counts_by_name=profiling_stats.column_counts,
         row_count=profiling_stats.row_count,
