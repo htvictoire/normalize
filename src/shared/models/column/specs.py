@@ -46,9 +46,7 @@ type ColumnCapability = Literal[
     "signed_notation",
     "monetary_symbol",
     "identifier",
-    "date_format",
-    "datetime_format",
-    "time_format",
+    "day_first",
     "standard_code",
     "ai_only",
     "categorical_mapping",
@@ -116,18 +114,16 @@ COLUMN_TYPE_SPECS: tuple[ColumnTypeSpec, ...] = (
     ColumnTypeSpec(
         "accounting",
         AccountingColumnConfig,
-        frozenset(
-            {
-                "numeric_formatting",
-                "decimal_syntax",
-                "signed_notation",
-                "monetary_symbol",
-            }
-        ),
+        frozenset({
+            "numeric_formatting",
+            "decimal_syntax",
+            "signed_notation",
+            "monetary_symbol",
+        }),
     ),
-    ColumnTypeSpec("date", DateColumnConfig, frozenset({"date_format"})),
-    ColumnTypeSpec("datetime", DateTimeColumnConfig, frozenset({"datetime_format"})),
-    ColumnTypeSpec("time", TimeColumnConfig, frozenset({"time_format"})),
+    ColumnTypeSpec("date", DateColumnConfig, frozenset({"day_first"})),
+    ColumnTypeSpec("datetime", DateTimeColumnConfig, frozenset({"day_first"})),
+    ColumnTypeSpec("time", TimeColumnConfig, frozenset()),
     ColumnTypeSpec("country_code", CountryCodeColumnConfig, frozenset({"standard_code"})),
     ColumnTypeSpec("currency_code", CurrencyCodeColumnConfig, frozenset({"standard_code"})),
     ColumnTypeSpec("language_code", LanguageCodeColumnConfig, frozenset({"standard_code"})),

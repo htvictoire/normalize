@@ -1,73 +1,71 @@
-"""Date format detection for column type inference."""
+"""Temporal type detection and day/month order inference for column type inference.
+
+Match counting runs the canonical format chains from ``shared.parsing.temporal``
+via Python's ``strptime``. ``day_first`` follows the order that parses more
+values; a tie resolves month-first.
+"""
 
 from __future__ import annotations
 
 from collections.abc import Sequence
 from datetime import datetime
 
-from suggestion.rule_based.constants import (
-    DATE_FORMAT_CANDIDATES,
-    DATE_FORMAT_RANK,
-    DATETIME_FORMAT_CANDIDATES,
-    DATETIME_FORMAT_RANK,
-    TIME_FORMAT_CANDIDATES,
-    TIME_FORMAT_RANK,
+from shared.parsing.temporal import (
+    TIME_STRPTIME_FORMATS,
+    date_strptime_formats,
+    datetime_strptime_formats,
 )
 
+_MIN_FOUR_DIGIT_YEAR = 1000
 
-def _match_format(value: str, candidates: Sequence[str]) -> str | None:
-    """Return the first candidate format that parses ``value``, or None."""
-    for date_format in candidates:
+
+def _matches_any(value: str, formats: Sequence[str]) -> bool:
+    for fmt in formats:
         try:
-            datetime.strptime(value, date_format)
+            parsed = datetime.strptime(value, fmt)
         except ValueError:
             continue
-        return date_format
-    return None
+        # strptime's %Y accepts 1-3 digit years; sub-1000 years never parse.
+        if parsed.year >= _MIN_FOUR_DIGIT_YEAR:
+            return True
+    return False
 
 
-def _best_format(
+def _count_matches(values: Sequence[str], formats: Sequence[str]) -> int:
+    return sum(1 for value in values if _matches_any(value, formats))
+
+
+def _best_day_first(
     values: Sequence[str],
-    candidates: Sequence[str],
-    rank: dict[str, int],
-) -> tuple[str | None, int]:
-    """Return (best_format, match_count) for the format with the most matches."""
-    counts: dict[str, int] = dict.fromkeys(candidates, 0)
-    for value in values:
-        fmt = _match_format(value, candidates)
-        if fmt is not None:
-            counts[fmt] += 1
-    best_fmt, best_count = max(
-        counts.items(), key=lambda item: (item[1], -rank[item[0]])
+    chain_for: Sequence[str],
+    chain_against: Sequence[str],
+) -> tuple[bool, int]:
+    """Return (day_first, match_count) for the order that parses more values."""
+    day_count = _count_matches(values, chain_for)
+    month_count = _count_matches(values, chain_against)
+    if day_count > month_count:
+        return True, day_count
+    return False, month_count
+
+
+def infer_date_day_first(values: Sequence[str]) -> tuple[bool, int]:
+    """Return (day_first, match_count) for values read as dates."""
+    return _best_day_first(
+        values,
+        date_strptime_formats(day_first=True),
+        date_strptime_formats(day_first=False),
     )
-    return (best_fmt, best_count) if best_count > 0 else (None, 0)
 
 
-def match_date_format(value: str) -> str | None:
-    """Return the first DATE_FORMAT_CANDIDATES format that parses ``value``, or None."""
-    return _match_format(value, DATE_FORMAT_CANDIDATES)
+def infer_datetime_day_first(values: Sequence[str]) -> tuple[bool, int]:
+    """Return (day_first, match_count) for values read as datetimes."""
+    return _best_day_first(
+        values,
+        datetime_strptime_formats(day_first=True),
+        datetime_strptime_formats(day_first=False),
+    )
 
 
-def match_datetime_format(value: str) -> str | None:
-    """Return the first DATETIME_FORMAT_CANDIDATES format that parses ``value``, or None."""
-    return _match_format(value, DATETIME_FORMAT_CANDIDATES)
-
-
-def match_time_format(value: str) -> str | None:
-    """Return the first TIME_FORMAT_CANDIDATES format that parses ``value``, or None."""
-    return _match_format(value, TIME_FORMAT_CANDIDATES)
-
-
-def best_date_format(values: Sequence[str]) -> tuple[str | None, int]:
-    """Return (best_format, match_count) for the date format with the most matches."""
-    return _best_format(values, DATE_FORMAT_CANDIDATES, DATE_FORMAT_RANK)
-
-
-def best_datetime_format(values: Sequence[str]) -> tuple[str | None, int]:
-    """Return (best_format, match_count) for the datetime format with the most matches."""
-    return _best_format(values, DATETIME_FORMAT_CANDIDATES, DATETIME_FORMAT_RANK)
-
-
-def best_time_format(values: Sequence[str]) -> tuple[str | None, int]:
-    """Return (best_format, match_count) for the time format with the most matches."""
-    return _best_format(values, TIME_FORMAT_CANDIDATES, TIME_FORMAT_RANK)
+def count_time_matches(values: Sequence[str]) -> int:
+    """Return how many values parse as a time of day."""
+    return _count_matches(values, TIME_STRPTIME_FORMATS)

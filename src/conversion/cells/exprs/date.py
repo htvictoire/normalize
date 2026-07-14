@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from shared.constants import EXCEL_SERIAL_DATE_EPOCH_SQL
-from shared.db.sql import quote_identifier, quote_string
+from shared.db.sql import quote_identifier
+from shared.parsing.temporal import date_parse_expr, datetime_parse_expr, time_parse_expr
 
 from conversion.cells.exprs.column_exprs import ColumnExprs
 from conversion.cells.naming import parse_date_alias, parse_datetime_alias, parse_time_alias
@@ -32,17 +32,12 @@ def build_date_exprs(
     column_name: str,
     nullish_predicate: str,
     raw_value: str,
-    date_format: str,
+    day_first: bool,
     issue_label: str = "INVALID_DATE",
 ) -> ColumnExprs:
     """Build ColumnExprs for a date column."""
     date_alias = quote_identifier(parse_date_alias(column_name))
-    if date_format == "EXCEL_SERIAL":
-        date_expr = f"({EXCEL_SERIAL_DATE_EPOCH_SQL} + TRY_CAST({raw_value} AS INTEGER))"
-    else:
-        date_expr = (
-            f"TRY_CAST(TRY_STRPTIME({raw_value}, {quote_string(date_format)}) AS DATE)"
-        )
+    date_expr = date_parse_expr(raw_value, day_first)
     return _build_temporal_exprs(date_alias, date_expr, nullish_predicate, issue_label)
 
 
@@ -50,21 +45,12 @@ def build_datetime_exprs(
     column_name: str,
     nullish_predicate: str,
     raw_value: str,
-    datetime_format: str,
+    day_first: bool,
     issue_label: str = "INVALID_DATETIME",
 ) -> ColumnExprs:
     """Build ColumnExprs for a datetime/timestamp column."""
     datetime_alias = quote_identifier(parse_datetime_alias(column_name))
-    if datetime_format == "EXCEL_SERIAL":
-        datetime_expr = (
-            f"({EXCEL_SERIAL_DATE_EPOCH_SQL} + "
-            f"(TRY_CAST({raw_value} AS DOUBLE) * INTERVAL 1 DAY))"
-        )
-    else:
-        datetime_expr = (
-            f"TRY_CAST(TRY_STRPTIME({raw_value}, {quote_string(datetime_format)}) "
-            "AS TIMESTAMP)"
-        )
+    datetime_expr = datetime_parse_expr(raw_value, day_first)
     return _build_temporal_exprs(
         datetime_alias,
         datetime_expr,
@@ -77,10 +63,9 @@ def build_time_exprs(
     column_name: str,
     nullish_predicate: str,
     raw_value: str,
-    time_format: str,
     issue_label: str = "INVALID_TIME",
 ) -> ColumnExprs:
     """Build ColumnExprs for a time-of-day column."""
     time_alias = quote_identifier(parse_time_alias(column_name))
-    time_expr = f"TRY_CAST(TRY_STRPTIME({raw_value}, {quote_string(time_format)}) AS TIME)"
+    time_expr = time_parse_expr(raw_value)
     return _build_temporal_exprs(time_alias, time_expr, nullish_predicate, issue_label)

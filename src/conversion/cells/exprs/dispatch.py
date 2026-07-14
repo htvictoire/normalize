@@ -78,7 +78,7 @@ def build_column_exprs(
             column_name,
             nullish_predicate,
             raw_value=raw_value,
-            date_format=config.date_format,
+            day_first=config.day_first,
             issue_label=issue_label,
         )
     elif isinstance(config, DateTimeColumnConfig):
@@ -86,7 +86,7 @@ def build_column_exprs(
             column_name,
             nullish_predicate,
             raw_value=raw_value,
-            datetime_format=config.datetime_format,
+            day_first=config.day_first,
             issue_label=issue_label,
         )
     elif isinstance(config, TimeColumnConfig):
@@ -94,7 +94,6 @@ def build_column_exprs(
             column_name,
             nullish_predicate,
             raw_value=raw_value,
-            time_format=config.time_format,
             issue_label=issue_label,
         )
     elif isinstance(config, CountryCodeColumnConfig):

@@ -20,9 +20,9 @@ from suggestion.rule_based.constants import (
     TYPE_MATCH_MIN_RATIO,
 )
 from suggestion.rule_based.date import (
-    best_date_format,
-    best_datetime_format,
-    best_time_format,
+    count_time_matches,
+    infer_date_day_first,
+    infer_datetime_day_first,
 )
 from suggestion.rule_based.identifier import infer_identifier_type
 from suggestion.rule_based.numeric import infer_numeric_type
@@ -32,17 +32,17 @@ def _infer_temporal_type(
     values: Sequence[str],
     meets_threshold: Callable[[int], bool],
 ) -> ColumnConfig | None:
-    datetime_format, datetime_count = best_datetime_format(values)
-    if datetime_format is not None and meets_threshold(datetime_count):
-        return DateTimeColumnConfig(datetime_format=datetime_format)
+    datetime_day_first, datetime_count = infer_datetime_day_first(values)
+    if meets_threshold(datetime_count):
+        return DateTimeColumnConfig(day_first=datetime_day_first)
 
-    time_format, time_count = best_time_format(values)
-    if time_format is not None and meets_threshold(time_count):
-        return TimeColumnConfig(time_format=time_format)
+    time_count = count_time_matches(values)
+    if meets_threshold(time_count):
+        return TimeColumnConfig()
 
-    date_format, date_count = best_date_format(values)
-    if date_format is not None and meets_threshold(date_count):
-        return DateColumnConfig(date_format=date_format)
+    date_day_first, date_count = infer_date_day_first(values)
+    if meets_threshold(date_count):
+        return DateColumnConfig(day_first=date_day_first)
 
     return None
 

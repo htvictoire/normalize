@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Annotated, Any, Literal, cast
 
-from pydantic import Field, StringConstraints, TypeAdapter, field_validator, model_validator
+from pydantic import Field, StringConstraints, TypeAdapter, model_validator
 
 from shared.models.base import MainModel
 from shared.models.column.base import (
@@ -144,87 +144,54 @@ class AccountingColumnConfig(SignedNotationColumnConfig):
 
 
 class DateColumnConfig(MainModel):
-    """Declared date column configuration."""
+    """Declared date column configuration.
 
-    date_format: str = Field(
+    Formats are not per-column; parsing uses the canonical chain in
+    ``shared.parsing.temporal``.
+    """
+
+    day_first: bool = Field(
         description=(
-            "A DuckDB strptime format (e.g. %Y-%m-%d, %d/%m/%Y, %d %b %Y), or the "
-            "literal EXCEL_SERIAL for spreadsheet serial-number dates. The engine "
-            "parses dates with TRY_STRPTIME, so the format must be one it can "
-            "execute. If the column's dates cannot be expressed as such a format "
-            "(e.g. localized month names or ordinal suffixes), classify the column "
-            "as string instead of date. If the values do not make the field order "
-            "unambiguous (e.g. 01/02/2023 could be day/month or month/day), reflect "
-            "any unresolved ambiguity in the confidence."
+            "Whether numeric day/month values read day-first: true parses "
+            "01/02/2023 as 1 February, false as January 2. Decide from "
+            "unambiguous values (a first field greater than 12 proves "
+            "day-first); if every value is ambiguous, choose from the column's "
+            "locale context and reflect the uncertainty in the confidence. A "
+            "column of spreadsheet serial-number dates (integers near 45000, "
+            "often labelled serial/posting/period) is a date column, not an "
+            "integer column; the engine converts serials to dates (use false)."
         )
     )
     type: Literal["date"] = "date"
 
-    @field_validator("date_format")
-    @classmethod
-    def _require_strptime_or_sentinel(cls, value: str) -> str:
-        """Reject formats the engine cannot execute (e.g. human notation 'yyyy-mm-dd')."""
-        if value != "EXCEL_SERIAL" and "%" not in value:
-            raise ValueError(
-                f"date_format must be a strptime pattern containing '%' "
-                f"or the literal 'EXCEL_SERIAL', got {value!r}"
-            )
-        return value
-
 
 class DateTimeColumnConfig(MainModel):
-    """Declared datetime/timestamp column configuration."""
+    """Declared datetime/timestamp column configuration.
 
-    datetime_format: str = Field(
+    Formats are not per-column; parsing uses the canonical chain in
+    ``shared.parsing.temporal``.
+    """
+
+    day_first: bool = Field(
         description=(
-            "A DuckDB strptime format (e.g. %Y-%m-%d %H:%M:%S, %d/%m/%Y %H:%M), "
-            "or the literal EXCEL_SERIAL for spreadsheet serial-number timestamps. "
-            "The engine parses datetimes with TRY_STRPTIME, so the format must be "
-            "one it can execute. If the column's datetimes cannot be expressed as "
-            "such a format, classify the column as string instead of datetime. If "
-            "the values do not make the field order unambiguous (e.g. 01/02/2023 "
-            "could be day/month or month/day), reflect any unresolved ambiguity in "
-            "the confidence."
+            "Whether numeric day/month values read day-first: true parses "
+            "01/02/2023 04:05 as 1 February, false as January 2. Decide from "
+            "unambiguous values (a first field greater than 12 proves "
+            "day-first); if every value is ambiguous, choose from the column's "
+            "locale context and reflect the uncertainty in the confidence."
         )
     )
     type: Literal["datetime"] = "datetime"
 
-    @field_validator("datetime_format")
-    @classmethod
-    def _require_strptime_or_sentinel(cls, value: str) -> str:
-        """Reject formats the engine cannot execute (e.g. human notation)."""
-        if value != "EXCEL_SERIAL" and "%" not in value:
-            raise ValueError(
-                f"datetime_format must be a strptime pattern containing '%' "
-                f"or the literal 'EXCEL_SERIAL', got {value!r}"
-            )
-        return value
-
 
 class TimeColumnConfig(MainModel):
-    """Declared time-of-day column configuration."""
+    """Declared time-of-day column configuration.
 
-    time_format: str = Field(
-        description=(
-            "A DuckDB strptime format for time-of-day values (e.g. %H:%M:%S, "
-            "%H:%M, %I:%M %p). The engine parses times with TRY_STRPTIME, so "
-            "the format must be one it can execute. If the column's times cannot "
-            "be expressed as such a format, classify the column as string instead "
-            "of time. If the values do not make the format unambiguous (e.g. 12- "
-            "versus 24-hour), reflect any unresolved ambiguity in the confidence."
-        )
-    )
+    Formats are not per-column; parsing uses the canonical chain in
+    ``shared.parsing.temporal``.
+    """
+
     type: Literal["time"] = "time"
-
-    @field_validator("time_format")
-    @classmethod
-    def _require_strptime_pattern(cls, value: str) -> str:
-        """Reject formats the engine cannot execute (e.g. human notation)."""
-        if "%" not in value:
-            raise ValueError(
-                f"time_format must be a strptime pattern containing '%', got {value!r}"
-            )
-        return value
 
 
 class CountryCodeColumnConfig(MainModel):
@@ -313,9 +280,7 @@ type CoreColumnConfigModel = (
 
 
 type RuleBasedExtendedColumnConfigModel = (
-    CountryCodeColumnConfig
-    | CurrencyCodeColumnConfig
-    | LanguageCodeColumnConfig
+    CountryCodeColumnConfig | CurrencyCodeColumnConfig | LanguageCodeColumnConfig
 )
 
 
@@ -336,9 +301,7 @@ RuleBasedExtendedColumnConfig = Annotated[
 AiOnlyColumnConfig = Annotated[AiOnlyColumnConfigModel, Field(discriminator="type")]
 
 type ColumnConfigModel = (
-    CoreColumnConfigModel
-    | RuleBasedExtendedColumnConfigModel
-    | AiOnlyColumnConfigModel
+    CoreColumnConfigModel | RuleBasedExtendedColumnConfigModel | AiOnlyColumnConfigModel
 )
 
 ColumnConfig = Annotated[ColumnConfigModel, Field(discriminator="type")]
@@ -364,6 +327,5 @@ def serialize_column_config_map(
 ) -> dict[str, dict[str, Any]]:
     """Serialize position-keyed column config mapping."""
     return {
-        position_key: column_config_to_dict(spec)
-        for position_key, spec in column_config.items()
+        position_key: column_config_to_dict(spec) for position_key, spec in column_config.items()
     }
