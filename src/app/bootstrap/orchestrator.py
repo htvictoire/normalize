@@ -24,7 +24,11 @@ from shared.settings import get_settings
 from app.bootstrap.conversion import ConversionService
 from app.bootstrap.profiling import ProfilingService
 from app.bootstrap.suggestion import SuggestionService
-from app.bootstrap.validation import validate_auto_confirm, validate_file_format
+from app.bootstrap.validation import (
+    validate_auto_confirm,
+    validate_file_format,
+    validate_source_path,
+)
 from app.bootstrap.webhook import fire_webhook
 from app.infra.postgres.repository import PostgresRunRepository
 
@@ -58,6 +62,7 @@ class MainOrchestrator:
     ) -> InstanceModel:
         started_at = datetime.now(UTC)
         validate_auto_confirm(request)
+        validate_source_path(request)
         validate_file_format(request)
         result = self._suggestion_service.suggest(request)
         # A source with no columns has nothing to normalize. Rejected here rather than

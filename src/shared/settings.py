@@ -20,6 +20,9 @@ class Settings(BaseSettings):
     s3_bucket: str
     conversion_output_dir: str
     redis_url: str
+
+    # Local sources must resolve within this directory; anything outside is rejected.
+    local_source_root: str = "./data"
     ai_provider: AiProvider
     ai_sample_row_count: int = 50
     gemini_api_key: str = ""

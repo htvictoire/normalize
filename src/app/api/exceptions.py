@@ -6,9 +6,11 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
 from shared.errors import (
+    InferenceValidationError,
     InstanceNotFoundError,
     InvalidRequestError,
     InvalidStateError,
+    ProviderUnreachableError,
 )
 
 
@@ -30,3 +32,11 @@ def register_exception_handlers(app: FastAPI) -> None:
     @app.exception_handler(InvalidRequestError)
     def bad_request_handler(_request: Request, exc: InvalidRequestError) -> JSONResponse:
         return JSONResponse(status_code=400, content={"detail": str(exc)})
+
+    @app.exception_handler(InferenceValidationError)
+    def bad_gateway_handler(_request: Request, exc: InferenceValidationError) -> JSONResponse:
+        return JSONResponse(status_code=502, content={"detail": str(exc)})
+
+    @app.exception_handler(ProviderUnreachableError)
+    def unavailable_handler(_request: Request, exc: ProviderUnreachableError) -> JSONResponse:
+        return JSONResponse(status_code=503, content={"detail": str(exc)})

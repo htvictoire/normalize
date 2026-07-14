@@ -1,6 +1,7 @@
 """Errors the pipeline raises deliberately.
 
-The API maps these to 4xx. Anything not derived from NormalizeError is a bug and is
+The API maps these to specific HTTP status: caller-input errors to 4xx, inference
+provider failures to 5xx. Anything not derived from NormalizeError is a bug and is
 reported as 500 — which is why builtin exception types are never mapped: KeyError and
 ValueError are raised by library and internal code as readily as by validation, and a
 blanket mapping reports our own failures as the caller's.
@@ -27,3 +28,15 @@ class InstanceNotFoundError(NormalizeError):
 
 class InvalidStateError(NormalizeError):
     """The run is not in a state where the requested phase can run."""
+
+
+class InferenceError(NormalizeError):
+    """Base for inference-provider failures — not caused by the caller's input."""
+
+
+class InferenceValidationError(InferenceError):
+    """The provider replied, but its output could not be validated as the schema."""
+
+
+class ProviderUnreachableError(InferenceError):
+    """The inference provider could not be reached or gave no usable response."""

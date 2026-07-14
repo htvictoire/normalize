@@ -19,14 +19,19 @@ the rare miss.
 from __future__ import annotations
 
 import json
+import logging
+import time
 from typing import Any, TypeVar
 
 from pydantic import ValidationError
 
+from shared.errors import InferenceValidationError, ProviderUnreachableError
 from shared.models.base import MainModel
 from shared.settings import get_settings
 
 from suggestion.ai.providers.base import FileInferenceProvider
+
+logger = logging.getLogger(__name__)
 
 T = TypeVar("T", bound=MainModel)
 
@@ -35,19 +40,32 @@ _MAX_ATTEMPTS = 3
 # reply. A small non-zero temperature perturbs the retry enough to break out of a
 # stuck output while keeping the first (best-quality) attempt greedy.
 _RETRY_TEMPERATURE = 0.3
+_BASE_BACKOFF_SECONDS = 0.5
+_MAX_BACKOFF_SECONDS = 2.0
 
 # Optional dependency (the "ai" extra). Held as Any so this module type-checks
 # whether or not google-genai is installed in the current environment.
 _genai: Any = None
 _genai_types: Any = None
+# Provider HTTP-status errors and transport failures, treated as "unreachable".
+_UNREACHABLE_ERRORS: tuple[type[BaseException], ...] = ()
 try:
     import google.genai
+    import google.genai.errors
     import google.genai.types
+    import httpx
 except ImportError:  # pragma: no cover - exercised when dependency is missing at runtime
     pass
 else:
     _genai = google.genai
     _genai_types = google.genai.types
+    _UNREACHABLE_ERRORS = (google.genai.errors.APIError, httpx.HTTPError)
+
+
+def _backoff_seconds(attempt: int) -> float:
+    """Capped exponential backoff."""
+    delay: float = _BASE_BACKOFF_SECONDS * (2**attempt)
+    return min(_MAX_BACKOFF_SECONDS, delay)
 
 
 class GeminiInferenceProvider(FileInferenceProvider):
@@ -71,8 +89,11 @@ class GeminiInferenceProvider(FileInferenceProvider):
         )
 
         contents = base_contents
-        last_error: ValidationError | None = None
+        last_error: BaseException | None = None
+        last_unreachable = False
         for attempt in range(_MAX_ATTEMPTS):
+            if attempt:
+                time.sleep(_backoff_seconds(attempt))
             config = _genai_types.GenerateContentConfig(
                 response_mime_type="application/json",
                 temperature=0.0 if attempt == 0 else _RETRY_TEMPERATURE,
@@ -82,16 +103,20 @@ class GeminiInferenceProvider(FileInferenceProvider):
                 # non-thinking models ignore this.
                 thinking_config=_genai_types.ThinkingConfig(thinking_budget=0),
             )
-            response = client.models.generate_content(
-                model=settings.gemini_model,
-                contents=contents,
-                config=config,
-            )
+            try:
+                response = client.models.generate_content(
+                    model=settings.gemini_model,
+                    contents=contents,
+                    config=config,
+                )
+            except _UNREACHABLE_ERRORS as exc:
+                last_error, last_unreachable = exc, True
+                continue
             raw = response.text or ""
             try:
                 return output_model.model_validate_json(raw)
             except ValidationError as exc:
-                last_error = exc
+                last_error, last_unreachable = exc, False
                 # Show the model its own broken output and the error so the next
                 # attempt can correct it, rather than blindly regenerating.
                 contents = (
@@ -103,7 +128,15 @@ class GeminiInferenceProvider(FileInferenceProvider):
                     "Emit only valid JSON — escape quotes and special characters "
                     "inside string values."
                 )
-        raise RuntimeError(
-            f"Gemini did not return valid {output_model.__name__} JSON after "
-            f"{_MAX_ATTEMPTS} attempts: {last_error}"
-        )
+
+        if last_unreachable:
+            logger.error(
+                "Gemini unreachable after %d attempts", _MAX_ATTEMPTS, exc_info=last_error
+            )
+            raise ProviderUnreachableError(
+                "The AI service is currently unavailable. Please try again shortly."
+            ) from last_error
+        raise InferenceValidationError(
+            f"The AI did not return a valid {output_model.__name__} after "
+            f"{_MAX_ATTEMPTS} attempts."
+        ) from last_error

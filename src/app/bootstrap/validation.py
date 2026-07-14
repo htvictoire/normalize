@@ -8,6 +8,7 @@ from shared.errors import InvalidRequestError, SourceError
 from shared.models.operation import FileFormat
 from shared.models.source import SourceRef
 from shared.models.suggestion import SuggestionInput
+from shared.settings import get_settings
 from shared.storage.probe import read_source_probe
 
 _VALID_EXTENSION: dict[FileFormat, str] = {
@@ -40,6 +41,20 @@ def validate_auto_confirm(request: SuggestionInput) -> None:
             "auto_confirm requires suggestion_method='ai'. The rule-based strategy does "
             "not score its inferences and must be confirmed before conversion."
         )
+
+
+def validate_source_path(source: SourceRef) -> None:
+    """Reject a local source that resolves outside the permitted root.
+
+    ``resolve()`` follows symlinks and collapses ``..``, so containment is checked
+    against the real target. S3 sources are not path-checked.
+    """
+    if source.source_type != "local":
+        return
+    root = Path(get_settings().local_source_root).resolve()
+    resolved = Path(source.source_file).resolve()
+    if resolved != root and not resolved.is_relative_to(root):
+        raise SourceError("Source file is outside the permitted directory.")
 
 
 def validate_file_format(source: SourceRef) -> None:
