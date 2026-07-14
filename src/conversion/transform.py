@@ -73,15 +73,14 @@ def compose_transform_sql(
     base_parts: list[str] = list(cell_plan.column_select_exprs)
     row_error_expr = _build_row_error_expr(cell_plan.data_columns)
     outer_order = ""
-    if row_plan.assign_indices:
-        if row_plan.rows_dropped > 0:
-            base_parts.append(
-                f"(ROW_NUMBER() OVER (ORDER BY {rowid_ref}))::BIGINT AS {ROW_INDEX_COLUMN}"
-            )
-            # Outer ORDER BY rowid helps DuckDB optimize the window function sort.
-            outer_order = f"ORDER BY {rowid_ref}"
-        else:
-            base_parts.append(f"({rowid_ref} + 1)::BIGINT AS {ROW_INDEX_COLUMN}")
+    if row_plan.rows_dropped > 0:
+        base_parts.append(
+            f"(ROW_NUMBER() OVER (ORDER BY {rowid_ref}))::BIGINT AS {ROW_INDEX_COLUMN}"
+        )
+        # Outer ORDER BY rowid helps DuckDB optimize the window function sort.
+        outer_order = f"ORDER BY {rowid_ref}"
+    else:
+        base_parts.append(f"({rowid_ref} + 1)::BIGINT AS {ROW_INDEX_COLUMN}")
 
     # Error count is materialised first (as a lateral column alias) so the issue
     # JSON below is only serialized for rows that actually failed. Clean rows
@@ -105,7 +104,7 @@ def compose_transform_sql(
     # _raw_row is the opt-in lineage column: originals for *every* cell, including
     # the ones that parsed. Failing cells already carry their original in
     # _parse_issues, so this is only needed for full-source provenance.
-    if cell_plan.full_raw_row and cell_plan.raw_source_pairs:
+    if cell_plan.emit_raw_row and cell_plan.raw_source_pairs:
         base_parts.append(
             f"TO_JSON(STRUCT_PACK({', '.join(cell_plan.raw_source_pairs)})) "
             f"AS {CONDITIONAL_RAW_JSON_ALIAS}"
@@ -116,8 +115,7 @@ def compose_transform_sql(
 
     # Final projection
     projected: list[str] = [quote_identifier(col) for col in cell_plan.data_columns]
-    if row_plan.assign_indices:
-        projected.append(ROW_INDEX_COLUMN)
+    projected.append(ROW_INDEX_COLUMN)
 
     error_count_sql = f"{CONDITIONAL_ERROR_COUNT_ALIAS}::INTEGER"
 
@@ -131,8 +129,7 @@ def compose_transform_sql(
         parsed_select_extras = [
             f"{expr} AS {alias}" for alias, expr in cell_plan.parse_cte_exprs
         ]
-        if row_plan.assign_indices:
-            parsed_select_extras.insert(0, f"rowid AS {rowid_alias}")
+        parsed_select_extras.insert(0, f"rowid AS {rowid_alias}")
         ctes.append(
             _compose_cte(
                 "parsed",

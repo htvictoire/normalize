@@ -24,7 +24,7 @@ def plan_cells(
     null_tokens: Sequence[str],
     columns: list[str],
     column_stats: Mapping[str, ColumnProfileStats],
-    full_raw_row: bool = False,
+    emit_raw_row: bool = False,
 ) -> CellPlan:
     """
     Derives per-column SQL expressions from the confirmed column configs and
@@ -81,5 +81,5 @@ def plan_cells(
         column_select_exprs=tuple(base_exprs),
         raw_source_pairs=tuple(raw_source_pairs),
         issue_pairs=tuple(issue_pairs),
-        full_raw_row=full_raw_row,
+        emit_raw_row=emit_raw_row,
     )

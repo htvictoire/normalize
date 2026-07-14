@@ -54,6 +54,11 @@ def decimal_pattern_regex() -> str:
     dropping declared separators does not mean dropping validation.
 
     A leading decimal point (``.5``, ``,5``) is accepted as an unambiguous ``0.5``.
+
+    Exponent/scientific notation (``1.5e10``) is intentionally not matched and is
+    reported as a parse issue rather than converted: the stored decimal type is sized
+    from a value's literal digits, which exponent notation does not express. This is
+    a deliberate scope limit, not a validation gap.
     """
     alternatives = [
         rf"{_WESTERN_GROUPED}(?:\.[0-9]*)?",

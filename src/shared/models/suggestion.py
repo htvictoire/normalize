@@ -16,7 +16,11 @@ class SuggestionInput(SourceRef):
 
     source_checksum: str = Field(
         pattern="^[0-9a-f]{64}$",
-        description="Lowercase hex-encoded SHA256 checksum (exactly 64 characters, no whitespace).",
+        description=(
+            "Lowercase hex-encoded SHA256 checksum (exactly 64 characters, no whitespace). "
+            "Caller-attested and recorded for provenance; the engine does not re-read the "
+            "source to verify it."
+        ),
     )
     suggestion_method: SuggestionMethod
     extended_type_detection: bool

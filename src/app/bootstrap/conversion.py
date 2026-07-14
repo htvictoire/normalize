@@ -57,6 +57,7 @@ class ConversionService:
                 issues=profiling_issues,
                 run_id=run_id,
                 trace_mode=operation_config.trace_mode,
+                full_raw_row=operation_config.full_raw_row,
             )
             return NormalizationOutput(
                 quality_output=result.quality_output,

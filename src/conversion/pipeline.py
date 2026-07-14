@@ -44,16 +44,19 @@ def run_conversion(
     row_plan = plan_rows(
         conn,
         columns=raw_columns,
-        assign_indices=operation_config.assign_indices,
         drop_empty_rows=operation_config.drop_empty_rows,
     )
 
+    # changes/full traces compare against each cell's original, which only _raw_row retains.
+    emit_raw_row = operation_config.full_raw_row or bool(
+        operation_config.trace_mode & {"changes", "full"}
+    )
     cell_plan = plan_cells(
         column_config=resolved_column_config,
         null_tokens=operation_config.null_tokens,
         columns=raw_columns,
         column_stats=column_stats,
-        full_raw_row=operation_config.full_raw_row,
+        emit_raw_row=emit_raw_row,
     )
 
     conn.execute(compose_transform_sql(row_plan, cell_plan))

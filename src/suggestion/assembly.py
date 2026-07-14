@@ -22,7 +22,6 @@ from shared.models.suggestion import (
 
 from suggestion.constants import (
     DEFAULT_APPROXIMATE_UNIQUE,
-    DEFAULT_ASSIGN_INDICES,
     DEFAULT_DECISION_READY,
     DEFAULT_DECISION_WARNING,
     DEFAULT_DROP_EMPTY_ROWS,
@@ -50,7 +49,6 @@ def build_suggestion_output(
         column_config=column_config,
         operation_config=OperationConfig(
             null_tokens=null_tokens,
-            assign_indices=DEFAULT_ASSIGN_INDICES,
             drop_empty_rows=DEFAULT_DROP_EMPTY_ROWS,
             full_raw_row=DEFAULT_FULL_RAW_ROW,
             include_unique_ratio=DEFAULT_INCLUDE_UNIQUE_RATIO,

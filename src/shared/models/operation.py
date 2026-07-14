@@ -9,7 +9,8 @@ from pydantic import Field, model_validator
 from shared.models.base import MainModel
 
 HeaderMode = Literal["present", "absent"]
-TraceMode = Literal["full", "sparse"]
+TraceScope = Literal["issues", "changes", "full"]
+TraceMode = frozenset[TraceScope]
 FileFormat = Literal["csv", "excel", "json"]
 FileSource = Literal["local", "s3"]
 SuggestionMethod = Literal["rule_based", "ai"]
@@ -82,7 +83,6 @@ class OperationConfig(MainModel):
     """
 
     null_tokens: tuple[str, ...]
-    assign_indices: bool
     drop_empty_rows: bool
     full_raw_row: bool
     include_unique_ratio: bool
@@ -90,4 +90,11 @@ class OperationConfig(MainModel):
     approximate_unique: bool
     trace_mode: TraceMode
     decision_thresholds: DecisionThresholds
+
+    @model_validator(mode="after")
+    def _trace_mode_non_empty(self) -> OperationConfig:
+        """Reject an empty trace scope."""
+        if not self.trace_mode:
+            raise ValueError("trace_mode must contain at least one scope")
+        return self
 

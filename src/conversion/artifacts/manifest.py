@@ -34,6 +34,7 @@ def build_manifest_payload(
     trace_rel = _relative_path(trace_path, artifact_base)
     manifest_rel = _relative_path(manifest_path, artifact_base)
     return {
+        # Caller-attested; passed through for provenance, not re-verified by the engine.
         "source_checksum": source_checksum,
         "quality_summary": quality_output.model_dump(),
         "issue_summary": build_issue_summary(issues),

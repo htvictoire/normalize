@@ -21,5 +21,5 @@ AUDIT_COLUMNS: frozenset[str] = frozenset({
     PARSE_ERROR_COUNT_COLUMN,
 })
 
-# Row index columns — only present when assign_indices=True.
+# Row index columns — always present; they are the trace's join key.
 AUDIT_INDEX_COLUMNS: tuple[str, ...] = (ROW_INDEX_COLUMN,)

@@ -14,7 +14,6 @@ from conversion.models import RowPlan
 def plan_rows(
     conn: DuckDBPyConnection,
     columns: list[str],
-    assign_indices: bool = True,
     drop_empty_rows: bool = True,
 ) -> RowPlan:
     """
@@ -36,7 +35,6 @@ def plan_rows(
 
     return RowPlan(
         filter_predicate=filter_predicate,
-        assign_indices=assign_indices,
         rows_dropped=rows_dropped,
     )
 

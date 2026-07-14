@@ -31,13 +31,12 @@ DISPLAY_VALUES_PER_COLUMN = 10
 # Pre-populate the suggested InstanceConfig after suggestion.
 # The user can override any of these at confirm time.
 
-DEFAULT_ASSIGN_INDICES: bool = False
 DEFAULT_DROP_EMPTY_ROWS: bool = True
 DEFAULT_FULL_RAW_ROW: bool = False
 DEFAULT_INCLUDE_UNIQUE_RATIO: bool = True
 DEFAULT_INCLUDE_PER_COLUMN_PARSE_ERROR_COUNTS: bool = True
 DEFAULT_APPROXIMATE_UNIQUE: bool = False
-DEFAULT_TRACE_MODE: TraceMode = "sparse"
+DEFAULT_TRACE_MODE: TraceMode = frozenset({"issues"})
 DEFAULT_DECISION_READY: float = 95.0
 DEFAULT_DECISION_WARNING: float = 85.0
 

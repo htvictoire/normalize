@@ -19,16 +19,18 @@ from conversion.constants import (
 
 def build_export_columns(
     data_columns: list[str],
-    assign_indices: bool,
     full_raw_row: bool,
 ) -> list[str]:
     """Return output schema order: data columns first, then audit columns.
+
+    ``_row_index`` is always exported: it is the trace's join key, so the trace
+    can never be reliably tied back to the normalized rows without it.
 
     _raw_row is exported only when full_raw_row is set. Publishing the column while the
     option is off advertises per-cell lineage the artifact does not carry — a consumer
     reading the schema would conclude every original was preserved.
     """
-    audit: list[str] = list(AUDIT_INDEX_COLUMNS) if assign_indices else []
+    audit: list[str] = list(AUDIT_INDEX_COLUMNS)
     if full_raw_row:
         audit.append(RAW_ROW_COLUMN)
     audit.append(PARSE_ISSUES_COLUMN)

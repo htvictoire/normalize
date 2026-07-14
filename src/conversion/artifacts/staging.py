@@ -41,6 +41,7 @@ def stage_artifacts(
     source_checksum: str,
     issues: Sequence[NormalizationIssue],
     trace_mode: TraceMode,
+    full_raw_row: bool,
 ) -> StagedArtifacts:
     """Write staged artifact files to one local directory."""
     output_root.mkdir(parents=True, exist_ok=True)
@@ -50,11 +51,7 @@ def stage_artifacts(
     trace_path = output_root / "trace.parquet"
 
     data_columns = list(result.cell_plan.data_columns)
-    export_columns = build_export_columns(
-        data_columns,
-        assign_indices=result.row_plan.assign_indices,
-        full_raw_row=result.cell_plan.full_raw_row,
-    )
+    export_columns = build_export_columns(data_columns, full_raw_row=full_raw_row)
 
     write_normalized_parquet(
         conn,
@@ -62,17 +59,16 @@ def stage_artifacts(
         export_columns=export_columns,
     )
 
-    sparse = trace_mode == "sparse"
+    # Skipping clean rows is only valid when the trace wants failures alone.
     trace_pre_filter: str | None = None
-    if sparse:
+    if trace_mode == frozenset({"issues"}):
         trace_pre_filter = f"{PARSE_ERROR_COUNT_COLUMN} > 0"
     write_trace_parquet(
         conn,
         trace_path=trace_path,
         data_columns=data_columns,
-        has_row_index=result.row_plan.assign_indices,
-        has_full_raw_row=result.cell_plan.full_raw_row,
-        sparse=sparse,
+        trace_mode=trace_mode,
+        has_raw_row=result.cell_plan.emit_raw_row,
         row_pre_filter=trace_pre_filter,
     )
 

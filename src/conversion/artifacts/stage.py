@@ -24,7 +24,8 @@ def materialize_artifacts(
     source_checksum: str,
     issues: Sequence[NormalizationIssue],
     run_id: str,
-    trace_mode: TraceMode = "full",
+    trace_mode: TraceMode,
+    full_raw_row: bool,
 ) -> ArtifactPaths:
     """Stages and publishes the normalized Parquet, manifest, and trace to local disk or S3."""
 
@@ -41,5 +42,6 @@ def materialize_artifacts(
             source_checksum=source_checksum,
             issues=issues,
             trace_mode=trace_mode,
+            full_raw_row=full_raw_row,
         )
         return publisher.publish(staged)

@@ -153,7 +153,9 @@ class DateColumnConfig(MainModel):
             "parses dates with TRY_STRPTIME, so the format must be one it can "
             "execute. If the column's dates cannot be expressed as such a format "
             "(e.g. localized month names or ordinal suffixes), classify the column "
-            "as string instead of date."
+            "as string instead of date. If the values do not make the field order "
+            "unambiguous (e.g. 01/02/2023 could be day/month or month/day), reflect "
+            "any unresolved ambiguity in the confidence."
         )
     )
     type: Literal["date"] = "date"
@@ -179,7 +181,10 @@ class DateTimeColumnConfig(MainModel):
             "or the literal EXCEL_SERIAL for spreadsheet serial-number timestamps. "
             "The engine parses datetimes with TRY_STRPTIME, so the format must be "
             "one it can execute. If the column's datetimes cannot be expressed as "
-            "such a format, classify the column as string instead of datetime."
+            "such a format, classify the column as string instead of datetime. If "
+            "the values do not make the field order unambiguous (e.g. 01/02/2023 "
+            "could be day/month or month/day), reflect any unresolved ambiguity in "
+            "the confidence."
         )
     )
     type: Literal["datetime"] = "datetime"
@@ -205,7 +210,8 @@ class TimeColumnConfig(MainModel):
             "%H:%M, %I:%M %p). The engine parses times with TRY_STRPTIME, so "
             "the format must be one it can execute. If the column's times cannot "
             "be expressed as such a format, classify the column as string instead "
-            "of time."
+            "of time. If the values do not make the format unambiguous (e.g. 12- "
+            "versus 24-hour), reflect any unresolved ambiguity in the confidence."
         )
     )
     type: Literal["time"] = "time"

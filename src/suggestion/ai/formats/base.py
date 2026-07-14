@@ -13,7 +13,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import cast
 
-from pydantic import create_model
+from pydantic import Field, create_model
 
 from shared.db.column_index import build_position_to_name
 from shared.errors import SourceError
@@ -38,7 +38,9 @@ class AiColumnInference(MainModel):
 
     name: str
     config: ColumnConfig
-    confidence: float
+    confidence: float = Field(
+        ge=0.0, le=1.0, description="How sure the inferred type and config are."
+    )
 
 
 class CoreAiColumnInference(MainModel):
@@ -46,7 +48,9 @@ class CoreAiColumnInference(MainModel):
 
     name: str
     config: CoreColumnConfig
-    confidence: float
+    confidence: float = Field(
+        ge=0.0, le=1.0, description="How sure the inferred type and config are."
+    )
 
 
 type AnyAiColumnInference = AiColumnInference | CoreAiColumnInference

@@ -12,7 +12,6 @@ class RowPlan:
     """SQL fragments produced by row normalization planning."""
 
     filter_predicate: str | None  # None = no filtering
-    assign_indices: bool
     rows_dropped: int  # known from a cheap pre-check
 
 
@@ -35,7 +34,7 @@ class CellPlan:
     # {"raw": <original text>, "code": <issue code>} and NULL for cells that
     # parsed. Null keys are stripped downstream, so only failures survive.
     issue_pairs: tuple[str, ...]
-    full_raw_row: bool
+    emit_raw_row: bool
 
 
 @dataclass(frozen=True)

@@ -11,6 +11,7 @@ from shared.db.sql import (
     quote_identifier,
     quote_string,
 )
+from shared.models.operation import TraceMode
 
 from conversion.constants import (
     PARQUET_COPY_OPTIONS,
@@ -22,33 +23,33 @@ from conversion.constants import (
 
 def build_trace_query(
     data_columns: list[str],
-    has_row_index: bool,
-    has_full_raw_row: bool,
-    sparse: bool = False,
+    trace_mode: TraceMode,
+    has_raw_row: bool,
     row_pre_filter: str | None = None,
 ) -> str:
     """Build wide-to-long trace SQL query with one output row per input cell.
 
     ``raw_value`` for a failing cell always comes from ``_parse_issues``, which
-    carries the original text alongside the issue code. When ``has_full_raw_row``
-    is set, cells that parsed successfully additionally resolve their original
-    from ``_raw_row``.
+    carries the original text alongside the issue code. When ``has_raw_row`` is
+    set, cells that parsed successfully additionally resolve their original from
+    ``_raw_row``.
 
-    When sparse=True, only emit rows where an issue was detected (or, under full
-    lineage, where the value changed).
+    ``trace_mode`` selects which cells are emitted: ``"issues"`` (failed),
+    ``"changes"`` (parsed but transformed), ``"full"`` (all). The emitted set is
+    the union of the selected scopes.
 
     ``row_pre_filter`` is an optional SQL predicate applied *before* UNPIVOT in the
     base CTE, allowing the caller to skip entire rows cheaply (e.g. only process
     rows with ``_parse_error_count > 0``).
     """
-    row_index_expr = ROW_INDEX_COLUMN if has_row_index else "(rowid + 1)::BIGINT"
+    row_index_expr = ROW_INDEX_COLUMN
     casted_columns = ", ".join(
         f"CAST({quote_identifier(column_name)} AS VARCHAR) AS {quote_identifier(column_name)}"
         for column_name in data_columns
     )
     unpivot_columns = ", ".join(quote_identifier(column_name) for column_name in data_columns)
     extra_base_columns = [PARSE_ISSUES_COLUMN]
-    if has_full_raw_row:
+    if has_raw_row:
         extra_base_columns.append(RAW_ROW_COLUMN)
     extra_projection = ", " + ", ".join(extra_base_columns)
 
@@ -61,21 +62,22 @@ def build_trace_query(
     raw_expr = (
         f"COALESCE({issue_raw_expr}, "
         f"JSON_EXTRACT_STRING({RAW_ROW_COLUMN}, '$.' || column_name))"
-        if has_full_raw_row
+        if has_raw_row
         else issue_raw_expr
     )
 
-    # Sparse filter: only cells that failed, plus — under full lineage — cells
-    # whose value the normalizer actually changed.
-    sparse_filter = ""
-    if sparse:
-        conditions = [f"{issue_expr} IS NOT NULL"]
-        if has_full_raw_row:
+    scope_filter = ""
+    if "full" not in trace_mode:
+        conditions: list[str] = []
+        if "issues" in trace_mode:
+            conditions.append(f"{issue_expr} IS NOT NULL")
+        if "changes" in trace_mode:
             conditions.append(
+                f"({issue_expr} IS NULL AND "
                 f"JSON_EXTRACT_STRING({RAW_ROW_COLUMN}, '$.' || column_name) "
-                "IS DISTINCT FROM CAST(normalized_value AS VARCHAR)"
+                "IS DISTINCT FROM CAST(normalized_value AS VARCHAR))"
             )
-        sparse_filter = "WHERE " + " OR ".join(conditions)
+        scope_filter = "WHERE " + " OR ".join(conditions)
 
     base_where = f" WHERE {row_pre_filter}" if row_pre_filter else ""
     return (
@@ -95,10 +97,9 @@ def build_trace_query(
         "column_name, "
         f"{raw_expr} AS raw_value, "
         "normalized_value, "
-        "'normalization' AS applied_rules, "
         f"{issue_expr} AS issue_codes "
         "FROM unpivoted"
-        f" {sparse_filter}"
+        f" {scope_filter}"
     )
 
 
@@ -106,17 +107,15 @@ def write_trace_parquet(
     conn: DuckDBPyConnection,
     trace_path: Path,
     data_columns: list[str],
-    has_row_index: bool,
-    has_full_raw_row: bool,
-    sparse: bool = False,
+    trace_mode: TraceMode,
+    has_raw_row: bool,
     row_pre_filter: str | None = None,
 ) -> None:
     """Export cell-level trace parquet."""
     trace_query = build_trace_query(
         data_columns=data_columns,
-        has_row_index=has_row_index,
-        has_full_raw_row=has_full_raw_row,
-        sparse=sparse,
+        trace_mode=trace_mode,
+        has_raw_row=has_raw_row,
         row_pre_filter=row_pre_filter,
     )
     conn.execute(
