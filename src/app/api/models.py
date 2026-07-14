@@ -16,4 +16,3 @@ class ConfirmRequest(MainModel):
 
     config: InstanceConfig
     auto_normalize: bool = False
-    webhook_url: str | None = None

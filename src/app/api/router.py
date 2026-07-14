@@ -42,7 +42,6 @@ def confirm_endpoint(request: Request, instance_id: UUID, payload: ConfirmReques
         instance_id,
         payload.config,
         payload.auto_normalize,
-        payload.webhook_url,
     )
 
 

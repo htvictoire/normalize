@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterable
+from collections.abc import Iterable, Sequence
 from datetime import datetime
 from decimal import Decimal
 from enum import StrEnum
@@ -103,6 +103,21 @@ class InstanceModel(MainModel):
     normalization_output: NormalizationOutput | None = None
     failure_reason: str | None = None
     timings: StageTimings = Field(default_factory=StageTimings)
+    # Issues accumulate across phases, keyed by the phase that raised them so a
+    # re-run (worker retry) replaces its own slice instead of duplicating.
+    issues_by_phase: dict[str, list[NormalizationIssue]] = Field(default_factory=dict)
+
+    @property
+    def issues(self) -> list[NormalizationIssue]:
+        """All issues raised so far, in phase order."""
+        return [issue for phase in self.issues_by_phase.values() for issue in phase]
+
+    def record_issues(self, phase: str, issues: Sequence[NormalizationIssue]) -> None:
+        """Set the issues raised by one phase, replacing any from a prior run of it."""
+        if issues:
+            self.issues_by_phase[phase] = list(issues)
+        else:
+            self.issues_by_phase.pop(phase, None)
 
     @classmethod
     def create(
@@ -156,7 +171,6 @@ class InstanceModel(MainModel):
     def set_normalization_output(
         self,
         normalization_output: NormalizationOutput,
-        issues: Iterable[NormalizationIssue],
         thresholds: DecisionThresholds,
     ) -> None:
         """Store normalization output and advance to the decided terminal state."""
@@ -165,7 +179,7 @@ class InstanceModel(MainModel):
         self.status = evaluate_decision(
             quality_score=Decimal(quality.quality_score),
             worst_column_score=Decimal(quality.worst_column_score),
-            issues=issues,
+            issues=self.issues,
             thresholds=thresholds,
         )
 

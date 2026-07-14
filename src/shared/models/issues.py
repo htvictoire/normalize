@@ -112,11 +112,34 @@ class MixedNumberFormatIssue(ColumnIssueBase):
     evidence: MixedNumberFormatEvidence
 
 
+class LowConfidenceItem(MainModel):
+    """One inference the model was unsure about."""
+
+    target: str
+    kind: Literal["column", "delimiter", "header"]
+    confidence: float
+
+
+class LowConfidenceEvidence(MainModel):
+    """The inferences scored below the confidence threshold."""
+
+    items: list[LowConfidenceItem]
+    threshold: float
+
+
+class LowConfidenceIssue(IssueBase):
+    """The model reported low confidence in one or more inferences it was not overridden on."""
+
+    code: Literal["LOW_CONFIDENCE"] = "LOW_CONFIDENCE"
+    evidence: LowConfidenceEvidence
+
+
 NormalizationIssue = Annotated[
     PreambleRowsSkippedIssue
     | MultiplePrimaryKeysIssue
     | IdentifierDuplicatesIssue
     | MixedCurrencyIssue
-    | MixedNumberFormatIssue,
+    | MixedNumberFormatIssue
+    | LowConfidenceIssue,
     Field(discriminator="code"),
 ]

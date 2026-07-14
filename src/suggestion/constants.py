@@ -40,6 +40,9 @@ DEFAULT_TRACE_MODE: TraceMode = frozenset({"issues"})
 DEFAULT_DECISION_READY: float = 95.0
 DEFAULT_DECISION_WARNING: float = 85.0
 
+# An AI inference scored below this is surfaced (webhook + warning issue) in auto mode.
+LOW_CONFIDENCE_THRESHOLD: float = 0.75
+
 # ---------------------------------------------------------------------------
 # Pipeline duration estimation (profile + convert)
 # ---------------------------------------------------------------------------

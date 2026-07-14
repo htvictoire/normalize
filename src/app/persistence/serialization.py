@@ -5,11 +5,16 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
+from pydantic import TypeAdapter
+
 from shared.models.instance import InstanceModel, StageTimings
 from shared.models.instance_config import InstanceConfig
+from shared.models.issues import NormalizationIssue
 from shared.models.normalization import NormalizationOutput
 from shared.models.profiling import ProfilingOutput
 from shared.models.suggestion import SuggestionConfidence, SuggestionDisplay
+
+_ISSUES_BY_PHASE = TypeAdapter(dict[str, list[NormalizationIssue]])
 
 
 def instance_to_record(instance: InstanceModel) -> dict[str, Any]:
@@ -58,6 +63,7 @@ def instance_to_record(instance: InstanceModel) -> dict[str, Any]:
         ),
         "failure_reason": instance.failure_reason,
         "timings": instance.timings.model_dump(mode="json"),
+        "issues_by_phase": _ISSUES_BY_PHASE.dump_python(instance.issues_by_phase, mode="json"),
     }
 
 
@@ -107,4 +113,9 @@ def record_to_instance(record: Mapping[str, Any]) -> InstanceModel:
             else None
         ),
         timings=StageTimings.model_validate(record["timings"]),
+        issues_by_phase=(
+            _ISSUES_BY_PHASE.validate_python(record["issues_by_phase"])
+            if record.get("issues_by_phase") is not None
+            else {}
+        ),
     )

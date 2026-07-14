@@ -46,7 +46,7 @@ class PostgresRunRepository:
                     extended_type_detection,
                     suggested_config, suggestion_display, suggestion_confidence,
                     confirmed_config, profiling_output, normalization_output,
-                    failure_reason, timings
+                    failure_reason, timings, issues_by_phase
                 ) VALUES (
                     %s, %s, %s, %s,
                     %s, %s, %s,
@@ -54,7 +54,7 @@ class PostgresRunRepository:
                     %s,
                     %s::jsonb, %s::jsonb, %s::jsonb,
                     %s::jsonb, %s::jsonb, %s::jsonb,
-                    %s, %s::jsonb
+                    %s, %s::jsonb, %s::jsonb
                 )
                 ON CONFLICT (instance_id) DO UPDATE SET
                     status                = EXCLUDED.status,
@@ -67,6 +67,7 @@ class PostgresRunRepository:
                     normalization_output  = EXCLUDED.normalization_output,
                     failure_reason        = EXCLUDED.failure_reason,
                     timings               = EXCLUDED.timings,
+                    issues_by_phase       = EXCLUDED.issues_by_phase,
                     updated_at            = NOW()
                 """,
                 (
@@ -82,6 +83,7 @@ class PostgresRunRepository:
                     _as_jsonb(r["normalization_output"]),
                     r["failure_reason"],
                     _as_jsonb(r["timings"]),
+                    _as_jsonb(r["issues_by_phase"]),
                 ),
             )
         return instance
@@ -96,7 +98,7 @@ class PostgresRunRepository:
                        extended_type_detection,
                        suggested_config, suggestion_display, suggestion_confidence,
                        confirmed_config, profiling_output, normalization_output,
-                       failure_reason, timings
+                       failure_reason, timings, issues_by_phase
                 FROM normalization_runs
                 WHERE instance_id = %s
                 """,
@@ -125,6 +127,7 @@ class PostgresRunRepository:
             "normalization_output": row[16],
             "failure_reason":       row[17],
             "timings":              row[18],
+            "issues_by_phase":      row[19],
         })
 
     def get_required(self, instance_id: UUID) -> InstanceModel:
@@ -181,6 +184,7 @@ class PostgresRunRepository:
                     normalization_output  JSONB,
                     failure_reason        TEXT,
                     timings               JSONB,
+                    issues_by_phase       JSONB,
                     created_at            TIMESTAMPTZ NOT NULL DEFAULT NOW(),
                     updated_at            TIMESTAMPTZ NOT NULL DEFAULT NOW()
                 )
@@ -208,6 +212,12 @@ class PostgresRunRepository:
                 """
                 ALTER TABLE normalization_runs
                     ADD COLUMN IF NOT EXISTS failure_reason TEXT
+                """
+            )
+            cur.execute(
+                """
+                ALTER TABLE normalization_runs
+                    ADD COLUMN IF NOT EXISTS issues_by_phase JSONB
                 """
             )
 

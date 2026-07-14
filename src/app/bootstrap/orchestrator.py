@@ -19,6 +19,7 @@ from shared.models.instance import InstanceModel, InstanceStatus
 from shared.models.instance_config import InstanceConfig
 from shared.models.source import SourceRef
 from shared.models.suggestion import SuggestionInput
+from shared.models.webhook import WebhookEvent
 from shared.settings import get_settings
 
 from app.bootstrap.conversion import ConversionService
@@ -29,7 +30,7 @@ from app.bootstrap.validation import (
     validate_file_format,
     validate_source_path,
 )
-from app.bootstrap.webhook import fire_webhook
+from app.bootstrap.webhook import send_webhook
 from app.infra.postgres.repository import PostgresRunRepository
 
 
@@ -56,6 +57,19 @@ class MainOrchestrator:
             args=[str(instance_id)],
         )
 
+    def _notify(self, instance: InstanceModel) -> None:
+        """Deliver the instance's status and issues-so-far to its webhook, if one is set."""
+        if not instance.webhook_url:
+            return
+        send_webhook(
+            instance.webhook_url,
+            WebhookEvent(
+                instance_id=str(instance.instance_id),
+                status=instance.status,
+                issues=instance.issues,
+            ),
+        )
+
     def suggest(
         self,
         request: SuggestionInput,
@@ -78,11 +92,13 @@ class MainOrchestrator:
             suggestion_method=request.suggestion_method,
             extended_type_detection=request.extended_type_detection,
         )
+        instance.webhook_url = request.webhook_url
         instance.set_suggestion_output(
             suggested_config=result.suggested_config,
             confidence=result.confidence,
             display=result.display,
         )
+        instance.record_issues("suggestion", result.issues)
         instance.timings.suggest_started_at = started_at
         instance.timings.suggest_ended_at = datetime.now(UTC)
         instance.timings.estimated_pipeline_seconds = result.estimated_pipeline_seconds
@@ -90,6 +106,7 @@ class MainOrchestrator:
         if request.auto_confirm:
             instance.confirm(result.suggested_config)
             self._repository.save(instance)
+            self._notify(instance)
             if request.auto_normalize:
                 self._enqueue_post_confirmation_pipeline(instance.instance_id)
         return instance
@@ -99,14 +116,11 @@ class MainOrchestrator:
         instance_id: UUID,
         confirmed_config: InstanceConfig,
         auto_normalize: bool = False,
-        webhook_url: str | None = None,
     ) -> InstanceModel:
         instance = self._repository.get_required(instance_id)
-        instance.webhook_url = webhook_url
         instance.confirm(confirmed_config)
         self._repository.save(instance)
-        if webhook_url:
-            fire_webhook(webhook_url, instance_id, instance.status)
+        self._notify(instance)
         if auto_normalize:
             self._enqueue_post_confirmation_pipeline(instance_id)
         return instance
@@ -116,8 +130,7 @@ class MainOrchestrator:
         instance = self._repository.get_required(instance_id)
         instance.fail(reason)
         self._repository.save(instance)
-        if instance.webhook_url:
-            fire_webhook(instance.webhook_url, instance_id, instance.status)
+        self._notify(instance)
         return instance
 
     @contextmanager
@@ -138,8 +151,7 @@ class MainOrchestrator:
     def _advance(self, instance: InstanceModel, status: InstanceStatus) -> None:
         instance.begin_phase(status)
         self._repository.save(instance)
-        if instance.webhook_url:
-            fire_webhook(instance.webhook_url, instance.instance_id, status)
+        self._notify(instance)
 
     def profile(self, instance_id: UUID) -> InstanceModel:
         instance = self._repository.get_required(instance_id)
@@ -169,10 +181,10 @@ class MainOrchestrator:
                 persisted_db_path=cache_path,
             )
         instance.set_profiling_output(profiling_output)
+        instance.record_issues("profiling", profiling_output.issues)
         instance.timings.profile_ended_at = datetime.now(UTC)
         self._repository.save(instance)
-        if instance.webhook_url:
-            fire_webhook(instance.webhook_url, instance_id, instance.status)
+        self._notify(instance)
         return instance
 
     def normalize(self, instance_id: UUID) -> InstanceModel:
@@ -204,7 +216,7 @@ class MainOrchestrator:
                 source_checksum=instance.source_checksum,
                 confirmed_column_config=confirmed.column_config,
                 operation_config=confirmed.operation_config,
-                profiling_issues=list(profiling_output.issues),
+                issues=instance.issues,
                 column_stats=profiling_output.column_stats,
                 output_root=settings.conversion_output_dir,
                 run_id=str(instance_id),
@@ -213,11 +225,9 @@ class MainOrchestrator:
         db_cache_path.unlink(missing_ok=True)
         instance.set_normalization_output(
             result,
-            issues=profiling_output.issues,
             thresholds=confirmed.operation_config.decision_thresholds,
         )
         instance.timings.convert_ended_at = datetime.now(UTC)
         self._repository.save(instance)
-        if instance.webhook_url:
-            fire_webhook(instance.webhook_url, instance_id, instance.status)
+        self._notify(instance)
         return instance

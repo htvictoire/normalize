@@ -29,8 +29,10 @@ from suggestion.constants import (
     DEFAULT_INCLUDE_PER_COLUMN_PARSE_ERROR_COUNTS,
     DEFAULT_INCLUDE_UNIQUE_RATIO,
     DEFAULT_TRACE_MODE,
+    LOW_CONFIDENCE_THRESHOLD,
 )
 from suggestion.duration import estimate_pipeline_seconds
+from suggestion.issues import build_low_confidence_issue
 
 
 def build_suggestion_output(
@@ -73,9 +75,11 @@ def build_suggestion_output(
         },
         sample_rows=sample_rows,
     )
+    low_confidence = build_low_confidence_issue(confidence, display, LOW_CONFIDENCE_THRESHOLD)
     return SuggestionOutput(
         suggested_config=suggested_config,
         confidence=confidence,
         display=display,
+        issues=[low_confidence] if low_confidence is not None else [],
         estimated_pipeline_seconds=estimate_pipeline_seconds(stats.row_count),
     )

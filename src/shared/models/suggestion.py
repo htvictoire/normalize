@@ -6,6 +6,7 @@ from pydantic import Field, model_validator
 
 from shared.models.base import MainModel
 from shared.models.instance_config import InstanceConfig
+from shared.models.issues import NormalizationIssue
 from shared.models.operation import SuggestionMethod
 from shared.models.profiling import ColumnCounts
 from shared.models.source import SourceRef
@@ -26,6 +27,7 @@ class SuggestionInput(SourceRef):
     extended_type_detection: bool
     auto_confirm: bool = False
     auto_normalize: bool = False
+    webhook_url: str | None = None
 
     @model_validator(mode="after")
     def _require_auto_confirm_for_auto_normalize(self) -> SuggestionInput:
@@ -73,4 +75,5 @@ class SuggestionOutput(MainModel):
     suggested_config: InstanceConfig
     confidence: SuggestionConfidence
     display: SuggestionDisplay
+    issues: list[NormalizationIssue]
     estimated_pipeline_seconds: int

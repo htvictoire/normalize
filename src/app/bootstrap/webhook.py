@@ -1,21 +1,22 @@
-"""Webhook dispatch for instance status transitions."""
+"""Webhook delivery. The payload shape is the WebhookEvent contract."""
 
 from __future__ import annotations
 
 import logging
-from uuid import UUID
 
 import requests
 
+from shared.models.webhook import WebhookEvent
+
 logger = logging.getLogger(__name__)
 
+_TIMEOUT_SECONDS = 5
 
-def fire_webhook(webhook_url: str, instance_id: UUID, status: str) -> None:
+
+def send_webhook(webhook_url: str, event: WebhookEvent) -> None:
     try:
-        requests.post(
-            webhook_url,
-            json={"instance_id": str(instance_id), "status": status},
-            timeout=5,
-        )
+        requests.post(webhook_url, json=event.model_dump(mode="json"), timeout=_TIMEOUT_SECONDS)
     except Exception:
-        logger.exception("webhook delivery failed: url=%s instance=%s", webhook_url, instance_id)
+        logger.exception(
+            "webhook delivery failed: url=%s instance=%s", webhook_url, event.instance_id
+        )
