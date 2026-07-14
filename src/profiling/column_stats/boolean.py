@@ -8,29 +8,23 @@ from duckdb import DuckDBPyConnection
 
 from shared.constants import RAW_INPUT_TABLE_NAME
 from shared.db.aggregates import fetch_aggregate_int_row, group_int_values, safe_ratio
-from shared.db.sql import normalize_tokens, nullish_predicate, quote_identifier, quote_string
-from shared.models.column import BooleanColumnConfig
+from shared.db.sql import nullish_predicate, quote_identifier, quote_string
 from shared.models.profiling import BooleanColumnProfile, ColumnCounts, ColumnProfile
+from shared.parsing.boolean import BOOLEAN_FALSE_TOKENS, BOOLEAN_TRUE_TOKENS
+
+_TRUE_IN = ", ".join(quote_string(t) for t in sorted(BOOLEAN_TRUE_TOKENS))
+_FALSE_IN = ", ".join(quote_string(t) for t in sorted(BOOLEAN_FALSE_TOKENS))
 
 
 @dataclass(frozen=True)
 class BooleanBatchEntry:
     column_name: str
     counts: ColumnCounts
-    true_in_sql: str
-    false_in_sql: str
 
 
-def make_boolean_batch_entry(
-    column_name: str, config: BooleanColumnConfig, counts: ColumnCounts
-) -> BooleanBatchEntry:
-    """Build a BooleanBatchEntry, normalizing and formatting token sets once."""
-    return BooleanBatchEntry(
-        column_name=column_name,
-        counts=counts,
-        true_in_sql=_in_clause(config.true_tokens),
-        false_in_sql=_in_clause(config.false_tokens),
-    )
+def make_boolean_batch_entry(column_name: str, counts: ColumnCounts) -> BooleanBatchEntry:
+    """Build a BooleanBatchEntry for one boolean column."""
+    return BooleanBatchEntry(column_name=column_name, counts=counts)
 
 
 def compute_boolean_column_profiles_batch(
@@ -48,10 +42,10 @@ def compute_boolean_column_profiles_batch(
         nullish = nullish_predicate(quoted, null_tokens)
         normalized = f"LOWER(TRIM(CAST({quoted} AS VARCHAR)))"
         exprs.append(
-            f"COUNT(*) FILTER (WHERE NOT ({nullish}) AND {normalized} IN ({entry.true_in_sql}))"
+            f"COUNT(*) FILTER (WHERE NOT ({nullish}) AND {normalized} IN ({_TRUE_IN}))"
         )
         exprs.append(
-            f"COUNT(*) FILTER (WHERE NOT ({nullish}) AND {normalized} IN ({entry.false_in_sql}))"
+            f"COUNT(*) FILTER (WHERE NOT ({nullish}) AND {normalized} IN ({_FALSE_IN}))"
         )
 
     row = fetch_aggregate_int_row(conn, f"SELECT {', '.join(exprs)} FROM {RAW_INPUT_TABLE_NAME}")
@@ -67,10 +61,3 @@ def compute_boolean_column_profiles_batch(
             recognized_ratio=safe_ratio(true_count + false_count, non_nullish),
         )
     return profiles
-
-
-def _in_clause(tokens: tuple[str, ...]) -> str:
-    normalized = normalize_tokens(tokens)
-    if not normalized:
-        return "''"
-    return ", ".join(quote_string(token) for token in normalized)

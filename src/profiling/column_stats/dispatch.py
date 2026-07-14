@@ -101,7 +101,7 @@ def compute_column_profiles(
         elif isinstance(config, IdentifierColumnConfig):
             identifier_batch.append(IdentifierBatchEntry(col_name, counts))
         elif isinstance(config, BooleanColumnConfig):
-            boolean_batch.append(make_boolean_batch_entry(col_name, config, counts))
+            boolean_batch.append(make_boolean_batch_entry(col_name, counts))
         elif isinstance(config, DateColumnConfig):
             date_batch.append(DateBatchEntry(col_name, config, counts))
         elif isinstance(config, DateTimeColumnConfig):

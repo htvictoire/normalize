@@ -16,7 +16,6 @@ from shared.models.column import (
 from suggestion.rule_based.boolean import is_boolean
 from suggestion.rule_based.code import infer_code_type
 from suggestion.rule_based.constants import (
-    BOOLEAN_TOKEN_PAIRS,
     NUMERIC_BOOLEAN_TOKENS,
     TYPE_MATCH_MIN_RATIO,
 )
@@ -49,7 +48,7 @@ def _infer_temporal_type(
 
 
 def _infer_boolean_type(observed_tokens: set[str]) -> BooleanColumnConfig | None:
-    """Infer a boolean column from the boolean tokens observed in the sample.
+    """Decide whether a column of boolean tokens is a boolean column.
 
     Returns None unless an observed token is non-numeric. `0` and `1` are equally an
     integer, and boolean is tested before numeric, so numeric-only evidence would claim
@@ -58,16 +57,7 @@ def _infer_boolean_type(observed_tokens: set[str]) -> BooleanColumnConfig | None
     """
     if observed_tokens <= NUMERIC_BOOLEAN_TOKENS:
         return None
-
-    active_pairs = [
-        (t, f)
-        for t, f in BOOLEAN_TOKEN_PAIRS
-        if t in observed_tokens or f in observed_tokens
-    ]
-    return BooleanColumnConfig(
-        true_tokens=tuple(sorted(t for t, _ in active_pairs)),
-        false_tokens=tuple(sorted(f for _, f in active_pairs)),
-    )
+    return BooleanColumnConfig()
 
 
 def infer_column_type(

@@ -71,8 +71,6 @@ def build_column_exprs(
         exprs = build_boolean_exprs(
             nullish_predicate,
             normalized_raw_value,
-            true_tokens=config.true_tokens,
-            false_tokens=config.false_tokens,
             issue_label=issue_label,
         )
     elif isinstance(config, DateColumnConfig):

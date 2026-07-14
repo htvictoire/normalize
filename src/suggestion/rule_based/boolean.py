@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from suggestion.rule_based.constants import BOOLEAN_FALSE_TOKENS, BOOLEAN_TRUE_TOKENS
+from shared.parsing.boolean import BOOLEAN_FALSE_TOKENS, BOOLEAN_TRUE_TOKENS
 
 
 def is_boolean(value: str) -> bool:

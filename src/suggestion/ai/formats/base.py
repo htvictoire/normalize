@@ -16,6 +16,7 @@ from typing import cast
 from pydantic import create_model
 
 from shared.db.column_index import build_position_to_name
+from shared.errors import SourceError
 from shared.models.base import MainModel
 from shared.models.column import ColumnConfig, CoreColumnConfig
 from shared.models.source import SourceRef
@@ -77,6 +78,8 @@ def pair_columns_by_position(
     Raises if the model's column count disagrees with the parsed column count.
     """
     positions = list(build_position_to_name(column_names).keys())
+    if not positions:
+        raise SourceError("The source parsed into no columns.")
     if len(ai_columns) != len(positions):
         raise ValueError(
             f"Model returned {len(ai_columns)} columns but the source parsed into "

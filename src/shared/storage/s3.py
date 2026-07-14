@@ -8,8 +8,21 @@ from pathlib import Path
 from typing import Any, Protocol, cast
 
 import boto3
+from botocore.exceptions import ClientError
 
+from shared.errors import SourceError
 from shared.settings import get_settings
+
+# Real S3 signals a missing object by error code; some compatible stores set only
+# the HTTP status. "404" covers both since the status is compared as a string.
+_S3_NOT_FOUND_CODES = frozenset({"NoSuchKey", "NoSuchBucket", "NotFound", "404"})
+
+
+def _is_not_found(exc: ClientError) -> bool:
+    """Whether a ClientError means the requested object does not exist."""
+    error = exc.response.get("Error", {})
+    status = exc.response.get("ResponseMetadata", {}).get("HTTPStatusCode")
+    return error.get("Code") in _S3_NOT_FOUND_CODES or str(status) in _S3_NOT_FOUND_CODES
 
 
 @dataclass(frozen=True)
@@ -53,11 +66,16 @@ def fetch_s3_probe(obj: S3ObjectRef, n_bytes: int) -> bytes:
         raise ValueError("n_bytes must be >= 1")
 
     client = _build_s3_client()
-    response = client.get_object(
-        Bucket=obj.bucket,
-        Key=obj.key,
-        Range=f"bytes=0-{n_bytes - 1}",
-    )
+    try:
+        response = client.get_object(
+            Bucket=obj.bucket,
+            Key=obj.key,
+            Range=f"bytes=0-{n_bytes - 1}",
+        )
+    except ClientError as exc:
+        if _is_not_found(exc):
+            raise SourceError(f"Source object not found: {obj.key!r}") from exc
+        raise
     body = response["Body"]
     try:
         return bytes(body.read())
@@ -78,9 +96,11 @@ def download_s3_temp(obj: S3ObjectRef) -> Path:
         ) as temp_file:
             temp_path = Path(temp_file.name)
             client.download_fileobj(obj.bucket, obj.key, temp_file)
-    except Exception:
+    except Exception as exc:
         if temp_path is not None:
             temp_path.unlink(missing_ok=True)
+        if isinstance(exc, ClientError) and _is_not_found(exc):
+            raise SourceError(f"Source object not found: {obj.key!r}") from exc
         raise
     return temp_path
 

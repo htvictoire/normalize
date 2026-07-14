@@ -53,9 +53,7 @@ def decimal_pattern_regex() -> str:
     grouping (``1,2,3.45``, ``12,3456.7``) matches no alternative and is rejected:
     dropping declared separators does not mean dropping validation.
 
-    A leading decimal point (``.5``, ``,5``) is always accepted: it is an
-    unambiguous ``0.5``, so validating it can only decide accept-versus-reject,
-    never interpretation. Rejecting it would drop a recoverable value for no gain.
+    A leading decimal point (``.5``, ``,5``) is accepted as an unambiguous ``0.5``.
     """
     alternatives = [
         rf"{_WESTERN_GROUPED}(?:\.[0-9]*)?",

@@ -2,24 +2,27 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from shared.db.sql import quote_string
+from shared.parsing.boolean import BOOLEAN_FALSE_TOKENS, BOOLEAN_TRUE_TOKENS
 
 from conversion.cells.exprs.column_exprs import ColumnExprs
-from conversion.cells.exprs.nullish import token_in_clause
+
+_TRUE_IN = ", ".join(quote_string(t) for t in sorted(BOOLEAN_TRUE_TOKENS))
+_FALSE_IN = ", ".join(quote_string(t) for t in sorted(BOOLEAN_FALSE_TOKENS))
 
 
 def build_boolean_exprs(
     nullish_predicate: str,
     normalized_raw_value: str,
-    true_tokens: Sequence[str],
-    false_tokens: Sequence[str],
     issue_label: str = "INVALID_BOOLEAN",
 ) -> ColumnExprs:
-    """Build ColumnExprs for a boolean column."""
-    true_in = token_in_clause(true_tokens)
-    false_in = token_in_clause(false_tokens)
-    true_match = f"{normalized_raw_value} IN ({true_in})"
-    false_match = f"{normalized_raw_value} IN ({false_in})"
+    """Build ColumnExprs for a boolean column.
+
+    ``normalized_raw_value`` is ``LOWER(TRIM(...))``, matching the lowercase tokens.
+    A non-nullish value outside the vocabulary becomes NULL and is reported.
+    """
+    true_match = f"{normalized_raw_value} IN ({_TRUE_IN})"
+    false_match = f"{normalized_raw_value} IN ({_FALSE_IN})"
     normalized = (
         f"CASE WHEN {nullish_predicate} THEN NULL "
         f"WHEN {true_match} THEN TRUE "

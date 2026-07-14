@@ -45,28 +45,8 @@ CODE_MATCH_MIN_RATIO = 0.95
 # Boolean tokens
 # ---------------------------------------------------------------------------
 
-# Each pair is (true_token, false_token). Finding either side in the data
-# causes both sides to be included in the suggested config.
-BOOLEAN_TOKEN_PAIRS: tuple[tuple[str, str], ...] = (
-    ("true", "false"),
-    ("yes", "no"),
-    ("1", "0"),
-    ("t", "f"),
-    ("y", "n"),
-    ("on", "off"),
-    ("active", "inactive"),
-    ("enabled", "disabled"),
-    ("checked", "unchecked"),
-    ("pass", "fail"),
-    ("ok", "nok"),
-    ("paid", "unpaid"),
-)
-
-BOOLEAN_TRUE_TOKENS: frozenset[str] = frozenset(t for t, _ in BOOLEAN_TOKEN_PAIRS)
-BOOLEAN_FALSE_TOKENS: frozenset[str] = frozenset(f for _, f in BOOLEAN_TOKEN_PAIRS)
-
-# Boolean tokens that are also integers. Not evidence of a boolean on their own; still
-# valid tokens for a column confirmed as boolean.
+# Boolean tokens that are also integers, so not evidence of a boolean on their own.
+# The full boolean vocabulary lives in ``shared.parsing.boolean``.
 NUMERIC_BOOLEAN_TOKENS: frozenset[str] = frozenset({"0", "1"})
 
 # ---------------------------------------------------------------------------

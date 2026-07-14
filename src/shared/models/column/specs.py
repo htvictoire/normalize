@@ -45,7 +45,6 @@ type ColumnCapability = Literal[
     "decimal_syntax",
     "signed_notation",
     "monetary_symbol",
-    "boolean_tokens",
     "identifier",
     "date_format",
     "datetime_format",
@@ -92,7 +91,7 @@ class ColumnTypeSpec:
 COLUMN_TYPE_SPECS: tuple[ColumnTypeSpec, ...] = (
     ColumnTypeSpec("string", StringColumnConfig, frozenset()),
     ColumnTypeSpec("identifier", IdentifierColumnConfig, frozenset({"identifier"})),
-    ColumnTypeSpec("boolean", BooleanColumnConfig, frozenset({"boolean_tokens"})),
+    ColumnTypeSpec("boolean", BooleanColumnConfig, frozenset()),
     ColumnTypeSpec("integer", IntegerColumnConfig, frozenset({"numeric_formatting"})),
     ColumnTypeSpec(
         "decimal",

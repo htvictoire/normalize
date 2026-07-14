@@ -13,6 +13,7 @@ this module composes them and is blind to both.
 from __future__ import annotations
 
 from shared.db.column_index import build_position_to_name
+from shared.errors import SourceError
 from shared.models.suggestion import SuggestionInput, SuggestionOutput
 
 from suggestion.ai.formats import FORMATS
@@ -35,6 +36,8 @@ def run_suggestion(
     provider = provider or get_inference_provider()
 
     sample = fmt.sample(request)
+    if not sample.strip():
+        raise SourceError(f"Source file is empty: {request.source_file_name!r}")
     output_model = fmt.output_model_for_options(request.extended_type_detection)
     result = provider.infer_schema(fmt.build_prompt(sample), output_model)
     reconciled = fmt.reconcile(result, request)

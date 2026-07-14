@@ -19,10 +19,3 @@ def build_nullish_predicate(
         return f"{base_value} IS NULL"
     in_clause = ", ".join(quote_string(token) for token in normalized_tokens)
     return f"{base_value} IS NULL OR {normalized_value_expr} IN ({in_clause})"
-
-
-def token_in_clause(tokens: Sequence[str]) -> str:
-    normalized_tokens = normalize_tokens(tokens)
-    if not normalized_tokens:
-        raise ValueError("Boolean column has no true/false tokens configured")
-    return ", ".join(quote_string(token) for token in normalized_tokens)

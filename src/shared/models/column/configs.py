@@ -98,10 +98,12 @@ class IdentifierColumnConfig(MainModel):
 
 
 class BooleanColumnConfig(MainModel):
-    """Declared boolean column configuration."""
+    """Declared boolean column configuration.
 
-    true_tokens: tuple[str, ...]
-    false_tokens: tuple[str, ...]
+    Tokens are not per-column; parsing uses the canonical set in
+    ``shared.parsing.boolean``.
+    """
+
     type: Literal["boolean"] = "boolean"
 
 
