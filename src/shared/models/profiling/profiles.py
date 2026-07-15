@@ -33,6 +33,7 @@ from shared.models.column import (
 from shared.models.profiling.base import (
     AccountingSignProfile,
     CurrencyFormatProfile,
+    DayMonthOrderProfile,
     DecimalStatsProfile,
     MonetaryProfile,
     ParseMatchProfile,
@@ -96,10 +97,8 @@ class AccountingColumnProfile(
     profile_type: Literal["accounting"] = "accounting"
 
 
-class DateColumnProfile(MainModel):
+class DateColumnProfile(DayMonthOrderProfile):
     profile_type: Literal["date"] = "date"
-    format_match_count: int
-    format_match_ratio: float
 
 
 class CountryCodeColumnProfile(ValidityProfile):
@@ -114,10 +113,8 @@ class LanguageCodeColumnProfile(ValidityProfile):
     profile_type: Literal["language_code"] = "language_code"
 
 
-class DateTimeColumnProfile(MainModel):
+class DateTimeColumnProfile(DayMonthOrderProfile):
     profile_type: Literal["datetime"] = "datetime"
-    format_match_count: int
-    format_match_ratio: float
 
 
 class TimeColumnProfile(MainModel):

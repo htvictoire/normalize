@@ -11,6 +11,26 @@ POSITIVE_SIGN_MARKERS: frozenset[str] = frozenset({"DR", "+"})
 KNOWN_SIGN_MARKERS: tuple[str, ...] = tuple(sorted(NEGATIVE_SIGN_MARKERS | POSITIVE_SIGN_MARKERS))
 
 
+def negative_word_marker(cr_negative: bool) -> str:
+    """Return the CR/DR token that reads as negative."""
+    return "CR" if cr_negative else "DR"
+
+
+def positive_word_marker(cr_negative: bool) -> str:
+    """Return the CR/DR token that reads as positive."""
+    return "DR" if cr_negative else "CR"
+
+
+def negative_sign_markers(cr_negative: bool) -> tuple[str, str]:
+    """Return the negative markers: the negative CR/DR token plus the minus sign."""
+    return (negative_word_marker(cr_negative), "-")
+
+
+def positive_sign_markers(cr_negative: bool) -> tuple[str, str]:
+    """Return the positive markers: the positive CR/DR token plus the plus sign."""
+    return (positive_word_marker(cr_negative), "+")
+
+
 def _sign_marker_detection_pattern() -> str:
     escaped = sorted(
         (re.escape(t.lower()) for t in KNOWN_SIGN_MARKERS), key=len, reverse=True

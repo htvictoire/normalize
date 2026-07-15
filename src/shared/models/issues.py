@@ -112,6 +112,38 @@ class MixedNumberFormatIssue(ColumnIssueBase):
     evidence: MixedNumberFormatEvidence
 
 
+class DateOrderAmbiguousEvidence(MainModel):
+    """Counts of order-ambiguous values and the day/month order applied to them."""
+
+    day_first: bool
+    order_ambiguous_count: int
+    order_decisive_count: int
+
+
+class DateOrderAmbiguousIssue(ColumnIssueBase):
+    """A temporal column whose day/month order no value can prove."""
+
+    code: Literal["DATE_ORDER_AMBIGUOUS"] = "DATE_ORDER_AMBIGUOUS"
+    evidence: DateOrderAmbiguousEvidence
+
+
+class SignMarkerConventionEvidence(MainModel):
+    """CR/DR marker counts and the sign convention applied to them."""
+
+    cr_negative: bool
+    negative_marker: str
+    positive_marker: str
+    negative_marker_count: int
+    positive_marker_count: int
+
+
+class SignMarkerConventionIssue(ColumnIssueBase):
+    """A column carries CR/DR sign markers, whose polarity is a declared convention."""
+
+    code: Literal["SIGN_MARKER_CONVENTION"] = "SIGN_MARKER_CONVENTION"
+    evidence: SignMarkerConventionEvidence
+
+
 class LowConfidenceItem(MainModel):
     """One inference the model was unsure about."""
 
@@ -140,6 +172,8 @@ NormalizationIssue = Annotated[
     | IdentifierDuplicatesIssue
     | MixedCurrencyIssue
     | MixedNumberFormatIssue
+    | SignMarkerConventionIssue
+    | DateOrderAmbiguousIssue
     | LowConfidenceIssue,
     Field(discriminator="code"),
 ]

@@ -60,10 +60,19 @@ _DATE_IN_DATETIME_FORMATS = ("%Y-%m-%d", "%Y/%m/%d")
 TIME_STRPTIME_FORMATS = ("%H:%M:%S", "%H:%M", "%I:%M:%S %p", "%I:%M %p")
 
 
+def date_ordered_formats(day_first: bool) -> tuple[str, ...]:
+    """Return only the order-sensitive date formats for one day/month order."""
+    return _DAY_FIRST_DATE_FORMATS if day_first else _MONTH_FIRST_DATE_FORMATS
+
+
+def datetime_ordered_formats(day_first: bool) -> tuple[str, ...]:
+    """Return only the order-sensitive datetime formats for one day/month order."""
+    return _DAY_FIRST_DATETIME_FORMATS if day_first else _MONTH_FIRST_DATETIME_FORMATS
+
+
 def date_strptime_formats(day_first: bool) -> tuple[str, ...]:
     """Return the ordered strptime chain for a date column."""
-    ordered = _DAY_FIRST_DATE_FORMATS if day_first else _MONTH_FIRST_DATE_FORMATS
-    return _YEAR_FIRST_DATE_FORMATS + ordered + _DATETIME_IN_DATE_FORMATS
+    return _YEAR_FIRST_DATE_FORMATS + date_ordered_formats(day_first) + _DATETIME_IN_DATE_FORMATS
 
 
 def datetime_strptime_formats(day_first: bool) -> tuple[str, ...]:
@@ -73,8 +82,7 @@ def datetime_strptime_formats(day_first: bool) -> tuple[str, ...]:
     value without a time component is not evidence that a column is a datetime,
     but in a declared datetime column it reads as midnight.
     """
-    ordered = _DAY_FIRST_DATETIME_FORMATS if day_first else _MONTH_FIRST_DATETIME_FORMATS
-    return _YEAR_FIRST_DATETIME_FORMATS + ordered
+    return _YEAR_FIRST_DATETIME_FORMATS + datetime_ordered_formats(day_first)
 
 
 def _format_list_sql(formats: tuple[str, ...]) -> str:
@@ -125,6 +133,22 @@ def datetime_parse_expr(value_expr: str, day_first: bool) -> str:
         f"+ ({_serial_double(value_expr)} * INTERVAL 1 DAY) END"
     )
     return f"COALESCE({chain}, {serial})"
+
+
+def date_order_match_predicate(value_expr: str, day_first: bool) -> str:
+    """Return a SQL boolean: ``value_expr`` parses under one order's date formats."""
+    return (
+        f"TRY_STRPTIME({value_expr}, "
+        f"{_format_list_sql(date_ordered_formats(day_first))}) IS NOT NULL"
+    )
+
+
+def datetime_order_match_predicate(value_expr: str, day_first: bool) -> str:
+    """Return a SQL boolean: ``value_expr`` parses under one order's datetime formats."""
+    return (
+        f"TRY_STRPTIME({value_expr}, "
+        f"{_format_list_sql(datetime_ordered_formats(day_first))}) IS NOT NULL"
+    )
 
 
 def time_parse_expr(value_expr: str) -> str:

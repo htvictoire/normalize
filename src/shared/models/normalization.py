@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from pydantic import Field
+
 from shared.models.base import MainModel
 
 
@@ -33,7 +35,16 @@ class QualityOutput(MainModel):
     total_attempted_cells: int  # cells that carried a value to parse
     parse_success_ratio: float  # fidelity: of what was attempted, what survived
     completeness_ratio: float  # source density; reported, not scored
-    quality_score: str  # Decimal serialized as string, e.g. "94.50"
+    quality_score: str = Field(
+        description=(
+            "Parse-fidelity score in [0, 100], a decimal serialized as a string "
+            '(e.g. "94.50"): the share of attempted cells whose values survived '
+            "parsing under the confirmed config. Not a semantic-correctness "
+            "measure — a value read under a wrong declared convention (day/month "
+            "order, CR/DR polarity) parses cleanly and scores 100. Review the "
+            "emitted issues alongside the score."
+        )
+    )
     worst_column_score: str  # score of the least faithful column
     column_null_counts: dict[str, int]
     column_parse_error_counts: dict[str, int]

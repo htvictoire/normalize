@@ -28,6 +28,9 @@ def run_post_confirmation_pipeline(self: object, instance_id: str) -> None:  # t
             # polling for completion stop waiting and learn why it died.
             orchestrator.mark_failed(uid, reason=f"{type(exc).__name__}: {exc}")
             raise
+        # More attempts remain: surface RETRYING so a poller never reads the
+        # FAILED persisted by the attempt itself as terminal.
+        orchestrator.mark_retrying(uid, reason=f"{type(exc).__name__}: {exc}")
         raise self.retry(exc=exc) from exc  # type: ignore[attr-defined]
 
 

@@ -29,7 +29,12 @@ from shared.parsing.currency import (
     CURRENCY_TOKEN_PATTERN_LOWER,
     build_currency_symbol_extract_expr,
 )
-from shared.parsing.markers import has_marker, strip_marker
+from shared.parsing.markers import (
+    has_marker,
+    negative_word_marker,
+    positive_word_marker,
+    strip_marker,
+)
 
 from profiling.column_stats.common import DecimalParseStats
 
@@ -139,7 +144,7 @@ def _build_symbol_source_expr(
     if isinstance(config, CurrencyColumnConfig):
         return structural
 
-    markers = tuple(dict.fromkeys((*config.negative_markers, *config.positive_markers)))
+    markers = (negative_word_marker(config.cr_negative), positive_word_marker(config.cr_negative))
     cases: list[str] = []
     for marker in markers:
         stripped = _strip_structural_sign_for_symbol(strip_marker(trimmed, marker))
@@ -197,10 +202,10 @@ def _build_sign_notation_expr(value_expr: str, config: AccountingColumnConfig) -
     """Return SQL that classifies accounting sign notation into stable buckets."""
     trimmed = f"TRIM({value_expr})"
     cases: list[str] = []
-    for marker in config.negative_markers:
-        cases.append(f"WHEN {has_marker(trimmed, marker)} THEN 'negative_marker'")
-    for marker in config.positive_markers:
-        cases.append(f"WHEN {has_marker(trimmed, marker)} THEN 'positive_marker'")
+    negative_word = negative_word_marker(config.cr_negative)
+    positive_word = positive_word_marker(config.cr_negative)
+    cases.append(f"WHEN {has_marker(trimmed, negative_word)} THEN 'negative_marker'")
+    cases.append(f"WHEN {has_marker(trimmed, positive_word)} THEN 'positive_marker'")
     cases.append(
         f"WHEN REGEXP_FULL_MATCH({trimmed}, {quote_string(r'^\(.+\)$')}) THEN 'parentheses'"
     )
@@ -252,6 +257,12 @@ def compute_symbol_metrics_batch(
                 f"CASE WHEN NOT ({nullish}) THEN {position_expr} ELSE NULL END)"
             )
         else:
+            negative_expr = _build_marker_expr(
+                alias, (negative_word_marker(entry.config.cr_negative),)
+            )
+            positive_expr = _build_marker_expr(
+                alias, (positive_word_marker(entry.config.cr_negative),)
+            )
             value_rows.append(
                 f"({quote_string(entry.column_name)}, 'sign_notation', "
                 f"CASE WHEN NOT ({nullish}) THEN {_build_sign_notation_expr(alias, entry.config)} "
@@ -259,15 +270,11 @@ def compute_symbol_metrics_batch(
             )
             value_rows.append(
                 f"({quote_string(entry.column_name)}, 'negative_marker', "
-                f"CASE WHEN NOT ({nullish}) "
-                f"THEN {_build_marker_expr(alias, entry.config.negative_markers)} "
-                "ELSE NULL END)"
+                f"CASE WHEN NOT ({nullish}) THEN {negative_expr} ELSE NULL END)"
             )
             value_rows.append(
                 f"({quote_string(entry.column_name)}, 'positive_marker', "
-                f"CASE WHEN NOT ({nullish}) "
-                f"THEN {_build_marker_expr(alias, entry.config.positive_markers)} "
-                "ELSE NULL END)"
+                f"CASE WHEN NOT ({nullish}) THEN {positive_expr} ELSE NULL END)"
             )
 
     rows = conn.execute(

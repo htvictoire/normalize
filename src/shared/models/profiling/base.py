@@ -8,10 +8,10 @@ from shared.models.base import MainModel
 
 
 class ColumnCounts(MainModel):
-    null_count: int           # structural: SQL NULL + empty/whitespace
-    nullish_count: int        # semantic: structural + null token matches
-    non_null_count: int       # row_count - null_count
-    non_nullish_count: int    # row_count - nullish_count
+    null_count: int  # structural: SQL NULL + empty/whitespace
+    nullish_count: int  # semantic: structural + null token matches
+    non_null_count: int  # row_count - null_count
+    non_nullish_count: int  # row_count - nullish_count
 
 
 @dataclass(frozen=True)
@@ -86,6 +86,19 @@ class CurrencyFormatProfile(MainModel):
     dominant_currency_token_form: str | None
     dominant_currency_token_form_ratio: float
     has_mixed_currency_token_forms: bool
+
+
+class DayMonthOrderProfile(MainModel):
+    """Base for temporal profiles that track day/month field-order evidence.
+
+    A value is ambiguous when it parses under both orders and decisive when it
+    parses under exactly one.
+    """
+
+    format_match_count: int
+    format_match_ratio: float
+    order_ambiguous_count: int
+    order_decisive_count: int
 
 
 class AccountingSignProfile(MainModel):

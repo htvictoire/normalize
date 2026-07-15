@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import Literal
 
+from pydantic import Field
+
 from shared.models.base import MainModel
 
 ColumnType = Literal[
@@ -29,8 +31,20 @@ class DecimalSyntaxColumnConfig(NumericFormattingColumnConfig):
 
 
 class SignedNotationColumnConfig(DecimalSyntaxColumnConfig):
-    """Capability base for configs with explicit sign marker notation."""
+    """Capability base for configs with explicit sign marker notation.
 
-    positive_markers: tuple[str, ...]
-    negative_markers: tuple[str, ...]
-    parentheses_as_negative: bool
+    Marker tokens are not per-column: CR/DR words, leading/trailing signs, and
+    parentheses-as-negative are the canonical set in ``shared.parsing.markers``.
+    The one declared degree of freedom is which side of the CR/DR pair is
+    negative.
+    """
+
+    cr_negative: bool = Field(
+        default=True,
+        description=(
+            "Whether a CR marker reads as negative (DR then reads positive); "
+            "false inverts the pair. Keep the default unless the column's "
+            "context states credits are positive, e.g. a bank-statement export "
+            "where CR is money in."
+        ),
+    )

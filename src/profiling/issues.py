@@ -2,8 +2,16 @@
 
 from __future__ import annotations
 
-from shared.models.column import ColumnConfig, IdentifierColumnConfig
+from shared.models.column import (
+    ColumnConfig,
+    DateColumnConfig,
+    DateTimeColumnConfig,
+    IdentifierColumnConfig,
+)
+from shared.models.column.specs import has_signed_notation
 from shared.models.issues import (
+    DateOrderAmbiguousEvidence,
+    DateOrderAmbiguousIssue,
     IdentifierDuplicatesEvidence,
     IdentifierDuplicatesIssue,
     IssueSeverity,
@@ -16,14 +24,19 @@ from shared.models.issues import (
     NormalizationIssue,
     PreambleRowsSkippedEvidence,
     PreambleRowsSkippedIssue,
+    SignMarkerConventionEvidence,
+    SignMarkerConventionIssue,
 )
 from shared.models.operation import CsvSourceFormat, ExcelSourceFormat, SourceFormat
 from shared.models.profiling import (
+    AccountingColumnProfile,
     ColumnProfile,
+    DayMonthOrderProfile,
     IdentifierColumnProfile,
     MixedNumberFormatProfile,
     SymbolDistributionProfile,
 )
+from shared.parsing.markers import negative_word_marker, positive_word_marker
 
 
 def _preamble_row_count(source_format: SourceFormat) -> int:
@@ -98,6 +111,38 @@ def collect_column_issues(
                 dot_decimal_count=profile.dot_decimal_count,
             )
         )
+
+    if (
+        isinstance(profile, DayMonthOrderProfile)
+        and isinstance(config, DateColumnConfig | DateTimeColumnConfig)
+        and profile.order_ambiguous_count > 0
+        and profile.order_decisive_count == 0
+    ):
+        issues.append(
+            build_date_order_ambiguous_issue(
+                column_name=column_name,
+                day_first=config.day_first,
+                order_ambiguous_count=profile.order_ambiguous_count,
+                order_decisive_count=profile.order_decisive_count,
+            )
+        )
+
+    if isinstance(profile, AccountingColumnProfile) and has_signed_notation(config):
+        negative_marker = negative_word_marker(config.cr_negative)
+        positive_marker = positive_word_marker(config.cr_negative)
+        negative_count = profile.negative_marker_distribution.get(negative_marker, 0)
+        positive_count = profile.positive_marker_distribution.get(positive_marker, 0)
+        if negative_count > 0 or positive_count > 0:
+            issues.append(
+                build_sign_marker_convention_issue(
+                    column_name=column_name,
+                    cr_negative=config.cr_negative,
+                    negative_marker=negative_marker,
+                    positive_marker=positive_marker,
+                    negative_marker_count=negative_count,
+                    positive_marker_count=positive_count,
+                )
+            )
 
     return issues
 
@@ -177,6 +222,67 @@ def build_mixed_currency_issue(
             symbol_detected_ratio=symbol_detected_ratio,
             dominant_symbol=dominant_symbol,
             dominant_symbol_ratio=dominant_symbol_ratio,
+        ),
+    )
+
+
+def build_date_order_ambiguous_issue(
+    column_name: str,
+    day_first: bool,
+    order_ambiguous_count: int,
+    order_decisive_count: int,
+) -> DateOrderAmbiguousIssue:
+    """Every order-bearing value parses under both day/month orders.
+
+    Warned because the confirmed day_first setting is then the only thing
+    deciding the dates: a wrong setting transposes day and month while parsing
+    cleanly.
+    """
+    order = "day-first" if day_first else "month-first"
+    return DateOrderAmbiguousIssue(
+        severity=IssueSeverity.WARNING,
+        message=(
+            f"Column {column_name!r} has {order_ambiguous_count} day/month-ambiguous "
+            f"values and none that prove the order; all are read {order} per the "
+            "confirmed day_first setting"
+        ),
+        location=column_name,
+        evidence=DateOrderAmbiguousEvidence(
+            day_first=day_first,
+            order_ambiguous_count=order_ambiguous_count,
+            order_decisive_count=order_decisive_count,
+        ),
+    )
+
+
+def build_sign_marker_convention_issue(
+    column_name: str,
+    cr_negative: bool,
+    negative_marker: str,
+    positive_marker: str,
+    negative_marker_count: int,
+    positive_marker_count: int,
+) -> SignMarkerConventionIssue:
+    """CR/DR polarity is a declared convention, not derivable from the values.
+
+    Warned so a consumer can verify the applied convention before trusting the
+    signs: a flipped convention negates every marked amount while parsing
+    cleanly.
+    """
+    return SignMarkerConventionIssue(
+        severity=IssueSeverity.WARNING,
+        message=(
+            f"Column {column_name!r} carries {negative_marker}/{positive_marker} sign "
+            f"markers; {negative_marker} is read as negative and {positive_marker} as "
+            "positive per the confirmed cr_negative setting"
+        ),
+        location=column_name,
+        evidence=SignMarkerConventionEvidence(
+            cr_negative=cr_negative,
+            negative_marker=negative_marker,
+            positive_marker=positive_marker,
+            negative_marker_count=negative_marker_count,
+            positive_marker_count=positive_marker_count,
         ),
     )
 

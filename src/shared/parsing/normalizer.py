@@ -24,7 +24,12 @@ from shared.models.column import (
     SignedColumnConfig,
 )
 from shared.parsing.currency import normalize_structural_sign, strip_currency_symbols
-from shared.parsing.markers import has_marker, strip_marker
+from shared.parsing.markers import (
+    has_marker,
+    negative_sign_markers,
+    positive_sign_markers,
+    strip_marker,
+)
 
 
 def build_value_candidate_expr(value_expr: str, config: ColumnConfig) -> str:
@@ -53,45 +58,38 @@ def _currency_candidate(trimmed: str) -> str:
 
 def _signed_candidate(trimmed: str, config: SignedColumnConfig) -> str:
     cases = []
-    for marker in config.negative_markers:
+    for marker in negative_sign_markers(config.cr_negative):
         stripped = strip_marker(trimmed, marker)
         cases.append(f"WHEN {has_marker(trimmed, marker)} THEN '-' || TRIM({stripped})")
-    for marker in config.positive_markers:
+    for marker in positive_sign_markers(config.cr_negative):
         stripped = strip_marker(trimmed, marker)
         cases.append(f"WHEN {has_marker(trimmed, marker)} THEN TRIM({stripped})")
-    if config.parentheses_as_negative:
-        inner = f"TRIM(SUBSTRING({trimmed}, 2, LENGTH({trimmed}) - 2))"
-        cases.append(
-            f"WHEN REGEXP_FULL_MATCH({trimmed}, {quote_string(r'^\(.+\)$')}) "
-            f"THEN '-' || {inner}"
-        )
-    if not cases:
-        return trimmed
+    inner = f"TRIM(SUBSTRING({trimmed}, 2, LENGTH({trimmed}) - 2))"
+    cases.append(
+        f"WHEN REGEXP_FULL_MATCH({trimmed}, {quote_string(r'^\(.+\)$')}) "
+        f"THEN '-' || {inner}"
+    )
     return "CASE " + " ".join(cases) + f" ELSE {trimmed} END"
 
 
 def _accounting_candidate(trimmed: str, config: AccountingColumnConfig) -> str:
     """Accounting: sign markers take priority over currency stripping.
 
-    Markers are consumed from the config before the global currency symbol
-    pattern has a chance to remove them (prevents CR/DR being treated as
-    currency tokens).
+    Markers are consumed before the global currency symbol pattern has a
+    chance to remove them (prevents CR/DR being treated as currency tokens).
     """
     cases = []
-    for marker in config.negative_markers:
+    for marker in negative_sign_markers(config.cr_negative):
         stripped = strip_currency_symbols(strip_marker(trimmed, marker))
         cases.append(f"WHEN {has_marker(trimmed, marker)} THEN '-' || {stripped}")
-    for marker in config.positive_markers:
+    for marker in positive_sign_markers(config.cr_negative):
         stripped = strip_currency_symbols(strip_marker(trimmed, marker))
         cases.append(f"WHEN {has_marker(trimmed, marker)} THEN {stripped}")
-    if config.parentheses_as_negative:
-        inner = f"TRIM(SUBSTRING({trimmed}, 2, LENGTH({trimmed}) - 2))"
-        inner_stripped = strip_currency_symbols(inner)
-        cases.append(
-            f"WHEN REGEXP_FULL_MATCH({trimmed}, {quote_string(r'^\(.+\)$')}) "
-            f"THEN '-' || {inner_stripped}"
-        )
+    inner = f"TRIM(SUBSTRING({trimmed}, 2, LENGTH({trimmed}) - 2))"
+    inner_stripped = strip_currency_symbols(inner)
+    cases.append(
+        f"WHEN REGEXP_FULL_MATCH({trimmed}, {quote_string(r'^\(.+\)$')}) "
+        f"THEN '-' || {inner_stripped}"
+    )
     else_expr = normalize_structural_sign(strip_currency_symbols(trimmed))
-    if not cases:
-        return else_expr
     return "CASE " + " ".join(cases) + f" ELSE {else_expr} END"

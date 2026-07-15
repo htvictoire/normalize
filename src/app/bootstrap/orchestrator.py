@@ -125,6 +125,14 @@ class MainOrchestrator:
             self._enqueue_post_confirmation_pipeline(instance_id)
         return instance
 
+    def mark_retrying(self, instance_id: UUID, reason: str) -> InstanceModel:
+        """Record a failed attempt that the worker will retry, and notify."""
+        instance = self._repository.get_required(instance_id)
+        instance.retry(reason)
+        self._repository.save(instance)
+        self._notify(instance)
+        return instance
+
     def mark_failed(self, instance_id: UUID, reason: str) -> InstanceModel:
         """Record a final failure and notify. Called when worker retries are exhausted."""
         instance = self._repository.get_required(instance_id)
