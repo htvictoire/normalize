@@ -45,7 +45,6 @@ class InstanceStatus(StrEnum):
     PROFILING = "PROFILING"
     PROFILED = "PROFILED"
     NORMALIZING = "NORMALIZING"
-    RETRYING = "RETRYING"
     READY = "READY"
     READY_WITH_WARNINGS = "READY_WITH_WARNINGS"
     BLOCKED = "BLOCKED"
@@ -105,7 +104,7 @@ class InstanceModel(MainModel):
     failure_reason: str | None = None
     timings: StageTimings = Field(default_factory=StageTimings)
     # Issues accumulate across phases, keyed by the phase that raised them so a
-    # re-run (worker retry) replaces its own slice instead of duplicating.
+    # re-run replaces its own slice instead of duplicating.
     issues_by_phase: dict[str, list[NormalizationIssue]] = Field(default_factory=dict)
 
     @property
@@ -188,15 +187,6 @@ class InstanceModel(MainModel):
         """Enter an in-flight phase, discarding any failure left by a previous attempt."""
         self.failure_reason = None
         self.status = status
-
-    def retry(self, reason: str) -> None:
-        """Mark a failed attempt that will be retried, recording what threw.
-
-        Not FAILED — FAILED is terminal; a RETRYING instance re-enters its phase
-        on the next attempt.
-        """
-        self.failure_reason = reason
-        self.status = InstanceStatus.RETRYING
 
     def fail(self, reason: str) -> None:
         """Terminate as FAILED: the pipeline crashed, recording what threw.

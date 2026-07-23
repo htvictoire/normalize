@@ -10,6 +10,7 @@ from shared.errors import (
     InstanceNotFoundError,
     InvalidRequestError,
     InvalidStateError,
+    ProviderQuotaExceededError,
     ProviderUnreachableError,
 )
 
@@ -40,3 +41,7 @@ def register_exception_handlers(app: FastAPI) -> None:
     @app.exception_handler(ProviderUnreachableError)
     def unavailable_handler(_request: Request, exc: ProviderUnreachableError) -> JSONResponse:
         return JSONResponse(status_code=503, content={"detail": str(exc)})
+
+    @app.exception_handler(ProviderQuotaExceededError)
+    def quota_handler(_request: Request, exc: ProviderQuotaExceededError) -> JSONResponse:
+        return JSONResponse(status_code=429, content={"detail": str(exc)})

@@ -19,17 +19,12 @@ from shared.models.instance import InstanceModel, InstanceStatus
 from shared.models.instance_config import InstanceConfig
 from shared.models.source import SourceRef
 from shared.models.suggestion import SuggestionInput
-from shared.models.webhook import WebhookEvent
 from shared.settings import get_settings
 
 from app.bootstrap.conversion import ConversionService
 from app.bootstrap.profiling import ProfilingService
 from app.bootstrap.suggestion import SuggestionService
-from app.bootstrap.validation import (
-    validate_auto_confirm,
-    validate_file_format,
-    validate_source_path,
-)
+from app.bootstrap.validation import validate_file_format, validate_source_path
 from app.bootstrap.webhook import send_webhook
 from app.infra.postgres.repository import PostgresRunRepository
 
@@ -49,33 +44,17 @@ class MainOrchestrator:
     def get_instance(self, instance_id: UUID) -> InstanceModel | None:
         return self._repository.get(instance_id)
 
-    def _enqueue_post_confirmation_pipeline(self, instance_id: UUID) -> None:
-        from app.worker.app import celery_app  # noqa: PLC0415
-
-        celery_app.send_task(
-            "app.worker.tasks.run_post_confirmation_pipeline",
-            args=[str(instance_id)],
-        )
-
     def _notify(self, instance: InstanceModel) -> None:
-        """Deliver the instance's status and issues-so-far to its webhook, if one is set."""
+        """Deliver the complete current instance to its webhook, if one is set."""
         if not instance.webhook_url:
             return
-        send_webhook(
-            instance.webhook_url,
-            WebhookEvent(
-                instance_id=str(instance.instance_id),
-                status=instance.status,
-                issues=instance.issues,
-            ),
-        )
+        send_webhook(instance.webhook_url, instance)
 
     def suggest(
         self,
         request: SuggestionInput,
     ) -> InstanceModel:
         started_at = datetime.now(UTC)
-        validate_auto_confirm(request)
         validate_source_path(request)
         validate_file_format(request)
         result = self._suggestion_service.suggest(request)
@@ -103,40 +82,15 @@ class MainOrchestrator:
         instance.timings.suggest_ended_at = datetime.now(UTC)
         instance.timings.estimated_pipeline_seconds = result.estimated_pipeline_seconds
         self._repository.save(instance)
-        if request.auto_confirm:
-            instance.confirm(result.suggested_config)
-            self._repository.save(instance)
-            self._notify(instance)
-            if request.auto_normalize:
-                self._enqueue_post_confirmation_pipeline(instance.instance_id)
         return instance
 
     def confirm(
         self,
         instance_id: UUID,
         confirmed_config: InstanceConfig,
-        auto_normalize: bool = False,
     ) -> InstanceModel:
         instance = self._repository.get_required(instance_id)
         instance.confirm(confirmed_config)
-        self._repository.save(instance)
-        self._notify(instance)
-        if auto_normalize:
-            self._enqueue_post_confirmation_pipeline(instance_id)
-        return instance
-
-    def mark_retrying(self, instance_id: UUID, reason: str) -> InstanceModel:
-        """Record a failed attempt that the worker will retry, and notify."""
-        instance = self._repository.get_required(instance_id)
-        instance.retry(reason)
-        self._repository.save(instance)
-        self._notify(instance)
-        return instance
-
-    def mark_failed(self, instance_id: UUID, reason: str) -> InstanceModel:
-        """Record a final failure and notify. Called when worker retries are exhausted."""
-        instance = self._repository.get_required(instance_id)
-        instance.fail(reason)
         self._repository.save(instance)
         self._notify(instance)
         return instance
@@ -145,15 +99,14 @@ class MainOrchestrator:
     def _terminal_on_error(self, instance: InstanceModel) -> Iterator[None]:
         """Guarantee a phase never leaves an instance frozen in an in-flight status.
 
-        Any exception persists FAILED with its cause and re-raises. It deliberately
-        does not fire the webhook: the worker owns that once retries are exhausted,
-        and a synchronous caller receives the exception itself.
+        Any exception persists FAILED with its cause, notifies the webhook, and re-raises.
         """
         try:
             yield
         except Exception as exc:
             instance.fail(f"{type(exc).__name__}: {exc}")
             self._repository.save(instance)
+            self._notify(instance)
             raise
 
     def _advance(self, instance: InstanceModel, status: InstanceStatus) -> None:

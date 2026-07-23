@@ -7,8 +7,9 @@ from uuid import UUID
 from fastapi import APIRouter, HTTPException, Request
 
 from shared.models.instance import InstanceModel
+from shared.models.instance_config import InstanceConfig
 
-from app.api.models import ConfirmRequest, SuggestRequest
+from app.api.models import SuggestRequest
 from app.bootstrap import MainOrchestrator
 
 router = APIRouter()
@@ -37,12 +38,8 @@ def get_instance_endpoint(request: Request, instance_id: UUID) -> InstanceModel:
 
 
 @router.put("/normalize/instances/{instance_id}/confirm", response_model=InstanceModel)
-def confirm_endpoint(request: Request, instance_id: UUID, payload: ConfirmRequest) -> InstanceModel:
-    return _orchestrator(request).confirm(
-        instance_id,
-        payload.config,
-        payload.auto_normalize,
-    )
+def confirm_endpoint(request: Request, instance_id: UUID, payload: InstanceConfig) -> InstanceModel:
+    return _orchestrator(request).confirm(instance_id, payload)
 
 
 @router.post("/normalize/instances/{instance_id}/profile", response_model=InstanceModel)

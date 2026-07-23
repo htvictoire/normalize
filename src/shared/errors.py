@@ -40,3 +40,11 @@ class InferenceValidationError(InferenceError):
 
 class ProviderUnreachableError(InferenceError):
     """The inference provider could not be reached or gave no usable response."""
+
+
+class ProviderQuotaExceededError(InferenceError):
+    """The inference provider rejected the request for exceeding its quota or rate limit.
+
+    Distinct from ProviderUnreachableError: retrying within the same quota window does
+    not recover, so the caller must wait for the window to reset or raise the plan limit.
+    """

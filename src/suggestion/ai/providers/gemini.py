@@ -25,7 +25,11 @@ from typing import Any, TypeVar
 
 from pydantic import ValidationError
 
-from shared.errors import InferenceValidationError, ProviderUnreachableError
+from shared.errors import (
+    InferenceValidationError,
+    ProviderQuotaExceededError,
+    ProviderUnreachableError,
+)
 from shared.models.base import MainModel
 from shared.settings import get_settings
 
@@ -42,6 +46,7 @@ _MAX_ATTEMPTS = 3
 _RETRY_TEMPERATURE = 0.3
 _BASE_BACKOFF_SECONDS = 0.5
 _MAX_BACKOFF_SECONDS = 2.0
+_HTTP_TOO_MANY_REQUESTS = 429
 
 # Optional dependency (the "ai" extra). Held as Any so this module type-checks
 # whether or not google-genai is installed in the current environment.
@@ -66,6 +71,16 @@ def _backoff_seconds(attempt: int) -> float:
     """Capped exponential backoff."""
     delay: float = _BASE_BACKOFF_SECONDS * (2**attempt)
     return min(_MAX_BACKOFF_SECONDS, delay)
+
+
+def _is_quota_exhausted(exc: BaseException) -> bool:
+    """Whether a provider error is an HTTP 429 quota / rate-limit rejection."""
+    if _genai is None or not isinstance(exc, _genai.errors.APIError):
+        return False
+    return (
+        getattr(exc, "code", None) == _HTTP_TOO_MANY_REQUESTS
+        or getattr(exc, "status", None) == "RESOURCE_EXHAUSTED"
+    )
 
 
 class GeminiInferenceProvider(FileInferenceProvider):
@@ -110,6 +125,14 @@ class GeminiInferenceProvider(FileInferenceProvider):
                     config=config,
                 )
             except _UNREACHABLE_ERRORS as exc:
+                # Quota/rate-limit rejections do not recover within the window, and each
+                # retry consumes more of the same allowance: fail fast without retrying.
+                if _is_quota_exhausted(exc):
+                    logger.exception("Gemini quota exhausted")
+                    raise ProviderQuotaExceededError(
+                        "The AI service quota has been exhausted. Retry after the quota "
+                        "window resets, or raise the provider plan limit."
+                    ) from exc
                 last_error, last_unreachable = exc, True
                 continue
             raw = response.text or ""

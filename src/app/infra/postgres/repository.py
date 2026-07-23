@@ -151,7 +151,7 @@ class PostgresRunRepository:
                 SET status = 'FAILED',
                     failure_reason = 'stranded in ' || status || ' past threshold',
                     updated_at = NOW()
-                WHERE status IN ('PROFILING', 'NORMALIZING', 'RETRYING')
+                WHERE status IN ('PROFILING', 'NORMALIZING')
                   AND updated_at < NOW() - %s
                 RETURNING instance_id
                 """,
