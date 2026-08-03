@@ -31,10 +31,13 @@ def validate_source_path(source: SourceRef) -> None:
     """Reject a local source that resolves outside the permitted root.
 
     ``resolve()`` follows symlinks and collapses ``..``, so containment is checked
-    against the real target. S3 sources are not path-checked.
+    against the real target. S3 sources are not path-checked. Callers only reach
+    this once a real source_file exists (never for a draft's sample alone).
     """
     if source.source_type != "local":
         return
+    if source.source_file is None:
+        raise SourceError("Source has no source_file to validate.")
     root = Path(get_settings().local_source_root).resolve()
     resolved = Path(source.source_file).resolve()
     if resolved != root and not resolved.is_relative_to(root):

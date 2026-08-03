@@ -27,7 +27,7 @@ from suggestion.source.json import (
     read_json_column_names_and_inference_rows,
     read_json_sample_rows,
 )
-from suggestion.source.reading import SourceReading
+from suggestion.source.reading import SourceReading, effective_file_format
 
 
 def _read_csv_source(source: SourceRef) -> SourceReading:
@@ -35,7 +35,7 @@ def _read_csv_source(source: SourceRef) -> SourceReading:
     source_format = infer_csv_source_format(sample)
     text = sample.decode(source_format.encoding, errors="ignore")
     sample_rows = read_csv_sample_rows(text, source_format.delimiter)
-    column_names, inference_rows = read_csv_column_names_and_inference_rows(
+    column_names, inference_rows, discarded = read_csv_column_names_and_inference_rows(
         text,
         delimiter=source_format.delimiter,
         header_mode=source_format.header_mode,
@@ -50,10 +50,14 @@ def _read_csv_source(source: SourceRef) -> SourceReading:
         ingestion_source_url=setup.url,
         ingestion_source_type=setup.source_type,
         cleanup_path=setup.cleanup_path,
+        discarded_row_count=discarded,
+        is_sample_based=source.sample is not None,
     )
 
 
 def _read_excel_source(source: SourceRef) -> SourceReading:
+    if source.source_file is None:
+        raise ValueError("Excel source has no source_file; it cannot be read from a sample.")
     if source.source_type == "s3":
         temp_path = download_s3_temp(s3_ref(source.source_file))
         ingestion_url = str(temp_path)
@@ -94,15 +98,17 @@ def _read_json_source(source: SourceRef) -> SourceReading:
         ingestion_source_url=setup.url,
         ingestion_source_type=setup.source_type,
         cleanup_path=setup.cleanup_path,
+        is_sample_based=source.sample is not None,
     )
 
 
 def read_source(source: SourceRef) -> SourceReading:
     """Infer format settings, collect sample rows, and parse inference rows for one source."""
-    if source.source_file_format == "csv":
+    fmt = effective_file_format(source)
+    if fmt == "csv":
         return _read_csv_source(source)
-    if source.source_file_format == "excel":
+    if fmt == "excel":
         return _read_excel_source(source)
-    if source.source_file_format == "json":
+    if fmt == "json":
         return _read_json_source(source)
-    raise ValueError(f"Unsupported source file format: {source.source_file_format!r}")
+    raise ValueError(f"Unsupported source file format: {fmt!r}")

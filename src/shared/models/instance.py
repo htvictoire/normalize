@@ -18,10 +18,10 @@ from shared.models.operation import (
     DecisionThresholds,
     FileFormat,
     FileSource,
-    SuggestionMethod,
+    InferenceMethod,
 )
 from shared.models.profiling import ProfilingOutput
-from shared.models.suggestion import SuggestionConfidence, SuggestionDisplay
+from shared.models.suggestion import LayoutOutput, TypingOutput
 
 
 class StageTimings(MainModel):
@@ -40,6 +40,8 @@ class InstanceStatus(StrEnum):
     """Lifecycle status for suggest->confirm->profile->normalize orchestration."""
 
     PENDING = "PENDING"
+    # Layout resolved and columns parsed; no column has been typed yet.
+    LAYOUT_RESOLVED = "LAYOUT_RESOLVED"
     AWAITING_CONFIRMATION = "AWAITING_CONFIRMATION"
     CONFIRMED = "CONFIRMED"
     PROFILING = "PROFILING"
@@ -89,15 +91,15 @@ class InstanceModel(MainModel):
     status: InstanceStatus
     source_file_name: str
     source_file_format: FileFormat
-    source_file: str
+    source_file: str | None = None
     source_type: FileSource
     source_checksum: str
-    suggestion_method: SuggestionMethod
+    layout_method: InferenceMethod
+    typing_method: InferenceMethod
     extended_type_detection: bool
     webhook_url: str | None = None
-    suggested_config: InstanceConfig | None = None
-    suggestion_display: SuggestionDisplay | None = None
-    suggestion_confidence: SuggestionConfidence | None = None
+    layout_output: LayoutOutput | None = None
+    typing_output: TypingOutput | None = None
     confirmed_config: InstanceConfig | None = None
     profiling_output: ProfilingOutput | None = None
     normalization_output: NormalizationOutput | None = None
@@ -106,6 +108,11 @@ class InstanceModel(MainModel):
     # Issues accumulate across phases, keyed by the phase that raised them so a
     # re-run replaces its own slice instead of duplicating.
     issues_by_phase: dict[str, list[NormalizationIssue]] = Field(default_factory=dict)
+
+    @property
+    def is_draft(self) -> bool:
+        """Whether the instance still lacks a real location, known only by sample."""
+        return self.source_file is None
 
     @property
     def issues(self) -> list[NormalizationIssue]:
@@ -122,12 +129,13 @@ class InstanceModel(MainModel):
     @classmethod
     def create(
         cls,
-        source_file: str,
+        source_file: str | None,
         source_file_name: str,
         source_type: FileSource,
         source_file_format: FileFormat,
         source_checksum: str,
-        suggestion_method: SuggestionMethod,
+        layout_method: InferenceMethod,
+        typing_method: InferenceMethod,
         extended_type_detection: bool,
         tenant_id: str = "default",
         instance_id: UUID | None = None,
@@ -142,21 +150,26 @@ class InstanceModel(MainModel):
             source_file=source_file,
             source_type=source_type,
             source_checksum=source_checksum,
-            suggestion_method=suggestion_method,
+            layout_method=layout_method,
+            typing_method=typing_method,
             extended_type_detection=extended_type_detection,
         )
 
-    def set_suggestion_output(
-        self,
-        suggested_config: InstanceConfig,
-        confidence: SuggestionConfidence,
-        display: SuggestionDisplay,
-    ) -> None:
-        """Store suggestion results and move status to awaiting confirmation."""
-        self.suggested_config = suggested_config
-        self.suggestion_confidence = confidence
-        self.suggestion_display = display
+    def set_layout_output(self, layout: LayoutOutput) -> None:
+        """Store a parsed source, leaving it ready to be typed."""
+        self.layout_output = layout
+        self.timings.estimated_pipeline_seconds = layout.estimated_pipeline_seconds
+        self.status = InstanceStatus.LAYOUT_RESOLVED
+
+    def set_typing_output(self, typing: TypingOutput) -> None:
+        """Store the typing answer and move status to awaiting confirmation."""
+        self.typing_output = typing
+        self.record_issues("suggestion", typing.issues)
         self.status = InstanceStatus.AWAITING_CONFIRMATION
+
+    def attach_source(self, source_file: str) -> None:
+        """Attach the real location a draft instance was suggested from a sample of."""
+        self.source_file = source_file
 
     def confirm(self, confirmed_config: InstanceConfig) -> None:
         """Persist confirmed config and mark instance ready to profile."""

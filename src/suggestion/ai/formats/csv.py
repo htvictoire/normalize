@@ -1,40 +1,28 @@
-"""CSV file-type inference for the AI strategy.
+"""CSV layout inference and reading for the AI strategy.
 
-The model receives raw decoded CSV text (no delimiter or header pre-applied)
-and returns the delimiter, header location, and per-column configs. Encoding is
-resolved mechanically on our side (needed to decode bytes before the model can
-read them); everything structural is the model's call.
+The model sees raw decoded text with nothing pre-applied and names the delimiter
+and header row. Encoding is resolved mechanically, since bytes must be decoded
+before there is any text for the model to read.
 """
 
 from __future__ import annotations
 
-from typing import Literal, cast
+from typing import Literal
 
-from shared.ingestion import resolve_ingestion_setup
-from shared.models.operation import CsvSourceFormat, HeaderMode
+from pydantic import Field
+
+from shared.models.operation import CsvSourceFormat, HeaderMode, SourceFormat
 from shared.models.source import SourceRef
-from shared.models.suggestion import SuggestionConfidence
-from shared.settings import get_settings
+from shared.models.suggestion import LayoutConfidence
 from shared.storage.probe import read_source_probe
 
-from suggestion.ai.formats.base import (
-    AiColumnInference,
-    AiInferenceResult,
-    FormatInference,
-    ReconciledInference,
-    make_core_output_model,
-    pair_columns_by_position,
-)
-from suggestion.constants import FILE_SAMPLE_BYTES
-from suggestion.source import SourceReading
-from suggestion.source.csv import (
-    infer_csv_encoding,
-    read_csv_column_names_and_inference_rows,
-    read_csv_sample_rows,
-)
+from suggestion.ai.formats.base import InferredLayout, LayoutAnswer
+from suggestion.constants import FILE_SAMPLE_BYTES, LAYOUT_SAMPLE_ROWS
+from suggestion.source import SourceReading, read_under_format
+from suggestion.source.csv import infer_csv_encoding
 
-# The model names the delimiter (unambiguous, avoids escaping tab/newline in JSON);
-# we map the name to the actual character for parsing.
+# The model names the delimiter rather than emitting it, which keeps tab and
+# newline out of the JSON it has to escape.
 DelimiterName = Literal["comma", "semicolon", "tab", "pipe"]
 _DELIMITER_CHARS: dict[DelimiterName, str] = {
     "comma": ",",
@@ -43,91 +31,68 @@ _DELIMITER_CHARS: dict[DelimiterName, str] = {
     "pipe": "|",
 }
 
-_PROMPT = """\
+_LAYOUT_PROMPT = """\
 You are given the first lines of a CSV file, exactly as stored (no parsing applied).
 
 Determine:
 1. The field delimiter (one of: comma, semicolon, tab, pipe).
 2. Whether the file has a header row, and if so its 1-based row index; otherwise
    report the header as absent.
-3. For each column, in left-to-right order: a name, its normalized type config,
-   and your confidence (0.0-1.0) in that column's typing.
 
-Also report your confidence (0.0-1.0) in the delimiter and header decisions.
+Report your confidence (0.0-1.0) in each decision separately.
 
 CSV sample:
 {sample}
 """
 
 
-class CsvAiInferenceResult(AiInferenceResult):
-    """Model output for a CSV source."""
+class CsvLayoutAnswer(LayoutAnswer):
+    """The delimiter and header row the model read off a CSV sample."""
 
     delimiter: DelimiterName
-    delimiter_confidence: float
+    delimiter_confidence: float = Field(ge=0.0, le=1.0)
     header_mode: HeaderMode
     header_row_index: int | None
-    header_confidence: float
-    columns: list[AiColumnInference]
+    header_confidence: float = Field(ge=0.0, le=1.0)
 
 
-class CsvFormatInference(FormatInference):
-    """CSV prompt, sampling, and reconciliation."""
+class CsvFormatInference(InferredLayout[CsvLayoutAnswer]):
+    """CSV layout inference and reading."""
 
-    output_model = CsvAiInferenceResult
-    core_output_model = make_core_output_model("CoreCsvAiInferenceResult", CsvAiInferenceResult)
+    @property
+    def layout_answer(self) -> type[CsvLayoutAnswer]:
+        return CsvLayoutAnswer
 
-    def sample(self, source: SourceRef) -> str:
-        _, text = _read_decoded(source)
-        row_count = get_settings().ai_sample_row_count
-        return "\n".join(text.splitlines()[:row_count])
+    def layout_sample(self, source: SourceRef) -> str:
+        _, text = _decode(source)
+        return "\n".join(text.splitlines()[:LAYOUT_SAMPLE_ROWS])
 
-    def build_prompt(self, sample: str) -> str:
-        return _PROMPT.format(sample=sample)
+    def build_layout_prompt(self, sample: str) -> str:
+        return _LAYOUT_PROMPT.format(sample=sample)
 
-    def reconcile(self, result: AiInferenceResult, source: SourceRef) -> ReconciledInference:
-        self.validate_result_type(result)
-        result = cast(CsvAiInferenceResult, result)
-        encoding, text = _read_decoded(source)
-        delimiter = _DELIMITER_CHARS[result.delimiter]
-
-        source_format = CsvSourceFormat(
+    def to_source_format(self, answer: CsvLayoutAnswer, source: SourceRef) -> SourceFormat:
+        encoding, _ = _decode(source)
+        return CsvSourceFormat(
             encoding=encoding,
-            delimiter=delimiter,
-            header_mode=result.header_mode,
-            header_row_index=result.header_row_index,
-        )
-        column_names, inference_rows = read_csv_column_names_and_inference_rows(
-            text,
-            delimiter=delimiter,
-            header_mode=result.header_mode,
-            header_row_index=result.header_row_index,
-        )
-        setup = resolve_ingestion_setup(source, source_format)
-        reading = SourceReading(
-            source_format=source_format,
-            sample_rows=read_csv_sample_rows(text, delimiter),
-            column_names=column_names,
-            inference_rows=inference_rows,
-            ingestion_source_url=setup.url,
-            ingestion_source_type=setup.source_type,
-            cleanup_path=setup.cleanup_path,
+            delimiter=_DELIMITER_CHARS[answer.delimiter],
+            header_mode=answer.header_mode,
+            header_row_index=answer.header_row_index,
         )
 
-        column_config, confidences = pair_columns_by_position(column_names, result.columns)
-        return ReconciledInference(
-            reading=reading,
-            column_config=column_config,
-            confidence=SuggestionConfidence(
-                delimiter=result.delimiter_confidence,
-                header=result.header_confidence,
-                column_config=confidences,
-            ),
+    def layout_confidence(self, answer: CsvLayoutAnswer) -> LayoutConfidence:
+        return LayoutConfidence(
+            delimiter=answer.delimiter_confidence,
+            header=answer.header_confidence,
         )
 
+    def read(self, source: SourceRef, source_format: SourceFormat) -> SourceReading:
+        if not isinstance(source_format, CsvSourceFormat):
+            raise TypeError(f"Expected a CSV layout, got {type(source_format).__name__}.")
+        return read_under_format(source, source_format)
 
-def _read_decoded(source: SourceRef) -> tuple[str, str]:
+
+def _decode(source: SourceRef, encoding: str | None = None) -> tuple[str, str]:
     """Read the probe bytes once and return (encoding, decoded_text)."""
     sample_bytes = read_source_probe(source, FILE_SAMPLE_BYTES)
-    encoding = infer_csv_encoding(sample_bytes)
-    return encoding, sample_bytes.decode(encoding, errors="ignore")
+    resolved = encoding or infer_csv_encoding(sample_bytes)
+    return resolved, sample_bytes.decode(resolved, errors="ignore")

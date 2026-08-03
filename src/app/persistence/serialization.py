@@ -12,7 +12,7 @@ from shared.models.instance_config import InstanceConfig
 from shared.models.issues import NormalizationIssue
 from shared.models.normalization import NormalizationOutput
 from shared.models.profiling import ProfilingOutput
-from shared.models.suggestion import SuggestionConfidence, SuggestionDisplay
+from shared.models.suggestion import LayoutOutput, TypingOutput
 
 _ISSUES_BY_PHASE = TypeAdapter(dict[str, list[NormalizationIssue]])
 
@@ -28,22 +28,18 @@ def instance_to_record(instance: InstanceModel) -> dict[str, Any]:
         "source_file_format": instance.source_file_format,
         "source_type": instance.source_type,
         "source_checksum": instance.source_checksum,
-        "suggestion_method": instance.suggestion_method,
+        "layout_method": instance.layout_method,
+        "typing_method": instance.typing_method,
         "extended_type_detection": instance.extended_type_detection,
         "webhook_url": instance.webhook_url,
-        "suggested_config": (
-            instance.suggested_config.model_dump(mode="json")
-            if instance.suggested_config is not None
+        "layout_output": (
+            instance.layout_output.model_dump(mode="json")
+            if instance.layout_output is not None
             else None
         ),
-        "suggestion_display": (
-            instance.suggestion_display.model_dump(mode="json")
-            if instance.suggestion_display is not None
-            else None
-        ),
-        "suggestion_confidence": (
-            instance.suggestion_confidence.model_dump(mode="json")
-            if instance.suggestion_confidence is not None
+        "typing_output": (
+            instance.typing_output.model_dump(mode="json")
+            if instance.typing_output is not None
             else None
         ),
         "confirmed_config": (
@@ -79,21 +75,17 @@ def record_to_instance(record: Mapping[str, Any]) -> InstanceModel:
         source_file_format=record["source_file_format"],
         source_type=record["source_type"],
         source_checksum=record["source_checksum"],
-        suggestion_method=record["suggestion_method"],
+        layout_method=record["layout_method"],
+        typing_method=record["typing_method"],
         extended_type_detection=record["extended_type_detection"],
-        suggested_config=(
-            InstanceConfig.model_validate(record["suggested_config"])
-            if record.get("suggested_config") is not None
+        layout_output=(
+            LayoutOutput.model_validate(record["layout_output"])
+            if record.get("layout_output") is not None
             else None
         ),
-        suggestion_display=(
-            SuggestionDisplay.model_validate(record["suggestion_display"])
-            if record.get("suggestion_display") is not None
-            else None
-        ),
-        suggestion_confidence=(
-            SuggestionConfidence.model_validate(record["suggestion_confidence"])
-            if record.get("suggestion_confidence") is not None
+        typing_output=(
+            TypingOutput.model_validate(record["typing_output"])
+            if record.get("typing_output") is not None
             else None
         ),
         confirmed_config=(

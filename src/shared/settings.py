@@ -27,6 +27,8 @@ class Settings(BaseSettings):
     ai_sample_row_count: int = 50
     gemini_api_key: str = ""
     gemini_model: str
+    claude_api_key: str = ""
+    claude_model: str = "claude-sonnet-5"
 
     model_config = SettingsConfigDict(
         env_prefix="NORMALIZE_",

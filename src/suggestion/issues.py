@@ -8,25 +8,26 @@ from shared.models.issues import (
     LowConfidenceIssue,
     LowConfidenceItem,
 )
-from shared.models.suggestion import SuggestionConfidence, SuggestionDisplay
+from shared.models.suggestion import LayoutConfidence, SuggestionDisplay
 
 
 def low_confidence_items(
-    confidence: SuggestionConfidence,
+    layout: LayoutConfidence,
+    column_confidence: dict[str, float],
     display: SuggestionDisplay,
     threshold: float,
 ) -> list[LowConfidenceItem]:
     """Return every scored inference below ``threshold`` — columns, delimiter, header."""
     items: list[LowConfidenceItem] = []
-    if confidence.delimiter is not None and confidence.delimiter < threshold:
+    if layout.delimiter is not None and layout.delimiter < threshold:
         items.append(
-            LowConfidenceItem(target="delimiter", kind="delimiter", confidence=confidence.delimiter)
+            LowConfidenceItem(target="delimiter", kind="delimiter", confidence=layout.delimiter)
         )
-    if confidence.header is not None and confidence.header < threshold:
+    if layout.header is not None and layout.header < threshold:
         items.append(
-            LowConfidenceItem(target="header", kind="header", confidence=confidence.header)
+            LowConfidenceItem(target="header", kind="header", confidence=layout.header)
         )
-    for position, score in confidence.column_config.items():
+    for position, score in column_confidence.items():
         if score < threshold:
             column = display.columns.get(position)
             name = column.label if column is not None else position
@@ -35,12 +36,13 @@ def low_confidence_items(
 
 
 def build_low_confidence_issue(
-    confidence: SuggestionConfidence,
+    layout: LayoutConfidence,
+    column_confidence: dict[str, float],
     display: SuggestionDisplay,
     threshold: float,
 ) -> LowConfidenceIssue | None:
     """Build the warning issue for a suggestion's sub-threshold inferences, or None."""
-    items = low_confidence_items(confidence, display, threshold)
+    items = low_confidence_items(layout, column_confidence, display, threshold)
     if not items:
         return None
     return LowConfidenceIssue(

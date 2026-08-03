@@ -1,115 +1,90 @@
-"""Excel file-type inference for the AI strategy.
+"""Excel layout inference and reading for the AI strategy.
 
-Sheet selection stays mechanical (first visible non-empty worksheet). The model
-receives the sheet's first rows rendered as a text grid and decides the header
-location and per-column types — no delimiter (cells, not delimited text).
+Sheet selection stays mechanical (first visible non-empty worksheet), leaving the
+model one decision: where the header row is. Cells are not delimited text, so
+there is no delimiter to name.
 
-Excel stats are computed from the in-memory rows (not a DuckDB scan), so the
-worksheet is loaded locally, sliced, and any S3 temp file cleaned up here.
+Excel stats are computed from the in-memory rows rather than a DuckDB scan, so
+the worksheet is loaded locally and any S3 temp file cleaned up here.
 """
 
 from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import cast
 
-from shared.models.operation import HeaderMode
+from pydantic import Field
+
+from shared.models.operation import ExcelSourceFormat, HeaderMode, SourceFormat
 from shared.models.source import SourceRef
-from shared.models.suggestion import SuggestionConfidence
-from shared.settings import get_settings
+from shared.models.suggestion import LayoutConfidence
 from shared.storage.s3 import download_s3_temp, s3_ref
 
-from suggestion.ai.formats.base import (
-    AiColumnInference,
-    AiInferenceResult,
-    FormatInference,
-    ReconciledInference,
-    make_core_output_model,
-    pair_columns_by_position,
-)
-from suggestion.source import SourceReading
+from suggestion.ai.formats.base import InferredLayout, LayoutAnswer
+from suggestion.constants import LAYOUT_SAMPLE_ROWS
+from suggestion.source import SourceReading, read_under_format
 from suggestion.source.excel import assemble_excel_reading, read_excel_raw_rows, row_to_strings
 
-_PROMPT = """\
+_LAYOUT_PROMPT = """\
 You are given the first rows of a spreadsheet as a JSON array of rows, in order
 starting at row 1. Each row is an array of cell values (strings), left to right.
 
-Determine:
-1. Whether there is a header row, and if so its 1-based row index (matching the
-   order given); otherwise report the header as absent.
-2. For each column, left-to-right: a name, its normalized type config, and your
-   confidence (0.0-1.0) in that column's typing.
+Determine whether there is a header row, and if so its 1-based row index
+(matching the order given); otherwise report the header as absent.
 
-Also report your confidence (0.0-1.0) in the header decision.
+Report your confidence (0.0-1.0) in that decision.
 
 Spreadsheet rows:
 {sample}
 """
 
 
-class ExcelAiInferenceResult(AiInferenceResult):
-    """Model output for an Excel source (no delimiter)."""
+class ExcelLayoutAnswer(LayoutAnswer):
+    """The header row the model read off a spreadsheet grid."""
 
     header_mode: HeaderMode
     header_row_index: int | None
-    header_confidence: float
-    columns: list[AiColumnInference]
+    header_confidence: float = Field(ge=0.0, le=1.0)
 
 
-class ExcelFormatInference(FormatInference):
-    """Excel prompt, sampling, and reconciliation."""
+class ExcelFormatInference(InferredLayout[ExcelLayoutAnswer]):
+    """Excel layout inference and reading."""
 
-    output_model = ExcelAiInferenceResult
-    core_output_model = make_core_output_model(
-        "CoreExcelAiInferenceResult",
-        ExcelAiInferenceResult,
-    )
+    @property
+    def layout_answer(self) -> type[ExcelLayoutAnswer]:
+        return ExcelLayoutAnswer
 
-    def sample(self, source: SourceRef) -> str:
+    def layout_sample(self, source: SourceRef) -> str:
         _, all_rows = _load_rows(source)
-        row_count = get_settings().ai_sample_row_count
-        grid = [row_to_strings(row) for row in all_rows[:row_count]]
+        grid = [row_to_strings(row) for row in all_rows[:LAYOUT_SAMPLE_ROWS]]
         return json.dumps(grid, ensure_ascii=False, indent=2)
 
-    def build_prompt(self, sample: str) -> str:
-        return _PROMPT.format(sample=sample)
+    def build_layout_prompt(self, sample: str) -> str:
+        return _LAYOUT_PROMPT.format(sample=sample)
 
-    def reconcile(self, result: AiInferenceResult, source: SourceRef) -> ReconciledInference:
-        self.validate_result_type(result)
-        result = cast(ExcelAiInferenceResult, result)
+    def to_source_format(self, answer: ExcelLayoutAnswer, source: SourceRef) -> SourceFormat:
         sheet_name, all_rows = _load_rows(source)
-        source_format, sample_rows, column_names, inference_rows = assemble_excel_reading(
+        source_format, _, _, _ = assemble_excel_reading(
             sheet_name,
             all_rows,
-            result.header_mode,
-            result.header_row_index,
+            answer.header_mode,
+            answer.header_row_index,
         )
-        # Excel stats read the in-memory rows, so the ingestion URL is unused here.
-        reading = SourceReading(
-            source_format=source_format,
-            sample_rows=sample_rows,
-            column_names=column_names,
-            inference_rows=inference_rows,
-            ingestion_source_url=source.source_file,
-            ingestion_source_type="local",
-            cleanup_path=None,
-        )
+        return source_format
 
-        column_config, confidences = pair_columns_by_position(column_names, result.columns)
-        return ReconciledInference(
-            reading=reading,
-            column_config=column_config,
-            confidence=SuggestionConfidence(
-                delimiter=None,
-                header=result.header_confidence,
-                column_config=confidences,
-            ),
-        )
+    def layout_confidence(self, answer: ExcelLayoutAnswer) -> LayoutConfidence:
+        return LayoutConfidence(header=answer.header_confidence)
+
+    def read(self, source: SourceRef, source_format: SourceFormat) -> SourceReading:
+        if not isinstance(source_format, ExcelSourceFormat):
+            raise TypeError(f"Expected an Excel layout, got {type(source_format).__name__}.")
+        return read_under_format(source, source_format)
 
 
 def _load_rows(source: SourceRef) -> tuple[str, list[tuple[object, ...]]]:
     """Load the selected worksheet's (sheet_name, all_rows), cleaning up any S3 temp file."""
+    if source.source_file is None:
+        raise ValueError("Excel source has no source_file; it cannot be read from a sample.")
     if source.source_type == "s3":
         temp_path = download_s3_temp(s3_ref(source.source_file))
         try:

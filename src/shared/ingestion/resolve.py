@@ -20,7 +20,16 @@ class IngestionSetup:
 
 
 def resolve_ingestion_setup(source: SourceRef, source_format: SourceFormat) -> IngestionSetup:
-    """Resolve the DuckDB ingestion URL and download a temp copy when required."""
+    """Resolve the DuckDB ingestion URL and download a temp copy when required.
+
+    A source read from an inline ``sample`` has no location to ingest from yet
+    — it is only ever used to suggest, never to profile or convert — so these
+    coordinates are placeholders no downstream phase reads.
+    """
+    if source.sample is not None:
+        return IngestionSetup(url="", source_type=source.source_type, cleanup_path=None)
+    if source.source_file is None:
+        raise ValueError("Source has neither an inline sample nor a source_file.")
     if source.source_type == "s3" and isinstance(source_format, ExcelSourceFormat):
         cleanup_path = download_s3_temp(s3_ref(source.source_file))
         return IngestionSetup(

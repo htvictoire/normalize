@@ -6,6 +6,7 @@ import hashlib
 import sys
 from pathlib import Path
 
+from shared.models.instance import InstanceModel
 from shared.models.suggestion import SuggestionInput
 
 from app.bootstrap.orchestrator import MainOrchestrator
@@ -42,6 +43,17 @@ def _sha256_stream(path: Path, chunk_size: int = 1_048_576) -> str:
     return hasher.hexdigest()
 
 
+def _run_suggestion(request: SuggestionInput) -> InstanceModel:
+    """Run layout then typing synchronously.
+
+    suggest() always schedules onto a Celery worker now, which the CLI has no
+    business depending on for a local one-shot run.
+    """
+    orchestrator = MainOrchestrator()
+    instance = orchestrator.resolve_layout(request)
+    return orchestrator.type_columns(instance.instance_id)
+
+
 def run(args: list[str]) -> None:
     try:
         filename, extended_type_detection_raw, *rest = args
@@ -60,10 +72,11 @@ def run(args: list[str]) -> None:
             source_type="local",
             source_file_format=infer_format_type(input_path),
             source_checksum=_sha256_stream(input_path),
-            suggestion_method="rule_based",
+            layout_method="rule_based",
+            typing_method="rule_based",
             extended_type_detection=extended_type_detection,
         )
-        instance = MainOrchestrator().suggest(request)
+        instance = _run_suggestion(request)
     except (ValueError, FileNotFoundError) as exc:
         die(str(exc))
         return

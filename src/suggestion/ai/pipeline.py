@@ -1,10 +1,10 @@
 """
-AI suggestion pipeline — infers provisional settings via an LLM.
+AI suggestion pipeline — composes the layout and typing phases.
 
-Unlike the rule-based path (which resolves source_format heuristically up front
-and can scan stats in parallel with column inference), the AI path resolves
-source_format *from the model*, so the full-source stats scan can only run after
-the model answers. Flow: decode text -> model call -> reconcile -> scan -> assemble.
+Layout resolves the SourceFormat and parses the file under it; typing infers a
+config per parsed column. Each phase is callable on its own, so a consumer can
+present a source's columns as soon as the layout lands and wait for typing only
+where a column type actually matters.
 
 Provider (which LLM) and format (which prompt/output schema) are orthogonal:
 this module composes them and is blind to both.
@@ -13,52 +13,53 @@ this module composes them and is blind to both.
 from __future__ import annotations
 
 from shared.db.column_index import build_position_to_name
-from shared.errors import SourceError
-from shared.models.suggestion import SuggestionInput, SuggestionOutput
+from shared.models.suggestion import LayoutOutput, SuggestionInput, TypingOutput
 
 from suggestion.ai.formats import FORMATS
-from suggestion.ai.providers import FileInferenceProvider, get_inference_provider
-from suggestion.assembly import build_suggestion_output
-from suggestion.display import read_sample_values
+from suggestion.ai.layout import resolve_layout
+from suggestion.ai.providers import FileInferenceProvider
+from suggestion.ai.typing_phase import type_columns
+from suggestion.assembly import build_layout_output, build_typing_output
 from suggestion.null_tokens import infer_null_tokens
+from suggestion.source import effective_file_format
 from suggestion.stats import compute_source_stats
+
+
+def run_layout(
+    request: SuggestionInput,
+    provider: FileInferenceProvider | None = None,
+) -> LayoutOutput:
+    """Resolve and parse one source's layout, typing nothing.
+
+    ``provider`` is injectable for tests; production reads it from settings.
+    """
+    fmt = FORMATS[effective_file_format(request)]
+    reading, confidence = resolve_layout(fmt, request, provider)
+    with reading:
+        null_tokens = infer_null_tokens(reading.inference_rows, reading.column_names)
+        position_to_name = build_position_to_name(reading.column_names)
+        stats = compute_source_stats(reading, null_tokens, position_to_name)
+        return build_layout_output(reading, confidence, stats, null_tokens)
+
+
+def run_typing(
+    request: SuggestionInput,
+    layout: LayoutOutput,
+    provider: FileInferenceProvider | None = None,
+) -> TypingOutput:
+    """Type the columns of an already-resolved layout."""
+    fmt = FORMATS[effective_file_format(request)]
+    with fmt.read(request, layout.source_format) as reading:
+        column_config, column_confidence = type_columns(
+            reading, request.extended_type_detection, provider
+        )
+    return build_typing_output(layout, column_config, column_confidence)
 
 
 def run_suggestion(
     request: SuggestionInput,
     provider: FileInferenceProvider | None = None,
-) -> SuggestionOutput:
-    """Run the AI suggestion pipeline for one source file.
-
-    ``provider`` is injectable for tests; production reads it from settings.
-    """
-    fmt = FORMATS[request.source_file_format]
-    provider = provider or get_inference_provider()
-
-    sample = fmt.sample(request)
-    if not sample.strip():
-        raise SourceError(f"Source file is empty: {request.source_file_name!r}")
-    output_model = fmt.output_model_for_options(request.extended_type_detection)
-    result = provider.infer_schema(fmt.build_prompt(sample), output_model)
-    reconciled = fmt.reconcile(result, request)
-    reading = reconciled.reading
-
-    try:
-        null_tokens = infer_null_tokens(reading.inference_rows, reading.column_names)
-        position_to_name = build_position_to_name(reading.column_names)
-        stats = compute_source_stats(reading, null_tokens, position_to_name)
-        sample_values_by_position = read_sample_values(reading.inference_rows, position_to_name)
-    finally:
-        if reading.cleanup_path is not None:
-            reading.cleanup_path.unlink(missing_ok=True)
-
-    return build_suggestion_output(
-        source_format=reading.source_format,
-        column_config=reconciled.column_config,
-        null_tokens=null_tokens,
-        confidence=reconciled.confidence,
-        stats=stats,
-        sample_values_by_position=sample_values_by_position,
-        sample_rows=reading.sample_rows,
-        position_to_name=position_to_name,
-    )
+) -> tuple[LayoutOutput, TypingOutput]:
+    """Run both AI phases for one source file."""
+    layout = run_layout(request, provider)
+    return layout, run_typing(request, layout, provider)

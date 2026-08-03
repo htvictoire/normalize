@@ -14,7 +14,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from uuid import UUID
 
-from shared.errors import InvalidStateError, SourceError
+from shared.errors import InvalidRequestError, InvalidStateError, SourceError
 from shared.models.instance import InstanceModel, InstanceStatus
 from shared.models.instance_config import InstanceConfig
 from shared.models.source import SourceRef
@@ -27,6 +27,34 @@ from app.bootstrap.suggestion import SuggestionService
 from app.bootstrap.validation import validate_file_format, validate_source_path
 from app.bootstrap.webhook import send_webhook
 from app.infra.postgres.repository import PostgresRunRepository
+from app.worker.tasks import run_suggestion_task
+
+
+def _suggestion_input(instance: InstanceModel) -> SuggestionInput:
+    """Rebuild the request a stored instance was created from."""
+    return SuggestionInput(
+        source_file=instance.source_file,
+        source_file_name=instance.source_file_name,
+        source_type=instance.source_type,
+        source_file_format=instance.source_file_format,
+        source_checksum=instance.source_checksum,
+        layout_method=instance.layout_method,
+        typing_method=instance.typing_method,
+        extended_type_detection=instance.extended_type_detection,
+        webhook_url=instance.webhook_url,
+    )
+
+
+def _with_columns(config: InstanceConfig) -> InstanceConfig:
+    """Return the config, rejecting one that declares no columns.
+
+    A source with no columns has nothing to normalize. Rejected at the boundary
+    it enters rather than left to fail downstream, where the absence surfaces as
+    an internal lookup error.
+    """
+    if not config.column_config:
+        raise SourceError("The configuration declares no columns.")
+    return config
 
 
 class MainOrchestrator:
@@ -50,49 +78,117 @@ class MainOrchestrator:
             return
         send_webhook(instance.webhook_url, instance)
 
-    def suggest(
+    def suggest(self, request: SuggestionInput) -> InstanceModel:
+        """Schedule both suggestion phases in the background, returning immediately.
+
+        Layout and typing are both network-bound (AI calls, or a full source read);
+        nothing about the caller waiting for them helps, so this always dispatches
+        to a background task rather than blocking the request. A caller that wants
+        the result inline uses resolve_layout() then type_columns() instead, which
+        stay synchronous and still require a real source_file.
+        """
+        instance = self._create_source_instance(request)
+        instance.timings.suggest_started_at = datetime.now(UTC)
+        self._repository.save(instance)
+        run_suggestion_task.delay(str(instance.instance_id), request.model_dump(mode="json"))
+        return instance
+
+    def resolve_layout(self, request: SuggestionInput) -> InstanceModel:
+        """Run the layout phase alone, leaving the instance ready to be typed."""
+        if request.source_file is None:
+            raise InvalidRequestError(
+                "The layout phase requires source_file. Only suggest() accepts a "
+                "draft, sample-only source."
+            )
+        started_at = datetime.now(UTC)
+        instance = self._create_source_instance(request)
+        instance.set_layout_output(self._suggestion_service.resolve_layout(request))
+        instance.timings.suggest_started_at = started_at
+        self._repository.save(instance)
+        self._notify(instance)
+        return instance
+
+    def type_columns(self, instance_id: UUID) -> InstanceModel:
+        """Type the columns of an instance whose layout is already resolved."""
+        instance = self._repository.get_required(instance_id)
+        if instance.is_draft:
+            raise InvalidStateError(
+                f"instance {instance_id} is a draft; attach a source_file at confirm first"
+            )
+        layout = instance.layout_output
+        if layout is None:
+            raise InvalidStateError(f"instance {instance_id} has no resolved layout")
+        instance.set_typing_output(
+            self._suggestion_service.type_columns(_suggestion_input(instance), layout)
+        )
+        instance.timings.suggest_ended_at = datetime.now(UTC)
+        self._repository.save(instance)
+        self._notify(instance)
+        return instance
+
+    def create_confirmed(
         self,
         request: SuggestionInput,
+        confirmed_config: InstanceConfig,
     ) -> InstanceModel:
-        started_at = datetime.now(UTC)
-        validate_source_path(request)
-        validate_file_format(request)
-        result = self._suggestion_service.suggest(request)
-        # A source with no columns has nothing to normalize. Rejected here rather than
-        # left to fail downstream, where the absence surfaces as an internal lookup error.
-        if not result.suggested_config.column_config:
-            raise SourceError(f"{request.source_file_name!r} contains no columns.")
-        instance = InstanceModel.create(
-            source_file=request.source_file,
-            source_file_name=request.source_file_name,
-            source_type=request.source_type,
-            source_file_format=request.source_file_format,
-            source_checksum=request.source_checksum,
-            suggestion_method=request.suggestion_method,
-            extended_type_detection=request.extended_type_detection,
-        )
-        instance.webhook_url = request.webhook_url
-        instance.set_suggestion_output(
-            suggested_config=result.suggested_config,
-            confidence=result.confidence,
-            display=result.display,
-        )
-        instance.record_issues("suggestion", result.issues)
-        instance.timings.suggest_started_at = started_at
-        instance.timings.suggest_ended_at = datetime.now(UTC)
-        instance.timings.estimated_pipeline_seconds = result.estimated_pipeline_seconds
+        """Create an instance from a caller-supplied config, running no inference."""
+        if request.source_file is None:
+            raise InvalidRequestError(
+                "create_confirmed requires source_file; it accepts no draft, "
+                "sample-only source."
+            )
+        instance = self._create_source_instance(request)
+        instance.confirm(_with_columns(confirmed_config))
         self._repository.save(instance)
+        self._notify(instance)
         return instance
 
     def confirm(
         self,
         instance_id: UUID,
         confirmed_config: InstanceConfig,
+        source_file: str | None = None,
     ) -> InstanceModel:
         instance = self._repository.get_required(instance_id)
-        instance.confirm(confirmed_config)
+        if instance.is_draft:
+            if source_file is None:
+                raise InvalidRequestError(
+                    f"instance {instance_id} is a draft; confirm must supply source_file"
+                )
+            instance.attach_source(source_file)
+            source = SourceRef(
+                source_file=instance.source_file,
+                source_file_name=instance.source_file_name,
+                source_type=instance.source_type,
+                source_file_format=instance.source_file_format,
+            )
+            validate_source_path(source)
+            validate_file_format(source)
+        instance.confirm(_with_columns(confirmed_config))
         self._repository.save(instance)
         self._notify(instance)
+        return instance
+
+    def _create_source_instance(self, request: SuggestionInput) -> InstanceModel:
+        """Validate a source and open a pending instance over it.
+
+        A draft (sample-only, no source_file yet) has nothing to validate against
+        storage; validation runs again once a real source_file is attached at confirm.
+        """
+        if request.source_file is not None:
+            validate_source_path(request)
+            validate_file_format(request)
+        instance = InstanceModel.create(
+            source_file=request.source_file,
+            source_file_name=request.source_file_name,
+            source_type=request.source_type,
+            source_file_format=request.source_file_format,
+            source_checksum=request.source_checksum,
+            layout_method=request.layout_method,
+            typing_method=request.typing_method,
+            extended_type_detection=request.extended_type_detection,
+        )
+        instance.webhook_url = request.webhook_url
         return instance
 
     @contextmanager

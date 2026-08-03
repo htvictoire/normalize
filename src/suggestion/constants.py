@@ -26,6 +26,17 @@ DISPLAY_RAW_ROWS = 15
 DISPLAY_VALUES_PER_COLUMN = 10
 
 # ---------------------------------------------------------------------------
+# AI inference sampling
+# ---------------------------------------------------------------------------
+
+# Rows shown to the model when it decides a source's layout. A delimiter and a
+# header row are decidable from far fewer rows than a column type is.
+LAYOUT_SAMPLE_ROWS = 20
+
+# Non-null values per column shown to the model when it types that column.
+TYPING_VALUES_PER_COLUMN = 30
+
+# ---------------------------------------------------------------------------
 # Default operation config
 # ---------------------------------------------------------------------------
 # Pre-populate the suggested InstanceConfig after suggestion.

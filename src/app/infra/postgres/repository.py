@@ -42,26 +42,26 @@ class PostgresRunRepository:
                 INSERT INTO normalization_runs (
                     instance_id, tenant_id, status, webhook_url,
                     source_file, source_file_name, source_file_format,
-                    source_type, source_checksum, suggestion_method,
+                    source_type, source_checksum, layout_method, typing_method,
                     extended_type_detection,
-                    suggested_config, suggestion_display, suggestion_confidence,
+                    layout_output, typing_output,
                     confirmed_config, profiling_output, normalization_output,
                     failure_reason, timings, issues_by_phase
                 ) VALUES (
                     %s, %s, %s, %s,
                     %s, %s, %s,
-                    %s, %s, %s,
+                    %s, %s, %s, %s,
                     %s,
-                    %s::jsonb, %s::jsonb, %s::jsonb,
+                    %s::jsonb, %s::jsonb,
                     %s::jsonb, %s::jsonb, %s::jsonb,
                     %s, %s::jsonb, %s::jsonb
                 )
                 ON CONFLICT (instance_id) DO UPDATE SET
                     status                = EXCLUDED.status,
                     webhook_url           = EXCLUDED.webhook_url,
-                    suggested_config      = EXCLUDED.suggested_config,
-                    suggestion_display    = EXCLUDED.suggestion_display,
-                    suggestion_confidence = EXCLUDED.suggestion_confidence,
+                    source_file           = EXCLUDED.source_file,
+                    layout_output         = EXCLUDED.layout_output,
+                    typing_output         = EXCLUDED.typing_output,
                     confirmed_config      = EXCLUDED.confirmed_config,
                     profiling_output      = EXCLUDED.profiling_output,
                     normalization_output  = EXCLUDED.normalization_output,
@@ -73,11 +73,11 @@ class PostgresRunRepository:
                 (
                     r["instance_id"], r["tenant_id"], r["status"], r["webhook_url"],
                     r["source_file"], r["source_file_name"], r["source_file_format"],
-                    r["source_type"], r["source_checksum"], r["suggestion_method"],
+                    r["source_type"], r["source_checksum"],
+                    r["layout_method"], r["typing_method"],
                     r["extended_type_detection"],
-                    _as_jsonb(r["suggested_config"]),
-                    _as_jsonb(r["suggestion_display"]),
-                    _as_jsonb(r["suggestion_confidence"]),
+                    _as_jsonb(r["layout_output"]),
+                    _as_jsonb(r["typing_output"]),
                     _as_jsonb(r["confirmed_config"]),
                     _as_jsonb(r["profiling_output"]),
                     _as_jsonb(r["normalization_output"]),
@@ -94,9 +94,9 @@ class PostgresRunRepository:
                 """
                 SELECT instance_id, tenant_id, status, webhook_url,
                        source_file, source_file_name, source_file_format,
-                       source_type, source_checksum, suggestion_method,
+                       source_type, source_checksum, layout_method, typing_method,
                        extended_type_detection,
-                       suggested_config, suggestion_display, suggestion_confidence,
+                       layout_output, typing_output,
                        confirmed_config, profiling_output, normalization_output,
                        failure_reason, timings, issues_by_phase
                 FROM normalization_runs
@@ -117,11 +117,11 @@ class PostgresRunRepository:
             "source_file_format":   row[6],
             "source_type":          row[7],
             "source_checksum":      row[8],
-            "suggestion_method":    row[9],
-            "extended_type_detection": row[10],
-            "suggested_config":     row[11],
-            "suggestion_display":   row[12],
-            "suggestion_confidence": row[13],
+            "layout_method":        row[9],
+            "typing_method":        row[10],
+            "extended_type_detection": row[11],
+            "layout_output":        row[12],
+            "typing_output":        row[13],
             "confirmed_config":     row[14],
             "profiling_output":     row[15],
             "normalization_output": row[16],
@@ -169,16 +169,16 @@ class PostgresRunRepository:
                     tenant_id            TEXT        NOT NULL,
                     status               TEXT        NOT NULL,
                     webhook_url          TEXT,
-                    source_file          TEXT        NOT NULL,
+                    source_file          TEXT,
                     source_file_name     TEXT        NOT NULL,
                     source_file_format   TEXT        NOT NULL,
                     source_type          TEXT        NOT NULL,
                     source_checksum      TEXT        NOT NULL,
-                    suggestion_method     TEXT        NOT NULL DEFAULT 'rule_based',
+                    layout_method        TEXT        NOT NULL DEFAULT 'rule_based',
+                    typing_method        TEXT        NOT NULL DEFAULT 'rule_based',
                     extended_type_detection BOOLEAN   NOT NULL DEFAULT FALSE,
-                    suggested_config      JSONB,
-                    suggestion_display    JSONB,
-                    suggestion_confidence JSONB,
+                    layout_output         JSONB,
+                    typing_output         JSONB,
                     confirmed_config      JSONB,
                     profiling_output      JSONB,
                     normalization_output  JSONB,
@@ -188,36 +188,6 @@ class PostgresRunRepository:
                     created_at            TIMESTAMPTZ NOT NULL DEFAULT NOW(),
                     updated_at            TIMESTAMPTZ NOT NULL DEFAULT NOW()
                 )
-                """
-            )
-            cur.execute(
-                """
-                ALTER TABLE normalization_runs
-                    ADD COLUMN IF NOT EXISTS suggestion_method TEXT NOT NULL DEFAULT 'rule_based'
-                """
-            )
-            cur.execute(
-                """
-                ALTER TABLE normalization_runs
-                    ADD COLUMN IF NOT EXISTS extended_type_detection BOOLEAN NOT NULL DEFAULT FALSE
-                """
-            )
-            cur.execute(
-                """
-                ALTER TABLE normalization_runs
-                    ADD COLUMN IF NOT EXISTS suggestion_confidence JSONB
-                """
-            )
-            cur.execute(
-                """
-                ALTER TABLE normalization_runs
-                    ADD COLUMN IF NOT EXISTS failure_reason TEXT
-                """
-            )
-            cur.execute(
-                """
-                ALTER TABLE normalization_runs
-                    ADD COLUMN IF NOT EXISTS issues_by_phase JSONB
                 """
             )
 

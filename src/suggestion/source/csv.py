@@ -36,11 +36,15 @@ def read_csv_column_names_and_inference_rows(
     delimiter: str,
     header_mode: str,
     header_row_index: int | None,
-) -> tuple[list[str], list[list[str]]]:
-    """Parse column names and all data rows from decoded CSV text."""
+) -> tuple[list[str], list[list[str]], int]:
+    """Parse column names, data rows, and the count of rows rejected as ragged.
+
+    A row whose field count differs from the header's cannot be positioned, so it
+    is excluded from inference and counted rather than dropped in silence.
+    """
     rows = list(csv.reader(text.splitlines(), delimiter=delimiter))
     if not rows:
-        return [], []
+        return [], [], 0
 
     first_non_empty_row = next((row for row in rows if row), rows[0])
     col_count = len(first_non_empty_row)
@@ -57,7 +61,9 @@ def read_csv_column_names_and_inference_rows(
         column_names = [f"col_{i}" for i in range(col_count)]
         data_start = 0
 
-    return column_names, [row for row in rows[data_start:] if len(row) == col_count]
+    data_rows = rows[data_start:]
+    inference_rows = [row for row in data_rows if len(row) == col_count]
+    return column_names, inference_rows, len(data_rows) - len(inference_rows)
 
 
 def read_csv_sample_rows(text: str, delimiter: str) -> list[list[str]]:

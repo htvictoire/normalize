@@ -38,6 +38,14 @@ class InferenceValidationError(InferenceError):
     """The provider replied, but its output could not be validated as the schema."""
 
 
+class LayoutVerificationError(InferenceError):
+    """The resolved layout does not parse the source coherently.
+
+    Carries the layout that was tried and how it broke; no other layout is
+    substituted for the caller.
+    """
+
+
 class ProviderUnreachableError(InferenceError):
     """The inference provider could not be reached or gave no usable response."""
 

@@ -78,21 +78,20 @@ class AccountingColumnConfig(SignedNotationColumnConfig):
 class DateColumnConfig(MainModel):
     """Declared date column configuration.
 
+    Spreadsheet serial-number dates (integers near 45000, often labelled
+    serial/posting/period) are date columns, not integer columns.
+
     Formats are not per-column; parsing uses the canonical chain in
     ``shared.parsing.temporal``.
     """
 
     day_first: bool = Field(
+        default=False,
         description=(
             "Whether numeric day/month values read day-first: true parses "
-            "01/02/2023 as 1 February, false as January 2. Decide from "
-            "unambiguous values (a first field greater than 12 proves "
-            "day-first); if every value is ambiguous, choose from the column's "
-            "locale context and reflect the uncertainty in the confidence. A "
-            "column of spreadsheet serial-number dates (integers near 45000, "
-            "often labelled serial/posting/period) is a date column, not an "
-            "integer column; the engine converts serials to dates (use false)."
-        )
+            "01/02/2023 as 1 February, false as January 2. Inferred from the "
+            "column's own values by shared.parsing.temporal_matching."
+        ),
     )
     type: Literal["date"] = "date"
 
@@ -105,13 +104,12 @@ class DateTimeColumnConfig(MainModel):
     """
 
     day_first: bool = Field(
+        default=False,
         description=(
             "Whether numeric day/month values read day-first: true parses "
-            "01/02/2023 04:05 as 1 February, false as January 2. Decide from "
-            "unambiguous values (a first field greater than 12 proves "
-            "day-first); if every value is ambiguous, choose from the column's "
-            "locale context and reflect the uncertainty in the confidence."
-        )
+            "01/02/2023 04:05 as 1 February, false as January 2. Inferred from "
+            "the column's own values by shared.parsing.temporal_matching."
+        ),
     )
     type: Literal["datetime"] = "datetime"
 

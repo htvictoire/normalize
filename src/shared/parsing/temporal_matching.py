@@ -1,8 +1,9 @@
-"""Temporal type detection and day/month order inference for column type inference.
+"""How many raw values parse against each temporal format chain, and in which order.
 
-Match counting runs the canonical format chains from ``shared.parsing.temporal``
-via Python's ``strptime``. ``day_first`` follows the order that parses more
-values; a tie resolves month-first.
+Match counting runs the canonical chains from ``shared.parsing.temporal`` via
+Python's ``strptime``. ``day_first`` follows the order that parses more values;
+a tie resolves month-first. Every inference strategy decides the order here, so
+a column's declared order never depends on which strategy typed it.
 """
 
 from __future__ import annotations

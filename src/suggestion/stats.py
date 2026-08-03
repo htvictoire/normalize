@@ -26,13 +26,20 @@ def compute_source_stats(
     null_tokens: tuple[str, ...],
     position_to_name: dict[str, str],
 ) -> ColumnCountResult:
-    """Return exact (row_count, column_counts) without materializing a table."""
+    """Return (row_count, column_counts), exact unless read from an inline sample.
+
+    Excel is always fully materialized in memory (never a DuckDB scan), so its
+    counts are exact from ``inference_rows`` directly. A sample-based CSV/JSON
+    reading has no real location to scan yet — ``inference_rows`` is everything
+    there is, so counts are computed the same way and are exact only insofar as
+    the sample covers the whole file.
+    """
     if not position_to_name:
         name = PurePosixPath(reading.ingestion_source_url).name
         raise SourceError(f"{name!r} contains no columns.")
 
-    if isinstance(reading.source_format, ExcelSourceFormat):
-        return _excel_stats(reading, null_tokens, position_to_name)
+    if isinstance(reading.source_format, ExcelSourceFormat) or reading.is_sample_based:
+        return _in_memory_stats(reading, null_tokens, position_to_name)
     if isinstance(reading.source_format, CsvSourceFormat):
         return _scan_stats(
             reading,
@@ -96,7 +103,7 @@ def _first_line(exc: Exception) -> str:
     return str(exc).strip().splitlines()[0]
 
 
-def _excel_stats(
+def _in_memory_stats(
     reading: SourceReading,
     null_tokens: tuple[str, ...],
     position_to_name: dict[str, str],
